@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บันทึกเงินสด / เช็ค</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --o: #E8631A;
+    --g: #007B40;
+    --r: #C8102E;
+    --ink: #1A1A1A;
+    --muted: #666;
+    --border: #D0CEC9;
+    --surface: #F7F5F2;
+    --white: #fff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', sans-serif; background: var(--surface); color: var(--ink); min-height: 100vh; }
+
+  .header {
+    background: var(--white);
+    border-bottom: 3px solid var(--o);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-bar { display: flex; gap: 3px; }
+  .logo-bar span { display: block; width: 8px; height: 32px; border-radius: 2px; }
+  .logo-bar .r { background: var(--r); }
+  .logo-bar .g { background: var(--g); }
+  .logo-bar .o { background: var(--o); }
+  .header-text h1 { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .header-text p  { font-size: 12px; color: var(--muted); }
+
+  .container { max-width: 600px; margin: 24px auto; padding: 0 16px 40px; }
+
+  .tabs { display: flex; gap: 0; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--border); margin-bottom: 20px; }
+  .tab-btn {
+    flex: 1; padding: 12px; text-align: center; font-size: 15px; font-weight: 600;
+    background: var(--white); cursor: pointer; border: none; font-family: 'Sarabun', sans-serif;
+    transition: background .15s, color .15s;
+  }
+  .tab-btn.active { background: var(--o); color: var(--white); }
+  .tab-btn:not(:last-child) { border-right: 1.5px solid var(--border); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card { background: var(--white); border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .card + .card { margin-top: 16px; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-size: 15px; font-family: 'Sarabun', sans-serif; background: var(--white);
+    outline: none; transition: border-color .15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--o); }
+  .field textarea { resize: vertical; min-height: 72px; }
+  .field.required label::after { content: ' *'; color: var(--r); }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .btn-submit {
+    width: 100%; padding: 14px; background: var(--o); color: var(--white); border: none;
+    border-radius: 10px; font-size: 16px; font-weight: 700; font-family: 'Sarabun', sans-serif;
+    cursor: pointer; margin-top: 8px; transition: opacity .15s;
+  }
+  .btn-submit:disabled { opacity: .5; cursor: default; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--ink); color: var(--white); padding: 12px 24px; border-radius: 24px;
+    font-size: 14px; font-weight: 600; transition: transform .25s; z-index: 999; white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.ok   { background: var(--g); }
+  .toast.err  { background: var(--r); }
+
+  .section-title { font-size: 13px; font-weight: 700; color: var(--o); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-bar"><span class="r"></span><span class="g"></span><span class="o"></span></div>
+  <div class="header-text">
+    <h1>NCO DSR Portal</h1>
+    <p>บันทึกเงินสด / เช็ค</p>
+  </div>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('cash')">เงินสด</button>
+    <button class="tab-btn"        onclick="switchTab('cheque')">เช็ค</button>
+  </div>
+
+  <!-- CASH PANEL -->
+  <div id="panel-cash" class="panel active">
+    <div class="card">
+      <div class="section-title">บันทึกรับเงินสด</div>
+      <div class="field required">
+        <label>วันที่</label>
+        <input type="date" id="cash-date">
+      </div>
+      <div class="row2">
+        <div class="field required">
+          <label>รหัสลูกค้า</label>
+          <input type="text" id="cash-cust-code" placeholder="เช่น 113-82">
+        </div>
+        <div class="field">
+          <label>ชื่อลูกค้า</label>
+          <input type="text" id="cash-cust-name" placeholder="ชื่อร้าน">
+        </div>
+      </div>
+      <div class="field required">
+        <label>เลขบิล</label>
+        <input type="text" id="cash-invoice" placeholder="เช่น 370-18457">
+      </div>
+      <div class="field required">
+        <label>จำนวนเงิน (บาท)</label>
+        <input type="number" id="cash-amount" placeholder="0.00" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <label>หมายเหตุ</label>
+        <textarea id="cash-note" placeholder="(ถ้ามี)"></textarea>
+      </div>
+      <button class="btn-submit" id="btn-cash" onclick="submitCash()">บันทึกเงินสด</button>
+    </div>
+  </div>
+
+  <!-- CHEQUE PANEL -->
+  <div id="panel-cheque" class="panel">
+    <div class="card">
+      <div class="section-title">บันทึกรับเช็ค</div>
+      <div class="field required">
+        <label>วันที่รับ</label>
+        <input type="date" id="chq-date">
+      </div>
+      <div class="row2">
+        <div class="field required">
+          <label>รหัสลูกค้า</label>
+          <input type="text" id="chq-cust-code" placeholder="เช่น 113-82">
+        </div>
+        <div class="field">
+          <label>ชื่อลูกค้า</label>
+          <input type="text" id="chq-cust-name" placeholder="ชื่อร้าน">
+        </div>
+      </div>
+      <div class="field required">
+        <label>เลขบิล</label>
+        <input type="text" id="chq-invoice" placeholder="เช่น 370-18457">
+      </div>
+      <div class="field required">
+        <label>จำนวนเงิน (บาท)</label>
+        <input type="number" id="chq-amount" placeholder="0.00" min="0" step="0.01">
+      </div>
+      <div class="row2">
+        <div class="field required">
+          <label>วันที่บนเช็ค</label>
+          <input type="date" id="chq-cheque-date">
+        </div>
+        <div class="field required">
+          <label>เลขที่เช็ค</label>
+          <input type="text" id="chq-cheque-no" placeholder="xxxxxxxxx">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field required">
+          <label>ธนาคาร</label>
+          <select id="chq-bank">
+            <option value="">-- เลือกธนาคาร --</option>
+            <option>กรุงเทพ</option>
+            <option>กสิกรไทย</option>
+            <option>ไทยพาณิชย์</option>
+            <option>กรุงไทย</option>
+            <option>กรุงศรีอยุธยา</option>
+            <option>ทหารไทยธนชาต</option>
+            <option>ออมสิน</option>
+            <option>ธ.ก.ส.</option>
+            <option>อื่นๆ</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>สาขา</label>
+          <input type="text" id="chq-branch" placeholder="ชื่อสาขา">
+        </div>
+      </div>
+      <div class="field">
+        <label>หมายเหตุ</label>
+        <textarea id="chq-note" placeholder="(ถ้ามี)"></textarea>
+      </div>
+      <button class="btn-submit" id="btn-chq" onclick="submitCheque()">บันทึกเช็ค</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // Set today as default date
+  var today = new Date().toLocaleDateString('en-CA'); // yyyy-MM-dd
+  document.getElementById('cash-date').value = today;
+  document.getElementById('chq-date').value  = today;
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(function(b, i){
+      b.classList.toggle('active', (i === 0 && tab === 'cash') || (i === 1 && tab === 'cheque'));
+    });
+    document.getElementById('panel-cash').classList.toggle('active',   tab === 'cash');
+    document.getElementById('panel-cheque').classList.toggle('active', tab === 'cheque');
+  }
+
+  function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + (type || '');
+    setTimeout(function(){ t.className = 'toast'; }, 3000);
+  }
+
+  function setLoading(btnId, loading) {
+    var btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.textContent = loading ? 'กำลังบันทึก...' : (btnId === 'btn-cash' ? 'บันทึกเงินสด' : 'บันทึกเช็ค');
+  }
+
+  function submitCash() {
+    var code   = document.getElementById('cash-cust-code').value.trim();
+    var inv    = document.getElementById('cash-invoice').value.trim();
+    var amount = parseFloat(document.getElementById('cash-amount').value);
+    if (!code || !inv || !amount || amount <= 0) {
+      showToast('กรุณากรอกข้อมูลที่จำเป็นให้ครบ', 'err'); return;
+    }
+    setLoading('btn-cash', true);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        setLoading('btn-cash', false);
+        if (res && res.appended) {
+          showToast('บันทึกเงินสดสำเร็จ', 'ok');
+          clearCash();
+        } else {
+          showToast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'err');
+        }
+      })
+      .withFailureHandler(function(err) {
+        setLoading('btn-cash', false);
+        showToast(err.message || 'เกิดข้อผิดพลาด', 'err');
+      })
+      .handleApiCall('SAVE_CASH', { data: {
+        log_date:      document.getElementById('cash-date').value,
+        customer_code: code,
+        customer_name: document.getElementById('cash-cust-name').value.trim(),
+        invoice_no:    inv,
+        amount:        amount,
+        note:          document.getElementById('cash-note').value.trim(),
+      }});
+  }
+
+  function submitCheque() {
+    var code     = document.getElementById('chq-cust-code').value.trim();
+    var inv      = document.getElementById('chq-invoice').value.trim();
+    var amount   = parseFloat(document.getElementById('chq-amount').value);
+    var chequeNo = document.getElementById('chq-cheque-no').value.trim();
+    var bank     = document.getElementById('chq-bank').value;
+    if (!code || !inv || !amount || amount <= 0 || !chequeNo || !bank) {
+      showToast('กรุณากรอกข้อมูลที่จำเป็นให้ครบ', 'err'); return;
+    }
+    setLoading('btn-chq', true);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        setLoading('btn-chq', false);
+        if (res && res.appended) {
+          showToast('บันทึกเช็คสำเร็จ', 'ok');
+          clearCheque();
+        } else {
+          showToast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'err');
+        }
+      })
+      .withFailureHandler(function(err) {
+        setLoading('btn-chq', false);
+        showToast(err.message || 'เกิดข้อผิดพลาด', 'err');
+      })
+      .handleApiCall('SAVE_CHEQUE', { data: {
+        log_date:      document.getElementById('chq-date').value,
+        customer_code: code,
+        customer_name: document.getElementById('chq-cust-name').value.trim(),
+        invoice_no:    inv,
+        amount:        amount,
+        cheque_date:   document.getElementById('chq-cheque-date').value,
+        cheque_no:     chequeNo,
+        bank_name:     bank,
+        branch_name:   document.getElementById('chq-branch').value.trim(),
+        note:          document.getElementById('chq-note').value.trim(),
+      }});
+  }
+
+  function clearCash() {
+    ['cash-cust-code','cash-cust-name','cash-invoice','cash-amount','cash-note']
+      .forEach(function(id){ document.getElementById(id).value = ''; });
+    document.getElementById('cash-date').value = today;
+  }
+
+  function clearCheque() {
+    ['chq-cust-code','chq-cust-name','chq-invoice','chq-amount',
+     'chq-cheque-no','chq-branch','chq-note']
+      .forEach(function(id){ document.getElementById(id).value = ''; });
+    document.getElementById('chq-date').value       = today;
+    document.getElementById('chq-cheque-date').value = '';
+    document.getElementById('chq-bank').value        = '';
+  }
+</script>
+</body>
+</html>

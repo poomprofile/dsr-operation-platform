@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>ใบสรุปเงินสด/เช็ค</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --o: #E8631A;
+    --g: #007B40;
+    --r: #C8102E;
+    --ink: #1A1A1A;
+    --border: #999;
+    --light: #f2f2f2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', sans-serif; font-size: 11pt; color: var(--ink); background: #fff; }
+
+  /* ── Loading screen ── */
+  #loading {
+    position: fixed; inset: 0; background: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    font-size: 15px; color: #666;
+  }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid #eee;
+    border-top-color: var(--o); border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Print document ── */
+  #doc { display: none; padding: 10mm 14mm; }
+
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+
+  .logo-block { display: flex; flex-direction: column; gap: 2px; }
+  .logo-castrol {
+    font-size: 20pt; font-weight: 700; color: var(--g); letter-spacing: 1px; line-height: 1;
+  }
+  .logo-castrol span { color: var(--o); }
+  .logo-sub { font-size: 8pt; color: #555; }
+
+  .doc-title { text-align: center; }
+  .doc-title h2 { font-size: 14pt; font-weight: 700; color: var(--ink); }
+  .doc-title p  { font-size: 9pt; color: #555; margin-top: 2px; }
+
+  .doc-meta { text-align: right; font-size: 9pt; color: #555; line-height: 1.6; }
+  .doc-meta strong { color: var(--ink); font-size: 10pt; }
+
+  .divider { border: none; border-top: 2px solid var(--o); margin: 8px 0; }
+  .section-title {
+    font-size: 10pt; font-weight: 700; color: var(--white);
+    background: var(--g); padding: 4px 10px; margin: 10px 0 4px;
+    border-radius: 2px;
+  }
+  .section-title.transfer { background: #1565C0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  th {
+    background: var(--light); border: 1px solid var(--border);
+    padding: 4px 6px; text-align: center; font-weight: 700; white-space: nowrap;
+  }
+  td {
+    border: 1px solid var(--border); padding: 3px 6px; vertical-align: middle;
+  }
+  td.num { text-align: right; }
+  td.center { text-align: center; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .subtotal td { background: #e8f5e9 !important; font-weight: 700; }
+  .subtotal td.num { color: var(--g); }
+
+  .footer-box {
+    margin-top: 12px; border: 1.5px solid var(--border); border-radius: 4px; padding: 10px 14px;
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+  }
+  .footer-item { text-align: center; flex: 1; }
+  .footer-item label { font-size: 8pt; color: #666; display: block; margin-bottom: 3px; }
+  .footer-item .amount { font-size: 13pt; font-weight: 700; }
+  .footer-item .amount.cash    { color: var(--g); }
+  .footer-item .amount.cheque  { color: #1565C0; }
+  .footer-item .amount.net     { color: var(--o); }
+  .footer-item .amount.expense { color: var(--r); }
+
+  .net-box {
+    margin-top: 10px; background: #FFF3E0; border: 2px solid var(--o);
+    border-radius: 6px; padding: 10px 16px; display: flex;
+    justify-content: space-between; align-items: center;
+  }
+  .net-box .label { font-size: 11pt; font-weight: 700; color: var(--ink); }
+  .net-box .value { font-size: 16pt; font-weight: 700; color: var(--o); }
+  .net-box .formula { font-size: 8pt; color: #888; }
+
+  .expense-row { font-size: 8pt; color: #666; margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .expense-row span strong { color: var(--r); }
+
+  .sig-row { display: flex; gap: 24px; margin-top: 16px; }
+  .sig-box { flex: 1; border-top: 1px solid #999; padding-top: 6px; text-align: center; font-size: 9pt; color: #555; }
+
+  .no-data { text-align: center; color: #aaa; padding: 12px; font-style: italic; }
+
+  @media print {
+    body { background: #fff; }
+    #loading { display: none !important; }
+    #doc { display: block !important; }
+    @page { size: A4 landscape; margin: 10mm 14mm; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <span>กำลังโหลดข้อมูล...</span>
+</div>
+
+<div id="doc"></div>
+
+<script>
+  var initEmail = '<?= email ?>';
+  var initWeek  = '<?= week ?>';
+
+  function fmt(n) {
+    return (parseFloat(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function renderDoc(d) {
+    var t = d.totals;
+    var cashRows = (d.cash || []).map(function(r, i) {
+      return '<tr><td class="center">' + (i+1) + '</td>' +
+        '<td>' + (r.customer_code||'') + '</td>' +
+        '<td>' + (r.customer_name||'') + '</td>' +
+        '<td>' + (r.invoice_no||'') + '</td>' +
+        '<td>' + (r.log_date||'') + '</td>' +
+        '<td class="num">' + fmt(r.amount) + '</td>' +
+        '<td>' + (r.note||'') + '</td></tr>';
+    }).join('');
+
+    var chequeRows = (d.cheque || []).map(function(r, i) {
+      return '<tr><td class="center">' + (i+1) + '</td>' +
+        '<td>' + (r.customer_code||'') + '</td>' +
+        '<td>' + (r.customer_name||'') + '</td>' +
+        '<td>' + (r.invoice_no||'') + '</td>' +
+        '<td class="num">' + fmt(r.amount) + '</td>' +
+        '<td class="center">' + (r.cheque_date||'') + '</td>' +
+        '<td>' + (r.cheque_no||'') + '</td>' +
+        '<td>' + (r.bank_name||'') + '</td>' +
+        '<td>' + (r.branch_name||'') + '</td>' +
+        '<td>' + (r.note||'') + '</td></tr>';
+    }).join('');
+
+    var expenseDetail = 'ค่าน้ำมัน <strong>' + fmt(t.fuel) + '</strong> | ' +
+      'ค้างคืน <strong>' + fmt(t.accommodation) + '</strong> | ' +
+      'เบี้ยเลี้ยง <strong>' + fmt(t.daily_allowance) + '</strong> | ' +
+      'บำรุงรักษา <strong>' + fmt(t.maintenance) + '</strong>';
+
+    document.getElementById('doc').innerHTML =
+      '<div class="page-header">' +
+        '<div class="logo-block">' +
+          '<div class="logo-castrol">C<span>A</span>STROL</div>' +
+          '<div class="logo-sub">Nice Center Oil Co., Ltd.</div>' +
+        '</div>' +
+        '<div class="doc-title">' +
+          '<h2>ใบสรุปเงินสด / เช็ค</h2>' +
+          '<p>สัปดาห์ที่ ' + d.week_number + ' &nbsp;|&nbsp; ' + d.week_range + '</p>' +
+        '</div>' +
+        '<div class="doc-meta">' +
+          '<strong>' + (d.dsr_name||'') + '</strong><br>' +
+          'พิมพ์: ' + (d.print_date||'') +
+        '</div>' +
+      '</div>' +
+      '<hr class="divider">' +
+
+      '<div class="section-title">เงินสด</div>' +
+      '<table>' +
+        '<thead><tr>' +
+          '<th>#</th><th>รหัสลูกค้า</th><th>ชื่อลูกค้า</th>' +
+          '<th>เลขบิล</th><th>วันที่</th><th>จำนวนเงิน (฿)</th><th>หมายเหตุ</th>' +
+        '</tr></thead>' +
+        '<tbody>' + (cashRows || '<tr><td colspan="7" class="no-data">ไม่มีรายการ</td></tr>') +
+          (d.cash && d.cash.length ? '<tr class="subtotal"><td colspan="5" style="text-align:right">รวมเงินสด</td><td class="num">' + fmt(t.cash) + '</td><td></td></tr>' : '') +
+        '</tbody>' +
+      '</table>' +
+
+      '<div class="section-title">เช็ค</div>' +
+      '<table>' +
+        '<thead><tr>' +
+          '<th>#</th><th>รหัสลูกค้า</th><th>ชื่อลูกค้า</th><th>เลขบิล</th>' +
+          '<th>จำนวนเงิน (฿)</th><th>วันที่เช็ค</th>' +
+          '<th>เลขเช็ค</th><th>ธนาคาร</th><th>สาขา</th><th>หมายเหตุ</th>' +
+        '</tr></thead>' +
+        '<tbody>' + (chequeRows || '<tr><td colspan="10" class="no-data">ไม่มีรายการ</td></tr>') +
+          (d.cheque && d.cheque.length ? '<tr class="subtotal"><td colspan="4" style="text-align:right">รวมเช็ค</td><td class="num">' + fmt(t.cheque) + '</td><td colspan="5"></td></tr>' : '') +
+        '</tbody>' +
+      '</table>' +
+
+      '<div class="footer-box">' +
+        '<div class="footer-item"><label>รวมเงินสด</label><div class="amount cash">' + fmt(t.cash) + ' ฿</div></div>' +
+        '<div class="footer-item"><label>รวมเช็ค</label><div class="amount cheque">' + fmt(t.cheque) + ' ฿</div></div>' +
+        '<div class="footer-item"><label>ค่าใช้จ่าย DSR</label><div class="amount expense">' + fmt(t.expenses) + ' ฿</div></div>' +
+      '</div>' +
+      '<div class="expense-row">' + expenseDetail + '</div>' +
+
+      '<div class="net-box">' +
+        '<div><div class="label">ยอดส่งสุทธิ (เงินสด)</div>' +
+          '<div class="formula">เงินสดรวม – ค่าใช้จ่าย DSR (เช็ค/โอนไม่นับ)</div></div>' +
+        '<div class="value">' + fmt(t.net_remittance) + ' ฿</div>' +
+      '</div>' +
+
+      '<div class="sig-row">' +
+        '<div class="sig-box">ผู้จัดทำ (DSR)<br><br><br>' + (d.dsr_name||'') + '</div>' +
+        '<div class="sig-box">ผู้ตรวจสอบ<br><br><br>&nbsp;</div>' +
+        '<div class="sig-box">ผู้อนุมัติ<br><br><br>&nbsp;</div>' +
+      '</div>';
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('doc').style.display = 'block';
+    setTimeout(function(){ window.print(); }, 400);
+  }
+
+  google.script.run
+    .withSuccessHandler(renderDoc)
+    .withFailureHandler(function(err) {
+      document.getElementById('loading').innerHTML =
+        '<p style="color:#C8102E">เกิดข้อผิดพลาด: ' + (err.message || err) + '</p>';
+    })
+    .handleApiCall('GET_SUMMARY_DATA', { week_number: initWeek, dsr_email: initEmail });
+</script>
+</body>
+</html>

@@ -56,9 +56,16 @@ function prop(key) {
 // ─────────────────────────────────────────────────────────────────────
 
 function doGet(e) {
-  // Route: ?page=dsr-review&email=xxx
-  if (e && e.parameter && e.parameter.page === 'dsr-review') {
-    return serveDsrReviewPage(e.parameter.email || '');
+  if (e && e.parameter) {
+    var page = e.parameter.page;
+    // Route: ?page=dsr-review&email=xxx
+    if (page === 'dsr-review')         return serveDsrReviewPage(e.parameter.email || '');
+    // Route: ?page=cash-entry
+    if (page === 'cash-entry')         return serveCashEntryPage();
+    // Route: ?page=print-cash-cheque&email=xxx&week=YY
+    if (page === 'print-cash-cheque')  return servePrintCashChequePage(e.parameter.email || '', e.parameter.week || '');
+    // Route: ?page=print-transfer&email=xxx&week=YY
+    if (page === 'print-transfer')     return servePrintTransferPage(e.parameter.email || '', e.parameter.week || '');
   }
   return HtmlService.createHtmlOutputFromFile('index')
     .setTitle('DSR Portal — Nice Center Oil')
@@ -247,6 +254,12 @@ function routeAction(action, payload, user) {
     GENERATE_COVER_SHEET:   () => guardAdminOrSpec(user, () => generateCoverSheetDriveFile(payload.week_number, payload.dsr_id)),
     // Utility
     PING:                   () => ({ pong: true, email: user.email, role: user.role, v: CONFIG.VERSION }),
+    // Cash / Cheque (Module E)
+    SAVE_CASH:              () => saveCash(d, user),
+    SAVE_CHEQUE:            () => saveCheque(d, user),
+    GET_CASH_LOG:           () => getCashLog(user, payload.filters),
+    GET_CHEQUE_LOG:         () => getChequeLog(user, payload.filters),
+    GET_SUMMARY_DATA:       () => getSummaryData(user, payload.week_number, payload.dsr_email),
   };
 
   if (!routes[action]) throw new Error('Unknown action: ' + action);

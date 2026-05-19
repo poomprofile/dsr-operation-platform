@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>ใบสรุปโอน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --o: #E8631A;
+    --g: #007B40;
+    --r: #C8102E;
+    --blue: #1565C0;
+    --ink: #1A1A1A;
+    --border: #999;
+    --light: #f2f2f2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', sans-serif; font-size: 11pt; color: var(--ink); background: #fff; }
+
+  #loading {
+    position: fixed; inset: 0; background: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    font-size: 15px; color: #666;
+  }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid #eee;
+    border-top-color: var(--o); border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #doc { display: none; padding: 10mm 14mm; }
+
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .logo-castrol { font-size: 20pt; font-weight: 700; color: var(--g); letter-spacing: 1px; line-height: 1; }
+  .logo-castrol span { color: var(--o); }
+  .logo-sub { font-size: 8pt; color: #555; }
+  .doc-title { text-align: center; }
+  .doc-title h2 { font-size: 14pt; font-weight: 700; }
+  .doc-title p  { font-size: 9pt; color: #555; margin-top: 2px; }
+  .doc-meta { text-align: right; font-size: 9pt; color: #555; line-height: 1.6; }
+  .doc-meta strong { color: var(--ink); font-size: 10pt; }
+
+  .divider { border: none; border-top: 2px solid var(--blue); margin: 8px 0; }
+
+  .section-title {
+    font-size: 10pt; font-weight: 700; color: #fff;
+    background: var(--blue); padding: 4px 10px; margin: 10px 0 4px; border-radius: 2px;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  th {
+    background: var(--light); border: 1px solid var(--border);
+    padding: 4px 6px; text-align: center; font-weight: 700; white-space: nowrap;
+  }
+  td { border: 1px solid var(--border); padding: 3px 6px; vertical-align: middle; }
+  td.num    { text-align: right; }
+  td.center { text-align: center; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .subtotal td { background: #E3F2FD !important; font-weight: 700; }
+  .subtotal td.num { color: var(--blue); }
+
+  .status-matched   { color: var(--g); font-weight: 600; }
+  .status-unmatched { color: var(--r); font-weight: 600; }
+  .status-other     { color: #888; }
+  .overdue-red      { color: var(--r); font-weight: 600; }
+
+  .footer-box {
+    margin-top: 12px; border: 1.5px solid var(--border); border-radius: 4px; padding: 10px 14px;
+    display: flex; justify-content: space-around; align-items: flex-start;
+  }
+  .footer-item { text-align: center; }
+  .footer-item label { font-size: 8pt; color: #666; display: block; margin-bottom: 3px; }
+  .footer-item .amount { font-size: 13pt; font-weight: 700; }
+  .footer-item .amount.transfer { color: var(--blue); }
+  .footer-item .amount.matched  { color: var(--g); }
+
+  .note-box {
+    margin-top: 8px; background: #E8F5E9; border: 1.5px solid var(--g);
+    border-radius: 4px; padding: 8px 12px; font-size: 8.5pt; color: #555;
+  }
+
+  .sig-row { display: flex; gap: 24px; margin-top: 16px; }
+  .sig-box { flex: 1; border-top: 1px solid #999; padding-top: 6px; text-align: center; font-size: 9pt; color: #555; }
+  .no-data { text-align: center; color: #aaa; padding: 12px; font-style: italic; }
+
+  @media print {
+    body { background: #fff; }
+    #loading { display: none !important; }
+    #doc { display: block !important; }
+    @page { size: A4 landscape; margin: 10mm 14mm; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <span>กำลังโหลดข้อมูล...</span>
+</div>
+
+<div id="doc"></div>
+
+<script>
+  var initEmail = '<?= email ?>';
+  var initWeek  = '<?= week ?>';
+
+  function fmt(n) {
+    return (parseFloat(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function statusClass(s) {
+    if (!s) return 'status-other';
+    s = s.toLowerCase();
+    if (s === 'matched') return 'status-matched';
+    if (s === 'unmatched') return 'status-unmatched';
+    return 'status-other';
+  }
+
+  function statusLabel(s) {
+    if (!s) return '-';
+    if (s === 'matched') return 'จับคู่แล้ว';
+    if (s === 'unmatched') return 'ยังไม่จับคู่';
+    return s;
+  }
+
+  function renderDoc(d) {
+    var t = d.totals;
+    var transfers = d.transfers || [];
+
+    var matched   = transfers.filter(function(r){ return (r['สถานะ Match']||'').toLowerCase() === 'matched'; });
+    var totalMatch = matched.reduce(function(s, r){ return s + (parseFloat(r['ยอดโอน']||r['ยอดเงิน']) || 0); }, 0);
+
+    var rows = transfers.map(function(r, i) {
+      var overdue  = parseInt(r['อายุหนี้ (วัน)'] || '0') || 0;
+      var overdueClass = overdue > 0 ? ' class="overdue-red"' : '';
+      return '<tr>' +
+        '<td class="center">' + (i+1) + '</td>' +
+        '<td class="center">' + (r['วันที่โอน']||'') + '</td>' +
+        '<td class="center">' + (r['เวลาโอน']||'') + '</td>' +
+        '<td>' + (r['รหัสลูกค้า']||'') + '</td>' +
+        '<td>' + (r['ชื่อร้าน (Slip)']||r['ชื่อลูกค้า (BCAccount)']||'') + '</td>' +
+        '<td>' + (r['เลขที่บิล (BCAccount)']||r['เลขที่บิล (Slip)']||'') + '</td>' +
+        '<td class="num">' + fmt(r['ยอดบิล']||0) + '</td>' +
+        '<td class="num">' + fmt(r['ยอดโอน']||r['ยอดเงิน']||0) + '</td>' +
+        '<td' + overdueClass + ' class="center">' + (overdue > 0 ? overdue + ' วัน' : '-') + '</td>' +
+        '<td class="center"><span class="' + statusClass(r['สถานะ Match']) + '">' + statusLabel(r['สถานะ Match']) + '</span></td>' +
+        '<td>' + (r['Slip Ref']||'') + '</td>' +
+        '</tr>';
+    }).join('');
+
+    document.getElementById('doc').innerHTML =
+      '<div class="page-header">' +
+        '<div>' +
+          '<div class="logo-castrol">C<span>A</span>STROL</div>' +
+          '<div class="logo-sub">Nice Center Oil Co., Ltd.</div>' +
+        '</div>' +
+        '<div class="doc-title">' +
+          '<h2>ใบสรุปการโอนเงิน (Slip2Go)</h2>' +
+          '<p>สัปดาห์ที่ ' + d.week_number + ' &nbsp;|&nbsp; ' + d.week_range + '</p>' +
+        '</div>' +
+        '<div class="doc-meta">' +
+          '<strong>' + (d.dsr_name||'') + '</strong><br>' +
+          'พิมพ์: ' + (d.print_date||'') +
+        '</div>' +
+      '</div>' +
+      '<hr class="divider">' +
+
+      '<div class="section-title">รายการโอนเงิน (Slip2Go)</div>' +
+      '<table>' +
+        '<thead><tr>' +
+          '<th>#</th><th>วันที่โอน</th><th>เวลา</th>' +
+          '<th>รหัสลูกค้า</th><th>ชื่อลูกค้า</th><th>เลขบิล</th>' +
+          '<th>ยอดบิล (฿)</th><th>ยอดโอน (฿)</th>' +
+          '<th>อายุหนี้</th><th>สถานะ</th><th>Slip Ref</th>' +
+        '</tr></thead>' +
+        '<tbody>' + (rows || '<tr><td colspan="11" class="no-data">ไม่มีรายการโอน</td></tr>') +
+          (transfers.length ? '<tr class="subtotal"><td colspan="7" style="text-align:right">รวมยอดโอน</td><td class="num">' + fmt(t.transfer) + '</td><td colspan="3"></td></tr>' : '') +
+        '</tbody>' +
+      '</table>' +
+
+      '<div class="footer-box">' +
+        '<div class="footer-item"><label>รายการโอนทั้งหมด</label><div class="amount transfer">' + transfers.length + ' รายการ</div></div>' +
+        '<div class="footer-item"><label>จับคู่บิลแล้ว</label><div class="amount matched">' + matched.length + ' รายการ</div></div>' +
+        '<div class="footer-item"><label>ยอดโอนรวม</label><div class="amount transfer">' + fmt(t.transfer) + ' ฿</div></div>' +
+        '<div class="footer-item"><label>ยอดที่จับคู่แล้ว</label><div class="amount matched">' + fmt(totalMatch) + ' ฿</div></div>' +
+      '</div>' +
+
+      '<div class="note-box">หมายเหตุ: การโอนเงินไม่นับรวมในยอดส่งสุทธิ — ใช้ใบนี้ประกอบการตรวจสอบกับฝ่ายบัญชีเท่านั้น</div>' +
+
+      '<div class="sig-row">' +
+        '<div class="sig-box">ผู้จัดทำ (DSR)<br><br><br>' + (d.dsr_name||'') + '</div>' +
+        '<div class="sig-box">ผู้ตรวจสอบ<br><br><br>&nbsp;</div>' +
+        '<div class="sig-box">ผู้อนุมัติ<br><br><br>&nbsp;</div>' +
+      '</div>';
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('doc').style.display = 'block';
+    setTimeout(function(){ window.print(); }, 400);
+  }
+
+  google.script.run
+    .withSuccessHandler(renderDoc)
+    .withFailureHandler(function(err) {
+      document.getElementById('loading').innerHTML =
+        '<p style="color:#C8102E">เกิดข้อผิดพลาด: ' + (err.message || err) + '</p>';
+    })
+    .handleApiCall('GET_SUMMARY_DATA', { week_number: initWeek, dsr_email: initEmail });
+</script>
+</body>
+</html>
