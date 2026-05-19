@@ -6,193 +6,268 @@
 <title>บันทึกเงินสด / เช็ค</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root {
-  --o:#E8631A; --g:#007B40; --r:#C8102E; --blue:#1565C0;
-  --ink:#1A1A1A; --muted:#666; --border:#D0CEC9;
-  --surface:#F7F5F2; --white:#fff;
-  --cash-bg:#F1F8F4; --cheq-bg:#EBF3FB;
+:root{
+  --o:#E8631A;--g:#007B40;--r:#C8102E;--blue:#1565C0;
+  --ink:#1A1A1A;--muted:#777;--border:#D8D5D0;
+  --surface:#F5F4F1;--white:#fff;
+  --row-hover:#FFFBF5;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Sarabun',sans-serif;font-size:13px;color:var(--ink);background:var(--surface);}
 
-/* ── Header ─────────────────────────────────── */
-.hdr{background:var(--white);border-bottom:3px solid var(--o);padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.07);}
-.logo-bar{display:flex;gap:3px;}
-.logo-bar span{display:block;width:7px;height:28px;border-radius:2px;}
-.logo-bar .r{background:var(--r);} .logo-bar .g{background:var(--g);} .logo-bar .o{background:var(--o);}
-.hdr-title h1{font-size:14px;font-weight:700;}
+/* ── Sticky bar stack ───────────────── */
+.hdr{
+  position:sticky;top:0;z-index:200;
+  background:var(--white);border-bottom:3px solid var(--o);
+  padding:9px 18px;display:flex;align-items:center;gap:12px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);
+}
+.logo-bar{display:flex;gap:3px;flex-shrink:0;}
+.logo-bar span{display:block;width:7px;height:26px;border-radius:2px;}
+.logo-bar .r{background:var(--r);}.logo-bar .g{background:var(--g);}.logo-bar .o{background:var(--o);}
+.hdr-title h1{font-size:14px;font-weight:700;line-height:1.2;}
 .hdr-title p{font-size:11px;color:var(--muted);}
-.hdr-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.hdr-meta{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .hdr-meta label{font-size:12px;color:var(--muted);white-space:nowrap;}
-.hdr-meta input{padding:5px 9px;border:1.5px solid var(--border);border-radius:6px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--white);}
-.hdr-meta input:focus{outline:none;border-color:var(--o);}
-#inp-dsr{width:160px;}
+.meta-inp{
+  padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;
+  font-family:'Sarabun',sans-serif;font-size:13px;background:var(--white);
+  outline:none;transition:border-color .15s;
+}
+.meta-inp:focus{border-color:var(--o);}
+#inp-dsr{width:150px;}
 
-/* ── Toolbar ─────────────────────────────────── */
-.toolbar{padding:8px 16px;display:flex;gap:8px;background:var(--white);border-bottom:1px solid var(--border);}
-.btn{padding:7px 16px;border:none;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .15s;}
-.btn:disabled{opacity:.45;cursor:default;}
-.btn-add{background:#E8F5E9;color:var(--g);}
-.btn-save{background:var(--o);color:var(--white);}
-.btn-print{background:var(--blue);color:var(--white);}
-.btn-del-all{background:#FEE;color:var(--r);}
-#load-notice{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-left:auto;}
-.dot-spin{width:12px;height:12px;border:2px solid #ddd;border-top-color:var(--o);border-radius:50%;animation:spin .6s linear infinite;display:inline-block;}
+.toolbar{
+  position:sticky;z-index:190;
+  background:var(--white);border-bottom:1px solid var(--border);
+  padding:7px 18px;display:flex;align-items:center;gap:8px;
+}
+.btn{
+  padding:6px 15px;border:none;border-radius:7px;
+  font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;
+  cursor:pointer;transition:opacity .15s,transform .1s;white-space:nowrap;
+}
+.btn:active{transform:scale(.97);}
+.btn:disabled{opacity:.45;cursor:default;transform:none;}
+.btn-add{background:#E8F5E9;color:#2E7D32;}
+.btn-save{background:var(--o);color:#fff;}
+.btn-print{background:var(--blue);color:#fff;}
+#load-notice{
+  margin-left:auto;font-size:12px;color:var(--muted);
+  display:flex;align-items:center;gap:5px;
+}
+.dot-spin{
+  width:11px;height:11px;border:2px solid #ddd;
+  border-top-color:var(--o);border-radius:50%;
+  animation:spin .7s linear infinite;display:inline-block;
+}
 @keyframes spin{to{transform:rotate(360deg);}}
 
-/* ── Table wrapper ───────────────────────────── */
-.tbl-wrap{overflow-x:auto;padding:12px 16px 0;}
-table{border-collapse:collapse;font-size:12px;min-width:1200px;width:100%;}
+/* ── Table ──────────────────────────── */
+.tbl-wrap{overflow-x:auto;padding:10px 18px 0;}
+table{border-collapse:collapse;font-size:12px;min-width:1100px;width:100%;}
+
 thead th{
-  background:var(--ink);color:#fff;border:1px solid #555;
-  padding:6px 5px;white-space:nowrap;text-align:center;font-weight:600;position:sticky;top:58px;z-index:10;
+  background:#37474F;color:#fff;border:1px solid #546E7A;
+  padding:7px 6px;white-space:nowrap;text-align:center;
+  font-weight:600;letter-spacing:.3px;position:sticky;z-index:10;
 }
-thead th.cash-h{background:#1B5E20;}
-thead th.cheq-h{background:#0D47A1;}
-tbody td{border:1px solid var(--border);padding:2px 3px;vertical-align:middle;}
-tbody tr:hover td{background:#FFFDE7;}
-.cash-col{background:var(--cash-bg) !important;}
-.cheq-col{background:var(--cheq-bg) !important;}
-.center{text-align:center;}
-.num{text-align:right;}
-.seq{width:32px;color:var(--muted);font-size:11px;}
+thead th.th-cash{background:#2E7D32;}
+thead th.th-cheq{background:#1565C0;}
 
-/* ── Inputs in table ─────────────────────────── */
-.inp{width:100%;border:none;background:transparent;font-family:'Sarabun',sans-serif;font-size:12px;padding:4px 5px;outline:none;}
-.inp:focus{background:#FFFDE7;border-radius:3px;}
+tbody td{
+  border:1px solid var(--border);padding:0;
+  vertical-align:middle;transition:background .1s;
+}
+tbody tr:hover td{background:var(--row-hover);}
+td.cash-col{background:#F0FAF4;}
+td.cheq-col{background:#EDF4FD;}
+tr:hover td.cash-col{background:#E6F5EC;}
+tr:hover td.cheq-col{background:#E3EFF9;}
+
+.seq-cell{width:32px;text-align:center;color:var(--muted);font-size:11px;padding:4px 2px;}
+
+/* ── Table inputs ───────────────────── */
+.inp{
+  width:100%;border:none;background:transparent;
+  font-family:'Sarabun',sans-serif;font-size:12px;
+  padding:5px 7px;outline:none;
+}
+.inp:focus{background:#FFFDE7;}
 .inp[readonly]{color:var(--muted);cursor:default;}
-.inp-num{text-align:right;}
-select.inp{appearance:none;cursor:pointer;padding-right:14px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 4px center;background-color:transparent;}
-.inp-del{background:none;border:none;color:#ccc;font-size:16px;cursor:pointer;padding:0 4px;line-height:1;}
-.inp-del:hover{color:var(--r);}
-.inp-other{width:100%;border:none;background:transparent;font-family:'Sarabun',sans-serif;font-size:12px;padding:4px 5px;outline:none;margin-top:2px;}
-
-/* ── Footer totals ───────────────────────────── */
-tfoot td{border:1px solid var(--border);padding:6px 8px;font-weight:700;}
-.foot-label{text-align:right;color:var(--muted);}
-.foot-cash{text-align:right;color:var(--g);font-size:14px;}
-.foot-cheq{text-align:right;color:var(--blue);font-size:14px;}
-.foot-total{text-align:right;color:var(--o);font-size:15px;}
-
-/* ── Summary bar ─────────────────────────────── */
-.sum-bar{
-  display:flex;gap:0;margin:0 16px 16px;border:1.5px solid var(--border);
-  border-radius:10px;overflow:hidden;background:var(--white);
+.inp.num{text-align:right;}
+select.inp{
+  cursor:pointer;padding-right:18px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%23666'/%3E%3C/svg%3E") no-repeat right 6px center transparent;
+  appearance:none;
 }
-.sum-item{flex:1;padding:12px 16px;text-align:center;border-right:1.5px solid var(--border);}
-.sum-item:last-child{border-right:none;}
-.sum-item label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;}
-.sum-item .val{font-size:17px;font-weight:700;}
-.val.green{color:var(--g);} .val.blue{color:var(--blue);} .val.orange{color:var(--o);}
+.inp-other{
+  width:100%;border:none;border-top:1px dashed var(--border);
+  background:#FFFDE7;font-family:'Sarabun',sans-serif;
+  font-size:12px;padding:4px 7px;outline:none;display:none;
+}
+.del-btn{
+  background:none;border:none;color:#ccc;font-size:15px;
+  cursor:pointer;padding:3px 6px;line-height:1;width:100%;
+}
+.del-btn:hover{color:var(--r);}
 
-/* ── Toast ───────────────────────────────────── */
+/* ── Cheque conditional show/hide ───── */
+.cheq-placeholder{
+  color:#c0bbb5;font-size:11px;text-align:center;
+  padding:5px 0;pointer-events:none;
+}
+.cheq-field{display:none;}
+tr.cheq-active td.cheq-col .cheq-placeholder{display:none;}
+tr.cheq-active td.cheq-col .cheq-field{display:block;}
+/* default state */
+td.cheq-col .cheq-placeholder{display:block;}
+
+/* ── Footer ─────────────────────────── */
+tfoot td{border:1px solid var(--border);padding:6px 8px;font-weight:700;}
+.fl{text-align:right;color:var(--muted);font-size:11px;}
+.fc{text-align:right;color:#2E7D32;font-size:13px;}
+.fq{text-align:right;color:var(--blue);font-size:13px;}
+
+/* ── Summary bar ────────────────────── */
+.sum-bar{
+  display:flex;margin:10px 18px 20px;
+  background:var(--white);border:1.5px solid var(--border);
+  border-radius:12px;overflow:hidden;
+}
+.sum-item{
+  flex:1;padding:14px 18px;text-align:center;
+  border-right:1.5px solid var(--border);
+}
+.sum-item:last-child{border-right:none;}
+.sum-item label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;letter-spacing:.3px;}
+.sum-val{font-size:20px;font-weight:700;}
+.sum-val.g{color:#2E7D32;}.sum-val.b{color:var(--blue);}.sum-val.o{color:var(--o);}
+
+/* ── Toast ──────────────────────────── */
 .toast{
-  position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);
-  background:var(--ink);color:#fff;padding:10px 22px;border-radius:20px;
-  font-size:13px;font-weight:600;transition:transform .25s;z-index:999;
+  position:fixed;bottom:20px;left:50%;
+  transform:translateX(-50%) translateY(80px);
+  background:var(--ink);color:#fff;padding:10px 24px;
+  border-radius:24px;font-size:13px;font-weight:600;
+  transition:transform .25s;z-index:999;pointer-events:none;
 }
 .toast.show{transform:translateX(-50%) translateY(0);}
-.toast.ok{background:var(--g);}  .toast.err{background:var(--r);}
+.toast.ok{background:#2E7D32;}.toast.err{background:var(--r);}
 
-/* ── PRINT STYLES ────────────────────────────── */
-@media print {
-  body{background:#fff;font-size:9pt;}
-  .hdr,.toolbar,.tbl-wrap .no-print,.sum-bar,.toast{display:none!important;}
-  .print-header{display:block!important;}
+/* ── Validation highlight ───────────── */
+input.invalid{background:#FFF0F0 !important;border:1px solid var(--r) !important;border-radius:3px;}
+
+/* ════ PRINT ════════════════════════════════════ */
+.print-hdr{display:none;}
+@media print{
+  body{background:#fff;font-size:8.5pt;}
+  .hdr,.toolbar,.sum-bar,.toast,.no-print{display:none!important;}
+  .print-hdr{display:block!important;margin-bottom:8px;}
   .tbl-wrap{overflow:visible;padding:0;}
   table{min-width:0;font-size:8pt;width:100%;}
-  thead th{background:#333!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;position:static;}
-  thead th.cash-h{background:#1B5E20!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  thead th.cheq-h{background:#0D47A1!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .cash-col{background:#F1F8F4!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .cheq-col{background:#EBF3FB!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  tbody tr:hover td{background:inherit!important;}
-  .inp-del,.no-print{display:none!important;}
-  tfoot td{font-size:9pt;}
+  /* Header row: light gray, black text */
+  thead th{
+    background:#e8e8e8!important;color:#000!important;
+    border:1px solid #888!important;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    position:static!important;font-size:7.5pt;
+  }
+  /* All cells: white bg, black text, only borders */
+  tbody td,tfoot td{
+    background:#fff!important;color:#000!important;
+    border:1px solid #888!important;
+  }
+  tr.cheq-active td.cheq-col .cheq-placeholder{display:none!important;}
+  tr.cheq-active td.cheq-col .cheq-field{display:block!important;}
+  td.cheq-col .cheq-placeholder{display:block;}
+  .del-btn,.inp-other{display:none!important;}
+  /* Show input values in print */
+  .inp{color:#000!important;}
+  tfoot td{font-size:8pt;}
   @page{size:A4 landscape;margin:10mm 14mm;}
 }
 
-/* ── Print header (hidden on screen) ────────── */
-.print-header{display:none;margin-bottom:10px;}
-.ph-inner{display:flex;justify-content:space-between;align-items:flex-start;}
-.ph-logo-castrol{font-size:18pt;font-weight:700;color:#007B40;letter-spacing:1px;line-height:1;}
-.ph-logo-castrol em{color:#E8631A;font-style:normal;}
-.ph-logo-sub{font-size:7.5pt;color:#555;}
-.ph-center{text-align:center;}
-.ph-center h2{font-size:13pt;font-weight:700;}
-.ph-center p{font-size:8.5pt;color:#555;margin-top:2px;}
-.ph-right{text-align:right;font-size:8.5pt;color:#555;line-height:1.8;}
-.ph-divider{border:none;border-top:2px solid #E8631A;margin:7px 0;}
+/* Print header styles */
+.ph-row{display:flex;justify-content:space-between;align-items:flex-start;}
+.ph-logo{font-size:17pt;font-weight:700;color:#007B40;letter-spacing:1px;line-height:1;}
+.ph-logo em{color:#E8631A;font-style:normal;}
+.ph-sub{font-size:7pt;color:#555;margin-top:1px;}
+.ph-title{text-align:center;}
+.ph-title h2{font-size:12pt;font-weight:700;}
+.ph-title p{font-size:8pt;color:#555;margin-top:2px;}
+.ph-right{text-align:right;font-size:8pt;color:#555;line-height:1.8;}
+.ph-divider{border:none;border-top:1.5px solid #E8631A;margin:6px 0 8px;}
 </style>
 </head>
 <body>
 
-<!-- Print header (screen hidden) -->
-<div class="print-header">
-  <div class="ph-inner">
+<!-- ═══ PRINT HEADER ═══════════════════════════════ -->
+<div class="print-hdr">
+  <div class="ph-row">
     <div>
-      <div class="ph-logo-castrol">C<em>A</em>STROL</div>
-      <div class="ph-logo-sub">Nice Center Oil Co., Ltd.</div>
+      <div class="ph-logo">C<em>A</em>STROL</div>
+      <div class="ph-sub">Nice Center Oil Co., Ltd.</div>
     </div>
-    <div class="ph-center">
+    <div class="ph-title">
       <h2>ใบสรุปเงินสด / เช็ค</h2>
-      <p id="ph-date-range"></p>
+      <p id="ph-sub-line"></p>
     </div>
     <div class="ph-right">
-      DSR: <strong id="ph-dsr"></strong><br>
+      DSR: <strong id="ph-dsr-name"></strong><br>
       วันที่พิมพ์: <span id="ph-print-date"></span>
     </div>
   </div>
   <hr class="ph-divider">
 </div>
 
-<!-- Screen header -->
-<div class="hdr">
+<!-- ═══ HEADER ══════════════════════════════════════ -->
+<div class="hdr" id="hdr">
   <div class="logo-bar"><span class="r"></span><span class="g"></span><span class="o"></span></div>
   <div class="hdr-title"><h1>NCO DSR Portal</h1><p>บันทึกเงินสด / เช็ค</p></div>
   <div class="hdr-meta">
     <label>วันที่:</label>
-    <input type="date" id="inp-date">
+    <input type="date" id="inp-date" class="meta-inp">
     <label>ชื่อ DSR:</label>
-    <input type="text" id="inp-dsr" placeholder="ชื่อของคุณ">
+    <input type="text" id="inp-dsr" class="meta-inp" placeholder="ชื่อ-นามสกุล">
   </div>
 </div>
 
-<!-- Toolbar -->
-<div class="toolbar">
-  <button class="btn btn-add" onclick="addRow()">+ เพิ่มแถว</button>
-  <button class="btn btn-save" id="btn-save" onclick="saveAll()">บันทึกทั้งหมด</button>
-  <button class="btn btn-print" onclick="printDoc()">พิมพ์ / Print</button>
-  <span id="load-notice"><span class="dot-spin"></span> กำลังโหลดบิล...</span>
+<!-- ═══ TOOLBAR ═════════════════════════════════════ -->
+<div class="toolbar" id="toolbar">
+  <button class="btn btn-add"   onclick="addRow()">+ เพิ่มแถว</button>
+  <button class="btn btn-save"  id="btn-save" onclick="saveAll()">บันทึกทั้งหมด</button>
+  <button class="btn btn-print" onclick="printDoc()">พิมพ์</button>
+  <span id="load-notice"><span class="dot-spin"></span>&nbsp;กำลังโหลดบิล...</span>
 </div>
 
-<!-- Table -->
+<!-- ═══ TABLE ════════════════════════════════════════ -->
 <div class="tbl-wrap">
   <table>
     <thead>
       <tr>
-        <th class="seq no-print">No.</th>
-        <th style="width:80px">รหัสลูกค้า</th>
+        <th class="no-print" style="width:34px">No.</th>
+        <th style="width:82px">รหัสลูกค้า</th>
         <th style="width:130px">ชื่อลูกค้า</th>
         <th style="width:110px">เลขบิล</th>
-        <th class="num" style="width:75px">ยอดบิล</th>
-        <th class="cash-h num" style="width:75px">เงินสด</th>
-        <th class="cheq-h num" style="width:80px">ยอดโอน/เช็ค</th>
-        <th class="cheq-h" style="width:90px">วันที่โอน/เช็ค</th>
-        <th class="cheq-h" style="width:95px">เลขที่เช็ค</th>
-        <th class="cheq-h" style="width:90px">ธนาคาร</th>
-        <th class="cheq-h" style="width:100px">สาขา</th>
-        <th style="min-width:90px">หมายเหตุ</th>
+        <th class="num" style="width:78px">ยอดบิล</th>
+        <th class="th-cash num" style="width:78px">เงินสด</th>
+        <th class="th-cheq num" style="width:82px">ยอดโอน/เช็ค</th>
+        <th class="th-cheq" style="width:90px">วันที่โอน/เช็ค</th>
+        <th class="th-cheq" style="width:90px">เลขที่เช็ค</th>
+        <th class="th-cheq" style="width:88px">ธนาคาร</th>
+        <th class="th-cheq" style="width:96px">สาขา</th>
+        <th style="min-width:80px">หมายเหตุ</th>
         <th class="no-print" style="width:30px"></th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
     <tfoot>
       <tr>
-        <td colspan="4" class="foot-label no-print">รวม</td>
-        <td class="foot-label" id="foot-bill-sum">0.00</td>
-        <td class="foot-cash" id="foot-cash">0.00</td>
-        <td class="foot-cheq" id="foot-cheq">0.00</td>
+        <td colspan="4" class="fl no-print">รวม</td>
+        <td class="fl" id="ft-bill">–</td>
+        <td class="fc" id="ft-cash">0</td>
+        <td class="fq" id="ft-cheq">0</td>
         <td colspan="5" class="no-print"></td>
         <td class="no-print"></td>
         <td class="no-print"></td>
@@ -201,204 +276,271 @@ tfoot td{border:1px solid var(--border);padding:6px 8px;font-weight:700;}
   </table>
 </div>
 
-<!-- Summary bar -->
-<div class="sum-bar" style="margin-top:12px;">
-  <div class="sum-item"><label>รวมเงินสด</label><div class="val green" id="sum-cash">0.00</div></div>
-  <div class="sum-item"><label>รวมยอดเช็ค/โอน</label><div class="val blue" id="sum-cheq">0.00</div></div>
-  <div class="sum-item"><label>ยอดเก็บเงินรวม</label><div class="val orange" id="sum-total">0.00</div></div>
+<!-- ═══ SUMMARY BAR ══════════════════════════════════ -->
+<div class="sum-bar">
+  <div class="sum-item"><label>รวมเงินสด</label><div class="sum-val g" id="sum-cash">0</div></div>
+  <div class="sum-item"><label>รวมยอดเช็ค/โอน</label><div class="sum-val b" id="sum-cheq">0</div></div>
+  <div class="sum-item"><label>ยอดเก็บเงินรวม</label><div class="sum-val o" id="sum-total">0</div></div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-// ════════════════════════════════════════════════
-//  DATA
-// ════════════════════════════════════════════════
-var allDebts = [];
-var rowCount = 0;
-
+// ════════════════════════════════════════════
+//  STATIC DATA
+// ════════════════════════════════════════════
 var BANKS = ['กสิกรไทย','ไทยพาณิชย์','กรุงเทพ','กรุงไทย','ออมสิน','ธ.ก.ส.'];
 
+// Branch names WITHOUT "สาขา" prefix
 var BB = {
   'กสิกรไทย': {
-    'สุพรรณบุรี':['สาขาสุพรรณบุรี','สาขาอู่ทอง','สาขาสองพี่น้อง','สาขาบางปลาม้า','สาขาเดิมบางนางบวช','สาขาดอนเจดีย์','สาขาศรีประจันต์'],
-    'สิงห์บุรี': ['สาขาสิงห์บุรี','สาขาอินทร์บุรี','สาขาพรหมบุรี','สาขาท่าช้าง','สาขาบางระจัน'],
-    'อ่างทอง':   ['สาขาอ่างทอง','สาขาโพธิ์ทอง','สาขาวิเศษชัยชาญ','สาขาป่าโมก','สาขาแสวงหา'],
-    'อุทัยธานี': ['สาขาอุทัยธานี','สาขาหนองฉาง','สาขาบ้านไร่','สาขาทัพทัน','สาขาสว่างอารมณ์','สาขาลานสัก'],
-    'ชัยนาท':    ['สาขาชัยนาท','สาขาสรรคบุรี','สาขาหันคา','สาขาสรรพยา','สาขามโนรมย์'],
-    'นครสวรรค์': ['สาขานครสวรรค์','สาขาตาคลี','สาขาพยุหะคีรี','สาขาลาดยาว','สาขาท่าตะโก','สาขาเก้าเลี้ยว','สาขาชุมแสง','สาขาหนองบัว'],
+    'สุพรรณบุรี':['สุพรรณบุรี','อู่ทอง','สองพี่น้อง','บางปลาม้า','เดิมบางนางบวช','ดอนเจดีย์','ศรีประจันต์'],
+    'สิงห์บุรี': ['สิงห์บุรี','อินทร์บุรี','พรหมบุรี','ท่าช้าง','บางระจัน'],
+    'อ่างทอง':   ['อ่างทอง','โพธิ์ทอง','วิเศษชัยชาญ','ป่าโมก','แสวงหา'],
+    'อุทัยธานี': ['อุทัยธานี','หนองฉาง','บ้านไร่','ทัพทัน','สว่างอารมณ์','ลานสัก'],
+    'ชัยนาท':    ['ชัยนาท','สรรคบุรี','หันคา','สรรพยา','มโนรมย์'],
+    'นครสวรรค์': ['นครสวรรค์','ตาคลี','พยุหะคีรี','ลาดยาว','ท่าตะโก','เก้าเลี้ยว','ชุมแสง','หนองบัว'],
   },
   'ไทยพาณิชย์': {
-    'สุพรรณบุรี':['สาขาสุพรรณบุรี','สาขาอู่ทอง','สาขาสองพี่น้อง','สาขาบางปลาม้า','สาขาเดิมบางนางบวช'],
-    'สิงห์บุรี': ['สาขาสิงห์บุรี','สาขาอินทร์บุรี','สาขาพรหมบุรี'],
-    'อ่างทอง':   ['สาขาอ่างทอง','สาขาโพธิ์ทอง','สาขาวิเศษชัยชาญ','สาขาป่าโมก'],
-    'อุทัยธานี': ['สาขาอุทัยธานี','สาขาหนองฉาง','สาขาบ้านไร่','สาขาทัพทัน'],
-    'ชัยนาท':    ['สาขาชัยนาท','สาขาสรรคบุรี','สาขาหันคา','สาขาสรรพยา'],
-    'นครสวรรค์': ['สาขานครสวรรค์','สาขาตาคลี','สาขาพยุหะคีรี','สาขาลาดยาว','สาขาท่าตะโก','สาขาเก้าเลี้ยว'],
+    'สุพรรณบุรี':['สุพรรณบุรี','อู่ทอง','สองพี่น้อง','บางปลาม้า','เดิมบางนางบวช'],
+    'สิงห์บุรี': ['สิงห์บุรี','อินทร์บุรี','พรหมบุรี'],
+    'อ่างทอง':   ['อ่างทอง','โพธิ์ทอง','วิเศษชัยชาญ','ป่าโมก'],
+    'อุทัยธานี': ['อุทัยธานี','หนองฉาง','บ้านไร่','ทัพทัน'],
+    'ชัยนาท':    ['ชัยนาท','สรรคบุรี','หันคา','สรรพยา'],
+    'นครสวรรค์': ['นครสวรรค์','ตาคลี','พยุหะคีรี','ลาดยาว','ท่าตะโก','เก้าเลี้ยว'],
   },
   'กรุงเทพ': {
-    'สุพรรณบุรี':['สาขาสุพรรณบุรี','สาขาอู่ทอง','สาขาสองพี่น้อง','สาขาบางปลาม้า'],
-    'สิงห์บุรี': ['สาขาสิงห์บุรี','สาขาอินทร์บุรี','สาขาพรหมบุรี'],
-    'อ่างทอง':   ['สาขาอ่างทอง','สาขาโพธิ์ทอง','สาขาวิเศษชัยชาญ'],
-    'อุทัยธานี': ['สาขาอุทัยธานี','สาขาหนองฉาง','สาขาบ้านไร่'],
-    'ชัยนาท':    ['สาขาชัยนาท','สาขาสรรคบุรี','สาขาหันคา'],
-    'นครสวรรค์': ['สาขานครสวรรค์','สาขาตาคลี','สาขาพยุหะคีรี','สาขาลาดยาว','สาขาท่าตะโก'],
+    'สุพรรณบุรี':['สุพรรณบุรี','อู่ทอง','สองพี่น้อง','บางปลาม้า'],
+    'สิงห์บุรี': ['สิงห์บุรี','อินทร์บุรี','พรหมบุรี'],
+    'อ่างทอง':   ['อ่างทอง','โพธิ์ทอง','วิเศษชัยชาญ'],
+    'อุทัยธานี': ['อุทัยธานี','หนองฉาง','บ้านไร่'],
+    'ชัยนาท':    ['ชัยนาท','สรรคบุรี','หันคา'],
+    'นครสวรรค์': ['นครสวรรค์','ตาคลี','พยุหะคีรี','ลาดยาว','ท่าตะโก'],
   },
   'กรุงไทย': {
-    'สุพรรณบุรี':['สาขาสุพรรณบุรี','สาขาอู่ทอง','สาขาสองพี่น้อง','สาขาบางปลาม้า','สาขาเดิมบางนางบวช','สาขาดอนเจดีย์','สาขาศรีประจันต์'],
-    'สิงห์บุรี': ['สาขาสิงห์บุรี','สาขาอินทร์บุรี','สาขาพรหมบุรี','สาขาท่าช้าง','สาขาบางระจัน'],
-    'อ่างทอง':   ['สาขาอ่างทอง','สาขาโพธิ์ทอง','สาขาวิเศษชัยชาญ','สาขาป่าโมก','สาขาแสวงหา'],
-    'อุทัยธานี': ['สาขาอุทัยธานี','สาขาหนองฉาง','สาขาบ้านไร่','สาขาทัพทัน','สาขาสว่างอารมณ์'],
-    'ชัยนาท':    ['สาขาชัยนาท','สาขาสรรคบุรี','สาขาหันคา','สาขาสรรพยา','สาขามโนรมย์','สาขาวัดสิงห์'],
-    'นครสวรรค์': ['สาขานครสวรรค์','สาขาตาคลี','สาขาพยุหะคีรี','สาขาลาดยาว','สาขาท่าตะโก','สาขาเก้าเลี้ยว','สาขาชุมแสง','สาขาหนองบัว'],
+    'สุพรรณบุรี':['สุพรรณบุรี','อู่ทอง','สองพี่น้อง','บางปลาม้า','เดิมบางนางบวช','ดอนเจดีย์','ศรีประจันต์'],
+    'สิงห์บุรี': ['สิงห์บุรี','อินทร์บุรี','พรหมบุรี','ท่าช้าง','บางระจัน'],
+    'อ่างทอง':   ['อ่างทอง','โพธิ์ทอง','วิเศษชัยชาญ','ป่าโมก','แสวงหา'],
+    'อุทัยธานี': ['อุทัยธานี','หนองฉาง','บ้านไร่','ทัพทัน','สว่างอารมณ์'],
+    'ชัยนาท':    ['ชัยนาท','สรรคบุรี','หันคา','สรรพยา','มโนรมย์','วัดสิงห์'],
+    'นครสวรรค์': ['นครสวรรค์','ตาคลี','พยุหะคีรี','ลาดยาว','ท่าตะโก','เก้าเลี้ยว','ชุมแสง','หนองบัว'],
   },
   'ออมสิน': {
-    'สุพรรณบุรี':['สาขาสุพรรณบุรี','สาขาอู่ทอง','สาขาสองพี่น้อง','สาขาบางปลาม้า','สาขาเดิมบางนางบวช'],
-    'สิงห์บุรี': ['สาขาสิงห์บุรี','สาขาอินทร์บุรี','สาขาพรหมบุรี'],
-    'อ่างทอง':   ['สาขาอ่างทอง','สาขาโพธิ์ทอง','สาขาวิเศษชัยชาญ'],
-    'อุทัยธานี': ['สาขาอุทัยธานี','สาขาหนองฉาง','สาขาบ้านไร่'],
-    'ชัยนาท':    ['สาขาชัยนาท','สาขาสรรคบุรี','สาขาหันคา'],
-    'นครสวรรค์': ['สาขานครสวรรค์','สาขาตาคลี','สาขาพยุหะคีรี','สาขาลาดยาว','สาขาท่าตะโก'],
+    'สุพรรณบุรี':['สุพรรณบุรี','อู่ทอง','สองพี่น้อง','บางปลาม้า','เดิมบางนางบวช'],
+    'สิงห์บุรี': ['สิงห์บุรี','อินทร์บุรี','พรหมบุรี'],
+    'อ่างทอง':   ['อ่างทอง','โพธิ์ทอง','วิเศษชัยชาญ'],
+    'อุทัยธานี': ['อุทัยธานี','หนองฉาง','บ้านไร่'],
+    'ชัยนาท':    ['ชัยนาท','สรรคบุรี','หันคา'],
+    'นครสวรรค์': ['นครสวรรค์','ตาคลี','พยุหะคีรี','ลาดยาว','ท่าตะโก'],
   },
   'ธ.ก.ส.': {
-    'สุพรรณบุรี':['สาขาสุพรรณบุรี','สาขาอู่ทอง','สาขาสองพี่น้อง','สาขาบางปลาม้า','สาขาเดิมบางนางบวช','สาขาดอนเจดีย์','สาขาศรีประจันต์','สาขาสามชุก'],
-    'สิงห์บุรี': ['สาขาสิงห์บุรี','สาขาอินทร์บุรี','สาขาพรหมบุรี','สาขาท่าช้าง','สาขาบางระจัน'],
-    'อ่างทอง':   ['สาขาอ่างทอง','สาขาโพธิ์ทอง','สาขาวิเศษชัยชาญ','สาขาป่าโมก','สาขาแสวงหา','สาขาสามโก้'],
-    'อุทัยธานี': ['สาขาอุทัยธานี','สาขาหนองฉาง','สาขาบ้านไร่','สาขาทัพทัน','สาขาสว่างอารมณ์','สาขาลานสัก','สาขาห้วยคต'],
-    'ชัยนาท':    ['สาขาชัยนาท','สาขาสรรคบุรี','สาขาหันคา','สาขาสรรพยา','สาขามโนรมย์','สาขาวัดสิงห์','สาขาเนินขาม'],
-    'นครสวรรค์': ['สาขานครสวรรค์','สาขาตาคลี','สาขาพยุหะคีรี','สาขาลาดยาว','สาขาท่าตะโก','สาขาเก้าเลี้ยว','สาขาชุมแสง','สาขาหนองบัว','สาขาไพศาลี','สาขาบรรพตพิสัย'],
+    'สุพรรณบุรี':['สุพรรณบุรี','อู่ทอง','สองพี่น้อง','บางปลาม้า','เดิมบางนางบวช','ดอนเจดีย์','ศรีประจันต์','สามชุก'],
+    'สิงห์บุรี': ['สิงห์บุรี','อินทร์บุรี','พรหมบุรี','ท่าช้าง','บางระจัน'],
+    'อ่างทอง':   ['อ่างทอง','โพธิ์ทอง','วิเศษชัยชาญ','ป่าโมก','แสวงหา','สามโก้'],
+    'อุทัยธานี': ['อุทัยธานี','หนองฉาง','บ้านไร่','ทัพทัน','สว่างอารมณ์','ลานสัก','ห้วยคต'],
+    'ชัยนาท':    ['ชัยนาท','สรรคบุรี','หันคา','สรรพยา','มโนรมย์','วัดสิงห์','เนินขาม'],
+    'นครสวรรค์': ['นครสวรรค์','ตาคลี','พยุหะคีรี','ลาดยาว','ท่าตะโก','เก้าเลี้ยว','ชุมแสง','หนองบัว','ไพศาลี','บรรพตพิสัย'],
   },
 };
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+var allDebts = [];
+var debtsLoaded = false;
+var rowCount = 0;
+
+// ════════════════════════════════════════════
 //  INIT
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 window.onload = function() {
-  var today = new Date().toLocaleDateString('en-CA');
-  document.getElementById('inp-date').value = today;
+  document.getElementById('inp-date').value = new Date().toLocaleDateString('en-CA');
+  fixStickyThead();
+  window.addEventListener('resize', fixStickyThead);
 
   google.script.run
     .withSuccessHandler(function(debts) {
       allDebts = debts || [];
-      document.getElementById('load-notice').innerHTML = 'โหลดบิลแล้ว ' + allDebts.length + ' รายการ';
+      debtsLoaded = true;
+      document.getElementById('load-notice').innerHTML =
+        '<span style="color:#2E7D32">✓</span>&nbsp;โหลดบิลแล้ว ' + allDebts.length + ' รายการ';
     })
-    .withFailureHandler(function(e) {
+    .withFailureHandler(function() {
+      debtsLoaded = true; // allow typing even if load fails
       document.getElementById('load-notice').innerHTML = '⚠ โหลดบิลไม่ได้';
     })
     .handleApiCall('GET_DEBT', { filters: {} });
 
   google.script.run
     .withSuccessHandler(function(res) {
-      if (res && res.email) {
-        document.getElementById('inp-dsr').placeholder = res.email;
-      }
+      if (res && res.email) document.getElementById('inp-dsr').placeholder = res.email;
     })
     .handleApiCall('PING', {});
 
-  addRow(); addRow(); addRow();
+  addRow(false); addRow(false); addRow(false);
 };
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
+//  STICKY HEADER FIX
+// ════════════════════════════════════════════
+function fixStickyThead() {
+  var hH = document.getElementById('hdr').offsetHeight;
+  var tH = document.getElementById('toolbar').offsetHeight;
+  document.getElementById('toolbar').style.top = hH + 'px';
+  document.querySelectorAll('thead th').forEach(function(th) {
+    th.style.top = (hH + tH) + 'px';
+  });
+}
+
+// ════════════════════════════════════════════
 //  ROW MANAGEMENT
-// ════════════════════════════════════════════════
-function addRow() {
+// ════════════════════════════════════════════
+function addRow(doFocus) {
+  if (doFocus === undefined) doFocus = true;
   rowCount++;
   var n = rowCount;
   var tr = document.createElement('tr');
   tr.id = 'row-' + n;
   tr.dataset.n = n;
 
-  // Bank select options
   var bankOpts = '<option value="">-- ธนาคาร --</option>';
   BANKS.forEach(function(b) { bankOpts += '<option>' + b + '</option>'; });
   bankOpts += '<option value="__other__">อื่นๆ...</option>';
 
   tr.innerHTML =
-    '<td class="seq center no-print"><span id="seq-'+n+'"></span></td>' +
-
+    // No.
+    '<td class="seq-cell no-print"><span id="sq-'+n+'"></span></td>' +
     // รหัสลูกค้า
-    '<td><input class="inp" id="cc-'+n+'" onchange="onCodeChange('+n+')" placeholder="เช่น 113-82"></td>' +
-
+    '<td><input class="inp" id="cc-'+n+'" placeholder="เช่น 113-82"' +
+      ' onchange="onCodeChange('+n+')"' +
+      ' oninput="debounceCode('+n+')"' +
+      ' onkeydown="onCcKey(event,'+n+')"></td>' +
     // ชื่อลูกค้า
-    '<td><input class="inp" id="nm-'+n+'" readonly placeholder="-"></td>' +
-
+    '<td><input class="inp" id="nm-'+n+'" readonly placeholder="–"></td>' +
     // เลขบิล
-    '<td><select class="inp" id="inv-'+n+'" onchange="onInvChange('+n+')"><option value="">-- เลือกบิล --</option></select></td>' +
-
+    '<td><select class="inp" id="inv-'+n+'" onchange="onInvChange('+n+')">' +
+      '<option value="">-- เลือกบิล --</option></select></td>' +
     // ยอดบิล
-    '<td class="num"><input class="inp inp-num" id="bill-'+n+'" readonly></td>' +
-
+    '<td><input class="inp num" id="bill-'+n+'" readonly></td>' +
     // เงินสด
-    '<td class="cash-col"><input class="inp inp-num" id="cash-'+n+'" type="number" min="0" step="0.01" oninput="updateFooter()"></td>' +
-
+    '<td class="cash-col"><input class="inp num" id="cash-'+n+'" type="text" inputmode="decimal"' +
+      ' onblur="fmtMoneyBlur(this)" onfocus="fmtMoneyFocus(this)" oninput="updateFooter()"></td>' +
     // ยอดโอน/เช็ค
-    '<td class="cheq-col"><input class="inp inp-num" id="cheq-'+n+'" type="number" min="0" step="0.01" oninput="updateFooter(); toggleCheqFields('+n+')"></td>' +
-
+    '<td class="cheq-col"><input class="inp num" id="cheq-'+n+'" type="text" inputmode="decimal"' +
+      ' onblur="fmtMoneyBlur(this)" onfocus="fmtMoneyFocus(this)"' +
+      ' oninput="updateFooter();toggleCheqFields('+n+')"></td>' +
     // วันที่โอน/เช็ค
-    '<td class="cheq-col"><input class="inp" id="cd-'+n+'" type="date"></td>' +
-
+    '<td class="cheq-col"><div class="cheq-placeholder">–</div>' +
+      '<div class="cheq-field"><input class="inp" id="cd-'+n+'" type="date"></div></td>' +
     // เลขที่เช็ค
-    '<td class="cheq-col"><input class="inp" id="cn-'+n+'" placeholder="xxxxxxxxx"></td>' +
-
+    '<td class="cheq-col"><div class="cheq-placeholder">–</div>' +
+      '<div class="cheq-field"><input class="inp" id="cn-'+n+'" placeholder="8 หลัก" maxlength="8"' +
+        ' oninput="this.value=this.value.replace(/[^0-9]/g,\'\')"></div></td>' +
     // ธนาคาร
-    '<td class="cheq-col" id="bank-td-'+n+'">' +
-      '<select class="inp" id="bk-'+n+'" onchange="onBankChange('+n+')">' + bankOpts + '</select>' +
-      '<input class="inp-other" id="bk-o-'+n+'" placeholder="ชื่อธนาคาร" style="display:none">' +
-    '</td>' +
-
+    '<td class="cheq-col"><div class="cheq-placeholder">–</div>' +
+      '<div class="cheq-field">' +
+        '<select class="inp" id="bk-'+n+'" onchange="onBankChange('+n+')">' + bankOpts + '</select>' +
+        '<input class="inp-other" id="bk-o-'+n+'" placeholder="ชื่อธนาคาร">' +
+      '</div></td>' +
     // สาขา
-    '<td class="cheq-col" id="br-td-'+n+'">' +
-      '<select class="inp" id="br-'+n+'" onchange="onBranchChange('+n+')"><option value="">-- สาขา --</option><option value="__other__">พิมพ์เอง...</option></select>' +
-      '<input class="inp-other" id="br-o-'+n+'" placeholder="ชื่อสาขา" style="display:none">' +
-    '</td>' +
-
+    '<td class="cheq-col"><div class="cheq-placeholder">–</div>' +
+      '<div class="cheq-field">' +
+        '<select class="inp" id="br-'+n+'" onchange="onBranchChange('+n+')">' +
+          '<option value="">-- สาขา --</option><option value="__other__">พิมพ์เอง...</option>' +
+        '</select>' +
+        '<input class="inp-other" id="br-o-'+n+'" placeholder="ชื่อสาขา">' +
+      '</div></td>' +
     // หมายเหตุ
-    '<td><input class="inp" id="nt-'+n+'" placeholder=""></td>' +
-
+    '<td><input class="inp" id="nt-'+n+'" onkeydown="onNoteKey(event,'+n+')"></td>' +
     // ลบ
-    '<td class="center no-print"><button class="inp-del" onclick="delRow('+n+')" title="ลบแถว">×</button></td>';
+    '<td class="no-print"><button class="del-btn" onclick="delRow('+n+')" title="ลบ">×</button></td>';
 
   document.getElementById('tbody').appendChild(tr);
   updateSeqs();
-  updateFooter();
+  if (doFocus) setTimeout(function() { document.getElementById('cc-' + n).focus(); }, 30);
 }
 
 function delRow(n) {
-  var row = document.getElementById('row-' + n);
-  if (row) { row.remove(); updateSeqs(); updateFooter(); }
+  var r = document.getElementById('row-' + n);
+  if (r) { r.remove(); updateSeqs(); updateFooter(); }
 }
 
 function updateSeqs() {
-  var rows = document.querySelectorAll('#tbody tr');
-  rows.forEach(function(tr, i) {
-    var s = tr.querySelector('[id^="seq-"]');
+  document.querySelectorAll('#tbody tr').forEach(function(tr, i) {
+    var s = document.getElementById('sq-' + tr.dataset.n);
     if (s) s.textContent = i + 1;
   });
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
+//  KEYBOARD HANDLERS
+// ════════════════════════════════════════════
+function onCcKey(e, n) {
+  if (e.key === 'Enter') { e.preventDefault(); onCodeChange(n); document.getElementById('inv-'+n).focus(); }
+}
+
+function onNoteKey(e, n) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  var rows = document.querySelectorAll('#tbody tr');
+  var last = rows[rows.length - 1];
+  if (last && last.dataset.n == n) {
+    addRow(true);
+  } else {
+    // Move to next row's cc input
+    var found = false;
+    rows.forEach(function(tr) {
+      if (found) { document.getElementById('cc-' + tr.dataset.n).focus(); found = false; return; }
+      if (tr.dataset.n == n) found = true;
+    });
+  }
+}
+
+// ════════════════════════════════════════════
 //  DEBT LOOKUP
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
+var _codeTimers = {};
+
+function debounceCode(n) {
+  clearTimeout(_codeTimers[n]);
+  _codeTimers[n] = setTimeout(function() { onCodeChange(n); }, 350);
+}
+
 function onCodeChange(n) {
-  var code = document.getElementById('cc-' + n).value.trim();
-  var debtsForCode = allDebts.filter(function(d) { return d.customer_code === code; });
+  var code = (document.getElementById('cc-' + n).value || '').trim();
+  if (!code) {
+    document.getElementById('nm-' + n).value = '';
+    document.getElementById('inv-' + n).innerHTML = '<option value="">-- เลือกบิล --</option>';
+    document.getElementById('bill-' + n).value = '';
+    return;
+  }
+  if (!debtsLoaded) { showToast('กำลังโหลดข้อมูล...',''); return; }
 
-  // Set customer name
-  var name = debtsForCode.length ? (debtsForCode[0].customer_name || '') : '';
-  document.getElementById('nm-' + n).value = name;
+  var matches = allDebts.filter(function(d) {
+    return (d.customer_code || '').trim() === code;
+  });
 
-  // Populate invoice dropdown
+  if (!matches.length) {
+    document.getElementById('nm-' + n).value = '(ไม่พบรหัสลูกค้า)';
+    document.getElementById('inv-' + n).innerHTML = '<option value="">-- ไม่พบบิล --</option>';
+    document.getElementById('bill-' + n).value = '';
+    return;
+  }
+
+  // Customer name
+  document.getElementById('nm-' + n).value = matches[0].customer_name || '';
+
+  // Invoice dropdown
   var sel = document.getElementById('inv-' + n);
   sel.innerHTML = '<option value="">-- เลือกบิล --</option>';
-  debtsForCode.forEach(function(d) {
+  matches.forEach(function(d) {
     var opt = document.createElement('option');
     opt.value = d.invoice_no;
     opt.dataset.amount = d.amount;
-    opt.textContent = d.invoice_no + '  (' + fmt(d.amount) + ' ฿)';
+    var status = d.status === 'collected' ? ' ✓' : (d.status === 'partial' ? ' ~' : '');
+    opt.textContent = d.invoice_no + status + '  (' + fmtBill(d.amount) + ' ฿)';
     sel.appendChild(opt);
   });
-
-  // Clear dependent fields
   document.getElementById('bill-' + n).value = '';
   updateFooter();
 }
@@ -406,35 +548,32 @@ function onCodeChange(n) {
 function onInvChange(n) {
   var sel = document.getElementById('inv-' + n);
   var opt = sel.options[sel.selectedIndex];
-  var amount = opt && opt.dataset.amount ? parseFloat(opt.dataset.amount) || 0 : 0;
-  document.getElementById('bill-' + n).value = amount > 0 ? fmt(amount) : '';
+  var amt = opt && opt.dataset.amount ? parseFloat(opt.dataset.amount) || 0 : 0;
+  document.getElementById('bill-' + n).value = amt > 0 ? fmtBill(amt) : '';
   updateFooter();
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  BANK / BRANCH
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 function onBankChange(n) {
   var bank = document.getElementById('bk-' + n).value;
-  var bkOther = document.getElementById('bk-o-' + n);
+  var bkOth = document.getElementById('bk-o-' + n);
   var brSel = document.getElementById('br-' + n);
-  var brOther = document.getElementById('br-o-' + n);
+  var brOth = document.getElementById('br-o-' + n);
 
   if (bank === '__other__') {
-    bkOther.style.display = 'block';
+    bkOth.style.display = 'block';
     brSel.innerHTML = '<option value="">--</option><option value="__other__">พิมพ์เอง...</option>';
-    brOther.style.display = 'block';
-    return;
+    brOth.style.display = 'block'; return;
   }
+  bkOth.style.display = 'none'; brOth.style.display = 'none';
 
-  bkOther.style.display = 'none';
-  brOther.style.display = 'none';
-
-  var provinces = BB[bank] || {};
+  var provs = BB[bank] || {};
   var opts = '<option value="">-- สาขา --</option>';
-  Object.keys(provinces).forEach(function(prov) {
-    opts += '<optgroup label="' + prov + '">';
-    provinces[prov].forEach(function(b) { opts += '<option>' + b + '</option>'; });
+  Object.keys(provs).forEach(function(p) {
+    opts += '<optgroup label="' + p + '">';
+    provs[p].forEach(function(b) { opts += '<option>' + b + '</option>'; });
     opts += '</optgroup>';
   });
   opts += '<option value="__other__">พิมพ์เอง...</option>';
@@ -442,132 +581,186 @@ function onBankChange(n) {
 }
 
 function onBranchChange(n) {
-  var val = document.getElementById('br-' + n).value;
-  document.getElementById('br-o-' + n).style.display = (val === '__other__') ? 'block' : 'none';
+  var v = document.getElementById('br-' + n).value;
+  document.getElementById('br-o-' + n).style.display = (v === '__other__') ? 'block' : 'none';
 }
 
+// ════════════════════════════════════════════
+//  CHEQUE CONDITIONAL SHOW/HIDE
+// ════════════════════════════════════════════
 function toggleCheqFields(n) {
-  var hasVal = parseFloat(document.getElementById('cheq-' + n).value) > 0;
-  ['cd-','cn-','bk-','br-'].forEach(function(p) {
-    var el = document.getElementById(p + n);
-    if (el) el.style.opacity = hasVal ? '1' : '0.4';
-  });
+  var amt = getRaw('cheq-' + n);
+  var row = document.getElementById('row-' + n);
+  if (amt > 0) {
+    row.classList.add('cheq-active');
+  } else {
+    row.classList.remove('cheq-active');
+  }
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
+//  MONEY INPUT FORMATTING
+// ════════════════════════════════════════════
+function fmtMoneyFocus(el) {
+  var v = getRawStr(el.value);
+  el.value = v || '';
+}
+
+function fmtMoneyBlur(el) {
+  var v = parseFloat(getRawStr(el.value));
+  el.value = isNaN(v) || v <= 0 ? '' : fmtMoney(v);
+  updateFooter();
+  var n = (el.id.split('-')[1]);
+  if (el.id.startsWith('cheq-')) toggleCheqFields(n);
+}
+
+function getRawStr(s) {
+  return (s || '').replace(/,/g, '');
+}
+
+function getRaw(id) {
+  var el = document.getElementById(id);
+  return el ? (parseFloat(getRawStr(el.value)) || 0) : 0;
+}
+
+// ════════════════════════════════════════════
+//  NUMBER FORMATTING
+// ════════════════════════════════════════════
+function fmtMoney(n) {
+  // Comma-separated, up to 2 decimal places
+  var v = parseFloat(n) || 0;
+  return v.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function fmtBill(n) {
+  // Bill amounts: comma + 2 decimal
+  return (parseFloat(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtInt(n) {
+  // Integers only (for summary)
+  return Math.round(parseFloat(n) || 0).toLocaleString('th-TH');
+}
+
+// ════════════════════════════════════════════
 //  FOOTER / TOTALS
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 function updateFooter() {
   var tCash = 0, tCheq = 0, tBill = 0;
   document.querySelectorAll('#tbody tr').forEach(function(tr) {
     var n = tr.dataset.n;
-    tCash += parseFloat(document.getElementById('cash-' + n).value) || 0;
-    tCheq += parseFloat(document.getElementById('cheq-' + n).value) || 0;
-    var billStr = (document.getElementById('bill-' + n).value || '').replace(/,/g, '');
-    tBill += parseFloat(billStr) || 0;
+    tCash += getRaw('cash-' + n);
+    tCheq += getRaw('cheq-' + n);
+    var bStr = (document.getElementById('bill-' + n).value || '').replace(/,/g,'');
+    tBill += parseFloat(bStr) || 0;
   });
-  document.getElementById('foot-bill-sum').textContent = fmt(tBill);
-  document.getElementById('foot-cash').textContent = fmt(tCash);
-  document.getElementById('foot-cheq').textContent = fmt(tCheq);
-  document.getElementById('sum-cash').textContent  = fmt(tCash);
-  document.getElementById('sum-cheq').textContent  = fmt(tCheq);
-  document.getElementById('sum-total').textContent = fmt(tCash + tCheq);
+  document.getElementById('ft-bill').textContent  = tBill > 0 ? fmtBill(tBill) : '–';
+  document.getElementById('ft-cash').textContent  = fmtInt(tCash);
+  document.getElementById('ft-cheq').textContent  = fmtInt(tCheq);
+  document.getElementById('sum-cash').textContent  = fmtInt(tCash);
+  document.getElementById('sum-cheq').textContent  = fmtInt(tCheq);
+  document.getElementById('sum-total').textContent = fmtInt(tCash + tCheq);
 }
 
-function fmt(n) {
-  return (parseFloat(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  SAVE ALL
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 function saveAll() {
   var logDate = document.getElementById('inp-date').value;
-  var rows = document.querySelectorAll('#tbody tr');
-  var toSave = [];
+  var toSave  = [];
+  var hasErr  = false;
 
-  rows.forEach(function(tr) {
-    var n = tr.dataset.n;
-    var custCode = document.getElementById('cc-'   + n).value.trim();
-    var invNo    = document.getElementById('inv-'  + n).value.trim();
-    var cashAmt  = parseFloat(document.getElementById('cash-' + n).value) || 0;
-    var cheqAmt  = parseFloat(document.getElementById('cheq-' + n).value) || 0;
-    if (!custCode || !invNo) return;
-    if (!cashAmt && !cheqAmt) return;
+  document.querySelectorAll('#tbody tr').forEach(function(tr) {
+    var n       = tr.dataset.n;
+    var code    = (document.getElementById('cc-'  + n).value || '').trim();
+    var invNo   = (document.getElementById('inv-' + n).value || '').trim();
+    var cashAmt = getRaw('cash-' + n);
+    var cheqAmt = getRaw('cheq-' + n);
+    if (!code || !invNo || (!cashAmt && !cheqAmt)) return;
 
-    var common = {
+    // Validate cheque_no if filled
+    if (cheqAmt > 0) {
+      var cn = (document.getElementById('cn-' + n).value || '').trim();
+      if (cn && !/^\d{8}$/.test(cn)) {
+        document.getElementById('cn-' + n).classList.add('invalid');
+        showToast('เลขที่เช็คต้องเป็นตัวเลข 8 หลัก', 'err');
+        hasErr = true; return;
+      }
+      document.getElementById('cn-' + n).classList.remove('invalid');
+    }
+
+    var base = {
       log_date:      logDate,
-      customer_code: custCode,
-      customer_name: document.getElementById('nm-' + n).value,
+      customer_code: code,
+      customer_name: document.getElementById('nm-' + n).value || '',
       invoice_no:    invNo,
-      note:          document.getElementById('nt-' + n).value.trim(),
+      note:          (document.getElementById('nt-' + n).value || '').trim(),
     };
 
-    if (cashAmt > 0) toSave.push({ action:'SAVE_CASH',   data: Object.assign({}, common, { amount: cashAmt }) });
-
+    if (cashAmt > 0) {
+      toSave.push({ action:'SAVE_CASH', data: Object.assign({}, base, { amount: cashAmt }) });
+    }
     if (cheqAmt > 0) {
-      var bank = document.getElementById('bk-' + n).value;
-      if (bank === '__other__') bank = document.getElementById('bk-o-' + n).value.trim();
-      var branch = document.getElementById('br-' + n).value;
-      if (branch === '__other__') branch = document.getElementById('br-o-' + n).value.trim();
-      toSave.push({ action:'SAVE_CHEQUE', data: Object.assign({}, common, {
+      var bk = document.getElementById('bk-' + n).value;
+      if (bk === '__other__') bk = document.getElementById('bk-o-' + n).value.trim();
+      var br = document.getElementById('br-' + n).value;
+      if (br === '__other__') br = document.getElementById('br-o-' + n).value.trim();
+      toSave.push({ action:'SAVE_CHEQUE', data: Object.assign({}, base, {
         amount:      cheqAmt,
         cheque_date: document.getElementById('cd-' + n).value,
         cheque_no:   document.getElementById('cn-' + n).value.trim(),
-        bank_name:   bank,
-        branch_name: branch,
+        bank_name:   bk,
+        branch_name: br,
       })});
     }
   });
 
+  if (hasErr) return;
   if (!toSave.length) { showToast('ไม่มีข้อมูลที่จะบันทึก', 'err'); return; }
 
   var btn = document.getElementById('btn-save');
   btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
-
-  var pending = toSave.length;
-  var hasError = false;
+  var pending = toSave.length, failed = false;
 
   function onDone() {
-    pending--;
-    if (pending <= 0) {
+    if (--pending <= 0) {
       btn.disabled = false; btn.textContent = 'บันทึกทั้งหมด';
-      showToast(hasError ? 'บันทึกบางรายการไม่สำเร็จ' : 'บันทึกสำเร็จ ' + toSave.length + ' รายการ', hasError ? 'err' : 'ok');
+      showToast(failed ? 'บางรายการไม่สำเร็จ' : 'บันทึกสำเร็จ ' + toSave.length + ' รายการ',
+                failed ? 'err' : 'ok');
     }
   }
 
   toSave.forEach(function(item) {
     google.script.run
       .withSuccessHandler(onDone)
-      .withFailureHandler(function(e) { hasError = true; showToast(e.message, 'err'); onDone(); })
+      .withFailureHandler(function(e) { failed = true; showToast(e.message,'err'); onDone(); })
       .handleApiCall(item.action, { data: item.data });
   });
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  PRINT
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 function printDoc() {
-  var dsrName  = document.getElementById('inp-dsr').value.trim() || document.getElementById('inp-dsr').placeholder;
-  var logDate  = document.getElementById('inp-date').value;
-  var printDate = new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
-
-  document.getElementById('ph-dsr').textContent        = dsrName;
-  document.getElementById('ph-print-date').textContent = printDate;
-  document.getElementById('ph-date-range').textContent = 'วันที่บันทึก: ' + logDate;
-
+  var dsr   = document.getElementById('inp-dsr').value.trim()
+              || document.getElementById('inp-dsr').placeholder;
+  var date  = document.getElementById('inp-date').value;
+  var now   = new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
+  document.getElementById('ph-dsr-name').textContent  = dsr;
+  document.getElementById('ph-print-date').textContent = now;
+  document.getElementById('ph-sub-line').textContent  = 'วันที่บันทึก: ' + date;
   window.print();
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 //  TOAST
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════
 function showToast(msg, type) {
   var t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show ' + (type || '');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(function() { t.className = 'toast'; }, 3500);
+  clearTimeout(t._t);
+  t._t = setTimeout(function() { t.className = 'toast'; }, 3200);
 }
 </script>
 </body>
