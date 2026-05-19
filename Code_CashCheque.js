@@ -37,7 +37,7 @@ function saveCash(data, user) {
 //  SAVE CHEQUE
 // ─────────────────────────────────────────────────────────────────────
 function saveCheque(data, user) {
-  validate(data, ['customer_code', 'invoice_no', 'amount', 'cheque_no', 'bank_name']);
+  validate(data, ['customer_code', 'invoice_no', 'amount']);
   ensureCashChequeSheets();
   var date = data.log_date || todayStr();
   var row = {
