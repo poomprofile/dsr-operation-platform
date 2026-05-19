@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+body{font-family:Sarabun,sans-serif;margin:0;background:#F7F5F2;color:#1A1A1A}
+.hdr{background:#E8631A;color:#fff;padding:14px 20px;position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.hdr h1{font-size:17px;font-weight:700;margin:0}
+.hdr p{opacity:.9;font-size:12px;margin:2px 0 0}
+.wrap{padding:12px 16px;max-width:1100px;margin:0 auto}
+.stats{background:#fff;border-radius:10px;padding:14px 18px;margin-bottom:12px;border:1px solid rgba(0,0,0,.08);display:flex;gap:32px}
+.n{font-size:24px;font-weight:700;color:#E8631A}
+.l{font-size:11px;color:#888;letter-spacing:.06em;text-transform:uppercase}
+table{width:100%;background:#fff;border-collapse:collapse;border:1px solid rgba(0,0,0,.08);border-radius:8px;overflow:hidden;font-size:13px}
+th{background:#F1EEE9;padding:8px 6px;text-align:left;font-weight:600;font-size:11px;color:#555;border-bottom:2px solid #E8631A;white-space:nowrap}
+td{padding:5px 6px;border-bottom:1px solid rgba(0,0,0,.05);vertical-align:middle}
+.ro{color:#555;font-size:12px;white-space:nowrap}
+td input{width:100%;border:1px solid transparent;padding:3px 5px;border-radius:4px;font-family:Sarabun,sans-serif;font-size:13px;background:transparent;box-sizing:border-box}
+td input:focus{outline:none;background:#fff;border-color:#E8631A}
+.num{text-align:right}
+.tr-warn{background:#FEF6EE}
+.tr-e{background:#FFFDE7}
+.tr-ok{background:#fff}
+.st{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.st-ok{background:#E2F4ED;color:#007B40}
+.st-wait{background:#FEF0E7;color:#C65410}
+.st-e{background:#FFF8E1;color:#F57F17}
+.st-na{background:#FEE9E9;color:#B61010}
+.act{position:sticky;bottom:0;background:#fff;padding:10px 16px;border-top:1px solid rgba(0,0,0,.1);display:flex;gap:8px;box-shadow:0 -4px 12px rgba(0,0,0,.06)}
+.btn{flex:1;padding:11px;border:none;border-radius:8px;font-size:14px;font-weight:600;font-family:Sarabun,sans-serif;cursor:pointer}
+.btn-g{background:#007B40;color:#fff}
+.btn-w{background:#fff;color:#666;border:1px solid #ddd}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%);background:#1A1A1A;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.toast.on{opacity:1}
+.empty{padding:40px;text-align:center;color:#888}
+
+/* ── Search Dropdown ─────────────────────────────────────── */
+.bill-wrap{position:relative;min-width:180px}
+.bill-input{
+  width:100%;border:1px solid #ddd;padding:4px 24px 4px 7px;
+  border-radius:6px;font-family:Sarabun,sans-serif;font-size:13px;
+  background:#fff;box-sizing:border-box;cursor:pointer;
+  color:#1A1A1A;
+}
+.bill-input:focus{outline:none;border-color:#E8631A;box-shadow:0 0 0 2px rgba(232,99,26,.15)}
+.bill-input.selected{border-color:#007B40;background:#F0FAF5;font-weight:600}
+.bill-arrow{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  pointer-events:none;color:#aaa;font-size:10px;
+}
+.bill-dropdown{
+  display:none;position:absolute;top:calc(100% + 3px);left:0;
+  background:#fff;border:1px solid #ddd;border-radius:8px;
+  box-shadow:0 4px 20px rgba(0,0,0,.15);
+  z-index:999;min-width:280px;max-height:260px;overflow:hidden;
+  flex-direction:column;
+}
+.bill-dropdown.open{display:flex}
+.bill-search-wrap{padding:8px 8px 4px;border-bottom:1px solid #f0f0f0}
+.bill-search{
+  width:100%;border:1px solid #ddd;border-radius:6px;
+  padding:5px 8px;font-family:Sarabun,sans-serif;font-size:12px;
+  box-sizing:border-box;
+}
+.bill-search:focus{outline:none;border-color:#E8631A}
+.bill-list{overflow-y:auto;max-height:200px;padding:4px 0}
+.bill-opt{
+  padding:7px 12px;cursor:pointer;font-size:12px;
+  display:flex;justify-content:space-between;align-items:flex-start;
+  gap:8px;border-bottom:1px solid #f8f8f8;
+  transition:background .1s;
+}
+.bill-opt:last-child{border-bottom:none}
+.bill-opt:hover,.bill-opt.active{background:#FEF6EE}
+.bill-opt-inv{font-weight:700;font-size:13px;white-space:nowrap}
+.bill-opt-right{text-align:right;flex-shrink:0}
+.bill-opt-amt{font-weight:700;color:#E8631A;font-size:13px}
+.bill-opt-due{font-size:11px;margin-top:1px}
+.due-over{color:#C62828}
+.due-soon{color:#F57F17}
+.due-ok{color:#2E7D32}
+.due-none{color:#aaa}
+.bill-empty{padding:16px;text-align:center;color:#aaa;font-size:12px}
+.bill-loading{padding:16px;text-align:center;color:#aaa;font-size:12px}
+.bill-confirm{
+  padding:6px 10px;border-top:1px solid #f0f0f0;
+  display:flex;justify-content:flex-end;gap:6px;
+}
+.btn-save-bill{
+  background:#007B40;color:#fff;border:none;border-radius:6px;
+  padding:5px 14px;font-size:12px;font-weight:700;font-family:Sarabun,sans-serif;
+  cursor:pointer;white-space:nowrap;
+}
+.btn-save-bill:disabled{opacity:.4;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <h1>📋 ใบสรุปเงินสัปดาห์นี้</h1>
+  <p>คุณ<?= dsrName ?> &nbsp;·&nbsp; <?= dsrEmail ?></p>
+</div>
+<div class="wrap">
+  <div class="stats">
+    <div><div class="l">จำนวน</div><div class="n" id="cnt">—</div></div>
+    <div><div class="l">ยอดรวม</div><div class="n" id="sum">—</div></div>
+  </div>
+  <div id="app" class="empty">กำลังโหลด...</div>
+</div>
+<div class="act">
+  <button class="btn btn-w" id="btn-r" onclick="doReload()">รีเฟรช</button>
+  <button class="btn btn-g" id="btn-s" onclick="doSubmit()">บันทึก + สร้าง Cover Sheet</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+var EM   = '<?= dsrEmail ?>';
+var rows = [];
+var edits = {};
+
+// cache บิลต่อ customer code ไม่ต้องโหลดซ้ำ
+var billCache = {};
+
+// ── TOAST ──────────────────────────────────────────────────
+function toast(m, d) {
+  var e = document.getElementById('toast');
+  e.textContent = m;
+  e.className = 'toast on';
+  setTimeout(function(){ e.className = 'toast'; }, d || 2500);
+}
+
+// ── LOAD / RENDER ───────────────────────────────────────────
+function load() {
+  document.getElementById('app').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+  google.script.run
+    .withSuccessHandler(render)
+    .withFailureHandler(function(e) {
+      document.getElementById('app').innerHTML =
+        '<div class="empty" style="color:#c00">❌ ' + e.message + '</div>';
+    })
+    .getDsrWeekSlips(EM);
+}
+
+function render(d) {
+  if (!d) { document.getElementById('app').innerHTML = '<div class="empty" style="color:#c00">❌ ไม่ได้รับข้อมูล</div>'; return; }
+  if (d.error) { document.getElementById('app').innerHTML = '<div class="empty" style="color:#c00">❌ ' + d.error + '</div>'; return; }
+  rows  = d.rows || [];
+  edits = {};
+  document.getElementById('cnt').textContent = rows.length;
+  document.getElementById('sum').textContent = Number(d.total || 0).toLocaleString('th-TH') + ' ฿';
+
+  if (!rows.length) {
+    document.getElementById('app').innerHTML = '<div class="empty">ยังไม่มีสลิปในสัปดาห์นี้</div>';
+    return;
+  }
+
+  var h = '<table><thead><tr>' +
+    '<th style="width:3%">#</th>' +
+    '<th style="width:9%">วันที่โอน</th>' +
+    '<th style="width:6%">เวลาโอน</th>' +
+    '<th style="width:7%">รหัส</th>' +
+    '<th style="width:17%">ร้าน</th>' +
+    '<th style="width:11%">เลขบิล</th>' +
+    '<th style="width:8%;text-align:right">ยอด(฿)</th>' +
+    '<th style="width:8%">สถานะ</th>' +
+    '<th>หมายเหตุ</th>' +
+    '</tr></thead><tbody>';
+
+  rows.forEach(function(r, i) {
+    var st      = r['สถานะ'] || '';
+    var billVal = (r['เลขที่บิล'] || '').toString().trim();
+    var isEmpty = !billVal;                        // เลขบิลว่าง → ใช้ dropdown
+
+    var tc = isEmpty ? 'tr-e'
+           : (st === 'ยอดไม่ตรง' || st === 'รอระบุ') ? 'tr-warn' : 'tr-ok';
+    var sc = isEmpty ? 'st-e'
+           : st === 'เรียบร้อย' ? 'st-ok'
+           : st === 'รอระบุ'    ? 'st-wait' : 'st-na';
+    var stLabel = isEmpty ? 'รอระบุบิล' : (st || '-');
+
+    var sd = fmtDate(r['วันที่โอน'] || '');
+    var sv = (r['เวลาโอน'] || '').toString().slice(0, 5);
+    if (!sv && r['วันที่โอน']) {
+      try {
+        var dt = new Date(r['วันที่โอน']);
+        if (!isNaN(dt.getTime())) {
+          var b = new Date(dt.toLocaleString('en-US', {timeZone:'Asia/Bangkok'}));
+          var hh = b.getHours(), mm = b.getMinutes();
+          if (hh || mm) sv = hh + ':' + (mm < 10 ? '0' : '') + mm;
+        }
+      } catch(e){}
+    }
+    var af = (parseFloat(r['ยอดเงิน']) || 0).toLocaleString('th-TH');
+    var cust = (r['รหัสลูกค้า'] || '').toString().trim();
+
+    h += '<tr class="' + tc + '" data-row="' + r._row + '">';
+    h += '<td>' + (i+1) + '</td>';
+    h += '<td class="ro">' + sd + '</td>';
+    h += '<td class="ro">' + sv + '</td>';
+    h += inp(r, 'รหัสลูกค้า', 'ชื่อร้าน');
+    h += '<td class="ro" id="shop-' + r._row + '">' + esc(r['ชื่อร้าน'] || '') + '</td>';
+
+    // ── เลขบิล: dropdown ถ้าว่าง, input ปกติถ้ามีค่าแล้ว ──
+    if (isEmpty) {
+      h += '<td><div class="bill-wrap" id="bw-' + r._row + '">' +
+           '<input class="bill-input" id="bi-' + r._row + '"' +
+           ' readonly placeholder="เลือกบิล..."' +
+           ' data-row="' + r._row + '" data-cust="' + esc(cust) + '"' +
+           ' onclick="openDrop(this)">' +
+           '<span class="bill-arrow">▼</span>' +
+           '<div class="bill-dropdown" id="bd-' + r._row + '">' +
+             '<div class="bill-search-wrap">' +
+               '<input class="bill-search" placeholder="🔍 พิมพ์เลขบิล..." ' +
+               'oninput="filterDrop(this,\'' + r._row + '\')">' +
+             '</div>' +
+             '<div class="bill-list" id="bl-' + r._row + '">' +
+               '<div class="bill-loading">กำลังโหลด...</div>' +
+             '</div>' +
+             '<div class="bill-confirm">' +
+               '<button class="btn-save-bill" id="bb-' + r._row + '" disabled ' +
+               'onclick="saveBill(\'' + r._row + '\')">บันทึก</button>' +
+             '</div>' +
+           '</div>' +
+           '</div></td>';
+    } else {
+      h += inp(r, 'เลขที่บิล');
+    }
+
+    h += '<td class="num">' + af + '</td>';
+    h += '<td><span class="st ' + sc + '" id="st-' + r._row + '">' + stLabel + '</span></td>';
+    h += inp(r, 'note');
+    h += '</tr>';
+  });
+
+  h += '</tbody></table>';
+  document.getElementById('app').innerHTML = h;
+
+  // โหลด bill options สำหรับทุกแถวที่ว่าง
+  rows.forEach(function(r) {
+    var billVal = (r['เลขที่บิล'] || '').toString().trim();
+    if (!billVal && r['รหัสลูกค้า']) {
+      fetchBills(r['รหัสลูกค้า'].toString().trim(), r._row);
+    }
+  });
+
+  // ปิด dropdown เมื่อคลิกข้างนอก
+  document.addEventListener('click', closeAllDrops, true);
+}
+
+// ── BILL DROPDOWN LOGIC ─────────────────────────────────────
+
+// state ต่อ row
+var dropState = {}; // rowIndex → { bills: [], selected: null }
+
+function fetchBills(custCode, rowIndex) {
+  if (!custCode) return;
+  if (billCache[custCode]) {
+    dropState[rowIndex] = { bills: billCache[custCode], selected: null };
+    renderBillList(rowIndex, billCache[custCode], '');
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      var bills = (res && res.ok) ? res.bills : [];
+      billCache[custCode] = bills;
+      dropState[rowIndex] = { bills: bills, selected: null };
+      renderBillList(rowIndex, bills, '');
+    })
+    .withFailureHandler(function() {
+      dropState[rowIndex] = { bills: [], selected: null };
+      renderBillList(rowIndex, [], '');
+    })
+    .getBillsForPendingRow(custCode);
+}
+
+function renderBillList(rowIndex, bills, filter) {
+  var listEl = document.getElementById('bl-' + rowIndex);
+  if (!listEl) return;
+
+  var q = (filter || '').toLowerCase().trim();
+  var filtered = bills.filter(function(b) {
+    return !q || b.invoiceNo.toLowerCase().indexOf(q) !== -1;
+  });
+
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="bill-empty">' + (q ? 'ไม่พบ "' + esc(filter) + '"' : 'ไม่มีบิลค้างชำระ') + '</div>';
+    return;
+  }
+
+  var today = new Date(); today.setHours(0,0,0,0);
+  var sel   = dropState[rowIndex] && dropState[rowIndex].selected;
+
+  listEl.innerHTML = filtered.map(function(b) {
+    var dueTxt = '', dueCls = 'due-none';
+    if (b.dueDate) {
+      var due = new Date(b.dueDate);
+      var diff = Math.round((due - today) / 86400000);
+      if (diff < 0) {
+        dueTxt = '⚠️ เกิน ' + Math.abs(diff) + ' วัน';
+        dueCls = 'due-over';
+      } else if (diff === 0) {
+        dueTxt = '🔴 ครบวันนี้';
+        dueCls = 'due-over';
+      } else if (diff <= 7) {
+        dueTxt = '🟡 อีก ' + diff + ' วัน';
+        dueCls = 'due-soon';
+      } else {
+        dueTxt = '🟢 ' + fmtShortDate(b.dueDate);
+        dueCls = 'due-ok';
+      }
+    }
+    var isActive = sel === b.invoiceNo ? ' active' : '';
+    return '<div class="bill-opt' + isActive + '" onclick="selectBill(\'' + rowIndex + '\',\'' + esc(b.invoiceNo) + '\')">' +
+           '<span class="bill-opt-inv">' + esc(b.invoiceNo) + '</span>' +
+           '<div class="bill-opt-right">' +
+             '<div class="bill-opt-amt">฿' + Number(b.amount).toLocaleString('th-TH') + '</div>' +
+             (dueTxt ? '<div class="bill-opt-due ' + dueCls + '">' + dueTxt + '</div>' : '') +
+           '</div>' +
+           '</div>';
+  }).join('');
+}
+
+function openDrop(inputEl) {
+  var rowIndex = inputEl.dataset.row;
+  // ปิด dropdown อื่นทั้งหมดก่อน
+  document.querySelectorAll('.bill-dropdown.open').forEach(function(d) {
+    if (d.id !== 'bd-' + rowIndex) d.classList.remove('open');
+  });
+  var dd = document.getElementById('bd-' + rowIndex);
+  if (!dd) return;
+  dd.classList.toggle('open');
+  if (dd.classList.contains('open')) {
+    // focus search box
+    var s = dd.querySelector('.bill-search');
+    if (s) { s.value = ''; setTimeout(function(){ s.focus(); }, 50); }
+  }
+}
+
+function filterDrop(searchEl, rowIndex) {
+  var st = dropState[rowIndex];
+  if (!st) return;
+  renderBillList(rowIndex, st.bills, searchEl.value);
+}
+
+function selectBill(rowIndex, invoiceNo) {
+  if (!dropState[rowIndex]) return;
+  dropState[rowIndex].selected = invoiceNo;
+
+  // อัปเดต input display
+  var inputEl = document.getElementById('bi-' + rowIndex);
+  if (inputEl) {
+    inputEl.value = invoiceNo;
+    inputEl.classList.add('selected');
+  }
+
+  // เปิดปุ่มบันทึก
+  var btn = document.getElementById('bb-' + rowIndex);
+  if (btn) btn.disabled = false;
+
+  // re-render list เพื่อ highlight
+  renderBillList(rowIndex, dropState[rowIndex].bills,
+    (document.querySelector('#bd-' + rowIndex + ' .bill-search') || {}).value || '');
+}
+
+function closeAllDrops(e) {
+  if (e.target.classList.contains('bill-input') ||
+      e.target.classList.contains('bill-search') ||
+      e.target.classList.contains('bill-opt') ||
+      e.target.closest && e.target.closest('.bill-dropdown')) return;
+  document.querySelectorAll('.bill-dropdown.open').forEach(function(d) {
+    d.classList.remove('open');
+  });
+}
+
+// ── SAVE BILL (เขียนลง Sheet โดยตรง) ───────────────────────
+function saveBill(rowIndex) {
+  var st = dropState[rowIndex];
+  if (!st || !st.selected) return;
+
+  var btn = document.getElementById('bb-' + rowIndex);
+  btn.disabled = true;
+  btn.textContent = '⏳';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.ok) {
+        // อัปเดต UI
+        var wrapEl = document.getElementById('bw-' + rowIndex);
+        if (wrapEl) {
+          wrapEl.innerHTML = '<span style="font-weight:700;color:#007B40">' + esc(st.selected) + '</span>';
+        }
+        var stEl = document.getElementById('st-' + rowIndex);
+        if (stEl) {
+          stEl.className = 'st st-ok';
+          stEl.textContent = 'เรียบร้อย';
+        }
+        var tr = document.querySelector('tr[data-row="' + rowIndex + '"]');
+        if (tr) tr.className = 'tr-ok';
+
+        // ปิด dropdown
+        var dd = document.getElementById('bd-' + rowIndex);
+        if (dd) dd.classList.remove('open');
+
+        toast('✅ บันทึกเลขบิล ' + st.selected);
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'บันทึก';
+        toast('❌ ' + (res ? res.error : 'เกิดข้อผิดพลาด'));
+      }
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false;
+      btn.textContent = 'บันทึก';
+      toast('❌ ' + e.message);
+    })
+    .assignBillToSlipRow(parseInt(rowIndex), st.selected);
+}
+
+// ── INPUT HELPER (สำหรับ column อื่นๆ) ─────────────────────
+function inp(r, k, lk) {
+  var v  = esc(String(r[k] || ''));
+  var lu = lk ? ' data-lk="' + lk + '"' : '';
+  return '<td><input data-k="' + k + '"' + lu + ' value="' + v + '" oninput="ed(this)"></td>';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function ed(el) {
+  var tr  = el.closest('tr');
+  var row = tr.dataset.row;
+  var k   = el.dataset.k;
+  var lk  = el.dataset.lk;
+  if (!edits[row]) edits[row] = {row: parseInt(row), fields: {}};
+  edits[row].fields[k] = el.value;
+  if (lk) {
+    var match = rows.find(function(r){ return r['รหัสลูกค้า'] === el.value.trim(); });
+    if (match && match[lk]) {
+      var cell = document.getElementById('shop-' + row);
+      if (cell) cell.textContent = match[lk];
+      edits[row].fields[lk] = match[lk];
+    }
+  }
+}
+
+// ── DATE HELPERS ────────────────────────────────────────────
+function fmtDate(s) {
+  var mo = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  try {
+    if (!s) return '';
+    var dt = new Date(s);
+    if (isNaN(dt.getTime())) return s;
+    var b = new Date(dt.toLocaleString('en-US', {timeZone:'Asia/Bangkok'}));
+    return b.getDate() + ' ' + mo[b.getMonth()+1] + ' ' + String(b.getFullYear()+543).slice(-2);
+  } catch(e) { return s; }
+}
+
+function fmtShortDate(iso) {
+  var mo = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  try {
+    var dt = new Date(iso);
+    var b  = new Date(dt.toLocaleString('en-US', {timeZone:'Asia/Bangkok'}));
+    return b.getDate() + ' ' + mo[b.getMonth()+1];
+  } catch(e) { return iso; }
+}
+
+// ── RELOAD / SUBMIT ─────────────────────────────────────────
+function doReload() {
+  if (Object.keys(edits).length && !confirm('มีการแก้ไขที่ยังไม่ได้บันทึก — โหลดใหม่?')) return;
+  billCache = {};
+  dropState = {};
+  load();
+}
+
+function doSubmit() {
+  var bs = document.getElementById('btn-s');
+  bs.disabled = true;
+  bs.textContent = 'กำลังบันทึก...';
+  var list = Object.values(edits);
+  function pdf() {
+    bs.textContent = 'กำลังสร้าง PDF...';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        bs.disabled = false;
+        bs.textContent = 'บันทึก + สร้าง Cover Sheet';
+        if (res && res.url) { toast('✅ สร้างเรียบร้อย'); window.open(res.url, '_blank'); }
+        else toast('⚠️ สร้างไม่ได้');
+      })
+      .withFailureHandler(function(e) {
+        bs.disabled = false;
+        bs.textContent = 'บันทึก + สร้าง Cover Sheet';
+        toast('❌ ' + e.message);
+      })
+      .generateCoverSheetPdf(EM);
+  }
+  if (!list.length) { pdf(); return; }
+  google.script.run
+    .withSuccessHandler(function() { edits = {}; pdf(); })
+    .withFailureHandler(function(e) {
+      bs.disabled = false;
+      bs.textContent = 'บันทึก + สร้าง Cover Sheet';
+      toast('❌ ' + e.message);
+    })
+    .saveDsrEdits(list);
+}
+
+load();
+</script>
+</body>
+</html>

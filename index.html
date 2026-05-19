@@ -1,0 +1,3416 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>DSR Portal — Nice Center Oil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+
+
+<style>
+:root {
+  --o:       #E8631A;   
+  --o-dark:  #C44E0E;
+  --o-lite:  #FEF0E7;
+  --g:       #007B40;   
+  --g-dark:  #005C2E;
+  --g-lite:  #E2F4ED;
+  --r:       #C8102E;   
+  --w:       #FFFFFF;
+  --ink:     #1A1A1A;
+  --ink2:    #4A4A4A;
+  --ink3:    #8A8A8A;
+  --surface: #F7F5F2;
+  --card:    #FFFFFF;
+  --border:  rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.14);
+  --radius:  14px;
+  --radius-sm: 8px;
+  --shadow:  0 2px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body:    'Sarabun', sans-serif;
+  --nav-h:   64px;
+  --bottom-h: 68px;
+}
+
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--font-body);
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 100%;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: var(--font-body); cursor: pointer; border: none; background: none; }
+input, select, textarea { font-family: var(--font-body); }
+img { max-width: 100%; }
+
+
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(16px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity:0; } to { opacity:1; }
+}
+@keyframes slideInRight {
+  from { opacity:0; transform:translateX(24px); }
+  to   { opacity:1; transform:translateX(0); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes pulse {
+  0%,100% { transform:scale(1); }
+  50%      { transform:scale(1.05); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.anim-fadeup   { animation: fadeUp .35s ease both; }
+.anim-fadein   { animation: fadeIn .3s ease both; }
+.anim-slidein  { animation: slideInRight .3s ease both; }
+.delay-1 { animation-delay:.06s; }
+.delay-2 { animation-delay:.12s; }
+.delay-3 { animation-delay:.18s; }
+.delay-4 { animation-delay:.24s; }
+.delay-5 { animation-delay:.30s; }
+
+
+#screen-login {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.login-bg-stripe {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 45%;
+  background: var(--o);
+  clip-path: polygon(0 0, 100% 0, 100% 75%, 0 100%);
+}
+.login-bg-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, var(--r) 0%, var(--r) 33%, var(--g) 33%, var(--g) 66%, var(--o) 66%);
+}
+.login-card {
+  position: relative;
+  background: var(--card);
+  border-radius: 20px;
+  padding: 40px 32px 36px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: var(--shadow-lg);
+  animation: fadeUp .5s ease both;
+}
+.login-logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.login-logo-icon {
+  width: 48px; height: 48px;
+  background: var(--o);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.login-logo-text {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--ink);
+  letter-spacing: .01em;
+}
+.login-logo-sub {
+  font-size: 12px;
+  color: var(--ink3);
+  font-weight: 400;
+  margin-bottom: 28px;
+  padding-left: 60px;
+}
+.castrol-bar {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 28px;
+}
+.castrol-bar span {
+  height: 3px;
+  border-radius: 2px;
+  flex: 1;
+}
+.login-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  letter-spacing: .01em;
+}
+.login-desc {
+  font-size: 13px;
+  color: var(--ink3);
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+.btn-google {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--o);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 20px;
+  border-radius: 12px;
+  transition: background .15s, transform .1s;
+  letter-spacing: .01em;
+}
+.btn-google:hover  { background: var(--o-dark); }
+.btn-google:active { transform: scale(.98); }
+.login-note {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink3);
+  margin-top: 16px;
+  line-height: 1.6;
+}
+.login-castrol-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.castrol-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+
+
+#app {
+  display: none;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+
+.top-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--nav-h);
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 100;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+}
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.nav-logo-icon {
+  width: 32px; height: 32px;
+  background: var(--o);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.nav-logo-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: .01em;
+}
+.nav-logo-sub {
+  font-size: 10px;
+  color: var(--ink3);
+  line-height: 1;
+}
+.nav-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 5px 12px 5px 6px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.nav-user-chip:hover { background: var(--border); }
+.nav-avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.nav-user-name { font-size: 12px; font-weight: 500; }
+.nav-role-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+
+.nav-bell {
+  position: relative;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background .15s;
+}
+.nav-bell:hover { background: var(--surface); }
+.nav-bell-dot {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 8px; height: 8px;
+  background: var(--r);
+  border-radius: 50%;
+  border: 1.5px solid var(--card);
+}
+
+
+.main-content {
+  padding-top: var(--nav-h);
+  padding-bottom: calc(var(--bottom-h) + 16px);
+  flex: 1;
+}
+
+
+.page {
+  display: none;
+  padding: 16px;
+  animation: fadeUp .3s ease both;
+}
+.page.active { display: block; }
+
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--bottom-h);
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.bnav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: background .15s;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+.bnav-item:active { transform: scale(.94); }
+.bnav-icon {
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+}
+.bnav-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink3);
+  transition: color .15s;
+}
+.bnav-item.active .bnav-label { color: var(--o); }
+.bnav-indicator {
+  position: absolute;
+  top: 6px;
+  width: 28px; height: 3px;
+  border-radius: 2px;
+  background: var(--o);
+  opacity: 0;
+  transition: opacity .2s;
+}
+.bnav-item.active .bnav-indicator { opacity: 1; }
+.bnav-badge {
+  position: absolute;
+  top: 4px; right: calc(50% - 18px);
+  background: var(--r);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 6px;
+  border: 1.5px solid var(--card);
+}
+
+
+@media (min-width: 768px) {
+  .bottom-nav { display: none; }
+  .main-content { padding-top: var(--nav-h); padding-bottom: 24px; }
+  .admin-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: calc(100vh - var(--nav-h));
+  }
+  .sidebar {
+    display: flex !important;
+    flex-direction: column;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    padding: 20px 12px;
+    position: sticky;
+    top: var(--nav-h);
+    height: calc(100vh - var(--nav-h));
+    overflow-y: auto;
+  }
+}
+.sidebar { display: none; }
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink3);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 4px 10px 8px;
+  margin-top: 12px;
+}
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink2);
+  transition: background .15s, color .15s;
+  position: relative;
+}
+.sidebar-item:hover { background: var(--surface); color: var(--ink); }
+.sidebar-item.active {
+  background: var(--o-lite);
+  color: var(--o-dark);
+}
+.sidebar-item.active svg path,
+.sidebar-item.active svg rect,
+.sidebar-item.active svg circle { stroke: var(--o); }
+
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.card-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  margin-bottom: 12px;
+  color: var(--ink);
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 12px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.stat-card.orange::before { background: var(--o); }
+.stat-card.green::before  { background: var(--g); }
+.stat-card.red::before    { background: var(--r); }
+.stat-card.gray::before   { background: var(--ink3); }
+.stat-label {
+  font-size: 11px;
+  color: var(--ink3);
+  font-weight: 500;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+}
+.stat-unit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink3);
+}
+.stat-change {
+  font-size: 11px;
+  margin-top: 4px;
+  font-weight: 500;
+}
+.stat-change.up   { color: var(--g); }
+.stat-change.down { color: var(--r); }
+
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.section-action {
+  font-size: 12px;
+  color: var(--o);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.qa-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.qa-btn:active { transform: scale(.96); background: var(--surface); }
+.qa-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+}
+.qa-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+  line-height: 1.3;
+}
+
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.tag-orange { background: var(--o-lite); color: var(--o-dark); }
+.tag-green  { background: var(--g-lite); color: var(--g-dark); }
+.tag-red    { background: #FEE9E9; color: #A02020; }
+.tag-gray   { background: #F0F0F0; color: var(--ink2); }
+
+
+.dsr-greeting-bar {
+  background: var(--o);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  color: #fff;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.dsr-greeting-bar::after {
+  content: '';
+  position: absolute;
+  right: -20px; top: -20px;
+  width: 100px; height: 100px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+}
+.dsr-greeting-bar::before {
+  content: '';
+  position: absolute;
+  right: 30px; bottom: -30px;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+}
+.greeting-date {
+  font-size: 12px;
+  opacity: .8;
+  margin-bottom: 4px;
+}
+.greeting-name {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: .01em;
+  margin-bottom: 8px;
+}
+.greeting-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+
+.session-flow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.session-card {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  position: relative;
+}
+.session-card:active { transform: scale(.97); }
+.session-card.done {
+  border-color: var(--g);
+  background: var(--g-lite);
+}
+.session-card.active-now {
+  border-color: var(--o);
+  box-shadow: 0 0 0 3px rgba(232,99,26,0.15);
+}
+.session-icon { font-size: 24px; margin-bottom: 4px; }
+.session-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink2);
+}
+.session-status {
+  font-size: 10px;
+  color: var(--ink3);
+  margin-top: 2px;
+}
+.session-done-check {
+  position: absolute;
+  top: -6px; right: -6px;
+  width: 18px; height: 18px;
+  background: var(--g);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--card);
+}
+.session-arrow {
+  font-size: 20px;
+  color: var(--ink3);
+}
+
+
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .1s;
+}
+.list-item:last-child { border-bottom: none; }
+.list-item:active { background: var(--surface); margin: 0 -16px; padding: 13px 16px; }
+.list-icon-wrap {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.list-meta { flex: 1; min-width: 0; }
+.list-primary {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.list-secondary {
+  font-size: 12px;
+  color: var(--ink3);
+  margin-top: 1px;
+}
+.list-value {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: right;
+  flex-shrink: 0;
+}
+.list-value-sub {
+  font-size: 10px;
+  color: var(--ink3);
+  text-align: right;
+  font-weight: 400;
+}
+
+
+.form-group { margin-bottom: 16px; }
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink2);
+  margin-bottom: 6px;
+  letter-spacing: .02em;
+}
+.form-label span { color: var(--r); }
+.form-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 15px;
+  color: var(--ink);
+  transition: border-color .15s;
+  outline: none;
+  -webkit-appearance: none;
+}
+.form-input:focus {
+  border-color: var(--o);
+  background: var(--card);
+}
+.form-input::placeholder { color: var(--ink3); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-hint { font-size: 11px; color: var(--ink3); margin-top: 4px; }
+.form-error { font-size: 11px; color: var(--r); margin-top: 4px; display: none; }
+
+
+.photo-upload {
+  border: 2px dashed var(--border2);
+  border-radius: var(--radius);
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  background: var(--surface);
+  position: relative;
+}
+.photo-upload:hover { border-color: var(--o); background: var(--o-lite); }
+.photo-upload:active { transform: scale(.98); }
+.photo-upload input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.photo-upload-icon { font-size: 32px; margin-bottom: 8px; }
+.photo-upload-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink2);
+}
+.photo-upload-sub {
+  font-size: 11px;
+  color: var(--ink3);
+  margin-top: 2px;
+}
+.photo-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+.photo-thumb {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  width: 100%;
+  letter-spacing: .01em;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--o); color: #fff; }
+.btn-primary:hover { background: var(--o-dark); }
+.btn-secondary { background: var(--surface); color: var(--ink); border: 1.5px solid var(--border2); }
+.btn-green { background: var(--g); color: #fff; }
+.btn-green:hover { background: var(--g-dark); }
+.btn-danger { background: #FEE9E9; color: var(--r); }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+
+.mileage-header {
+  background: linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  margin-bottom: 16px;
+  color: #fff;
+}
+.km-display {
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  line-height: 1;
+}
+.km-unit { font-size: 18px; font-weight: 400; color: rgba(255,255,255,.5); }
+.km-label { font-size: 12px; color: rgba(255,255,255,.6); margin-top: 4px; }
+
+.mileage-sessions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.ms-card {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 14px;
+  transition: border-color .15s;
+}
+.ms-card.completed { border-color: var(--g); }
+.ms-card.pending   { border-color: var(--o); }
+.ms-time {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink3);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.ms-km {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+}
+.ms-status { font-size: 11px; margin-top: 4px; font-weight: 500; }
+
+
+.alert-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.alert-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+.alert-content { flex: 1; }
+.alert-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+.alert-subtitle { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+.alert-card.urgent { border-color: var(--r); background: #FFF8F8; }
+.alert-card.warning { border-color: #E8A000; background: #FFFDF0; }
+.alert-card.ok { border-color: var(--g); background: var(--g-lite); }
+
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.week-nav-btn {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  background: var(--card);
+  transition: background .15s;
+}
+.week-nav-btn:active { background: var(--surface); }
+.week-label {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.progress-bar-wrap {
+  background: var(--surface);
+  border-radius: 6px;
+  height: 8px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--g), #00A855);
+  transition: width .4s ease;
+}
+.debt-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.debt-item:last-child { border-bottom: none; }
+.debt-checkbox {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  border: 2px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: all .15s;
+}
+.debt-checkbox.checked {
+  background: var(--g);
+  border-color: var(--g);
+}
+.debt-info { flex: 1; min-width: 0; }
+.debt-customer { font-size: 14px; font-weight: 600; color: var(--ink); }
+.debt-invoice { font-size: 11px; color: var(--ink3); margin-top: 1px; }
+.debt-amount {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: right;
+}
+.debt-due { font-size: 10px; color: var(--ink3); text-align: right; }
+
+
+.settlement-card {
+  background: var(--ink);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 24px 20px;
+  margin-bottom: 16px;
+}
+.settlement-title {
+  font-size: 12px;
+  opacity: .6;
+  margin-bottom: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.settlement-amount {
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  line-height: 1;
+}
+.settlement-amount.positive { color: #4AE08A; }
+.settlement-amount.negative { color: #FF6B6B; }
+.settlement-currency { font-size: 20px; font-weight: 400; opacity: .7; }
+.settlement-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settlement-detail-row:last-child { border-bottom: none; }
+.settlement-detail-label { font-size: 13px; color: var(--ink2); }
+.settlement-detail-value {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+}
+.settlement-detail-value.neg { color: var(--r); }
+.settlement-detail-value.pos { color: var(--g); }
+
+
+.rule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 6px;
+  margin-right: 6px;
+}
+.rule-chip-value {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--o);
+}
+
+
+.dsr-roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.dsr-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  cursor: pointer;
+  transition: box-shadow .15s, transform .1s;
+  position: relative;
+  overflow: hidden;
+}
+.dsr-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+.dsr-card:active { transform: scale(.98); }
+.dsr-card-stripe {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+}
+.dsr-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-top: 4px;
+}
+.dsr-avatar {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+.dsr-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+.dsr-zone { font-size: 11px; color: var(--ink3); margin-top: 1px; }
+.dsr-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+.dsr-metric {
+  text-align: center;
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 8px 4px;
+}
+.dsr-metric-val {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+.dsr-metric-lbl {
+  font-size: 9px;
+  color: var(--ink3);
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 200;
+  display: none;
+  align-items: flex-end;
+  animation: fadeIn .2s ease;
+}
+.modal-overlay.open { display: flex; }
+.bottom-sheet {
+  background: var(--card);
+  border-radius: 20px 20px 0 0;
+  padding: 0 0 env(safe-area-inset-bottom, 16px);
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideInBottom .25s ease;
+}
+@keyframes slideInBottom {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.sheet-handle {
+  width: 36px; height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+  margin: 12px auto 20px;
+}
+.sheet-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  padding: 0 20px;
+  margin-bottom: 16px;
+}
+.sheet-body { padding: 0 20px 20px; }
+
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, #EEECEA 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 6px;
+}
+.loader {
+  width: 28px; height: 28px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--o);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  margin: 24px auto;
+}
+
+
+.toast-container {
+  position: fixed;
+  bottom: calc(var(--bottom-h) + 12px);
+  left: 16px; right: 16px;
+  z-index: 300;
+  pointer-events: none;
+}
+.toast {
+  background: var(--ink);
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow-lg);
+  animation: fadeUp .25s ease;
+  margin-bottom: 8px;
+  pointer-events: auto;
+}
+.toast.success { background: var(--g); }
+.toast.error   { background: var(--r); }
+.toast.warning { background: #E8A000; }
+
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+}
+.empty-icon { font-size: 48px; margin-bottom: 12px; }
+.empty-title { font-size: 16px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; }
+.empty-desc  { font-size: 13px; color: var(--ink3); line-height: 1.6; }
+
+
+.admin-page-content { padding: 24px; }
+.admin-page-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: .01em;
+  margin-bottom: 4px;
+}
+.admin-page-sub { font-size: 13px; color: var(--ink3); margin-bottom: 24px; }
+.admin-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+@media (max-width: 900px) {
+  .admin-stat-row { grid-template-columns: repeat(2, 1fr); }
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink3);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--surface); }
+
+
+.castrol-footer-stripe {
+  height: 4px;
+  background: linear-gradient(90deg, var(--r) 0%, var(--r) 33%, var(--g) 33%, var(--g) 66%, var(--o) 66%);
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 400;
+}
+.skeleton-row{display:flex;gap:8px;padding:10px 6px;border-bottom:1px solid var(--border);align-items:center;}
+.sk{background:linear-gradient(90deg,#f0ece8 25%,#e8e4e0 50%,#f0ece8 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:4px;}
+.sk-no{width:24px;height:14px;flex-shrink:0;}
+.sk-date{width:70px;height:14px;flex-shrink:0;}
+.sk-time{width:44px;height:14px;flex-shrink:0;}
+.sk-code{width:60px;height:14px;flex-shrink:0;}
+.sk-shop{height:14px;flex:1;}
+.sk-bill{width:72px;height:14px;flex-shrink:0;}
+.sk-amt{width:50px;height:14px;flex-shrink:0;}
+.sk-st{width:60px;height:14px;flex-shrink:0;}
+.sk-note{width:80px;height:14px;flex-shrink:0;}
+
+
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+.mt-4  { margin-top: 4px; }
+.mt-8  { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mb-16 { margin-bottom: 16px; }
+.text-muted { color: var(--ink3); font-size: 12px; }
+.text-orange { color: var(--o); }
+.text-green  { color: var(--g); }
+.text-red    { color: var(--r); }
+.fw-700 { font-weight: 700; }
+.font-display { font-family: var(--font-display); }
+</style>
+</head>
+<body>
+
+
+<div id="screen-login">
+  <div class="login-bg-stripe"></div>
+  <div class="login-bg-bar"></div>
+
+  <div class="login-card">
+    <div class="login-logo-wrap">
+      <div class="login-logo-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <path d="M14 4L24 9V19L14 24L4 19V9L14 4Z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M14 4V24M4 9L24 19M24 9L4 19" stroke="white" stroke-width="1" opacity=".5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="login-logo-text">NICE CENTER OIL</div>
+        <div style="font-size:10px;color:var(--ink3);margin-top:1px;">หจก. ไนซ์เซ็นเตอร์ออยล์</div>
+      </div>
+    </div>
+    <div class="login-logo-sub">Castrol Authorized Distributor</div>
+
+    <div class="castrol-bar">
+      <span style="background:var(--r);"></span>
+      <span style="background:var(--g);"></span>
+      <span style="background:var(--o);"></span>
+    </div>
+
+    <div class="login-title">DSR Portal</div>
+    <div class="login-desc">ระบบจัดการงานขายและเก็บเงิน<br>สำหรับทีม DSR สุพรรณบุรี–นครสวรรค์</div>
+
+    <button class="btn-google" onclick="handleLogin()">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="white" opacity=".9"/>
+        <path d="M9 18c2.43 0 4.467-.806 5.956-2.18L12.048 13.56C11.242 14.1 10.211 14.42 9 14.42c-2.392 0-4.414-1.612-5.136-3.78H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="white" opacity=".9"/>
+        <path d="M3.864 10.64A5.403 5.403 0 0 1 3.581 9c0-.563.097-1.11.283-1.64V5.028H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.041l2.907-2.332-.001-.069Z" fill="white" opacity=".9"/>
+        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 5.027L3.864 7.36C4.585 5.192 6.608 3.58 9 3.58Z" fill="white" opacity=".9"/>
+      </svg>
+      เข้าสู่ระบบด้วย Google
+    </button>
+
+    <div class="login-note">
+      ใช้ Gmail ที่ลงทะเบียนกับระบบเท่านั้น<br>หากเข้าไม่ได้ ติดต่อภูมิ หรือเฟิร์น
+    </div>
+
+    <div class="login-castrol-badge">
+      <div class="castrol-dot" style="background:var(--r);"></div>
+      <div class="castrol-dot" style="background:var(--g);"></div>
+      <div class="castrol-dot" style="background:var(--o);"></div>
+      <span style="font-size:11px;color:var(--ink3);margin-left:4px;font-weight:600;">Powered by Castrol Distributor Network</span>
+    </div>
+  </div>
+</div>
+
+
+
+<div id="app">
+
+  
+  <nav class="top-nav">
+    <div class="nav-logo">
+      <div class="nav-logo-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M9 2L16 5.5V12.5L9 16L2 12.5V5.5L9 2Z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="nav-logo-name">NCO Portal</div>
+      </div>
+    </div>
+
+    <div class="nav-bell" id="nav-bell-btn" onclick="toggleAlerts()">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M10 2a6 6 0 0 0-6 6v2.586l-1.707 1.707A1 1 0 0 0 3 14h14a1 1 0 0 0 .707-1.707L16 10.586V8a6 6 0 0 0-6-6Z" stroke="var(--ink2)" stroke-width="1.4"/>
+        <path d="M7.5 14a2.5 2.5 0 0 0 5 0" stroke="var(--ink2)" stroke-width="1.4"/>
+      </svg>
+      <div class="nav-bell-dot" id="bell-dot"></div>
+    </div>
+
+    <div class="nav-user-chip" onclick="showUserMenu()">
+      <div class="nav-avatar" id="nav-avatar">NU</div>
+      <div>
+        <div class="nav-user-name" id="nav-user-name">Nuch</div>
+      </div>
+      <div class="nav-role-badge" id="nav-role-badge" style="background:var(--o-lite);color:var(--o-dark);">DSR</div>
+    </div>
+  </nav>
+
+  
+  <div class="main-content">
+    <div id="admin-layout-wrap">
+
+      
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-section-label">ภาพรวม</div>
+        <div class="sidebar-item active" onclick="navTo('home')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6L8 2l6 4v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          Dashboard
+        </div>
+        <div class="sidebar-item" onclick="navTo('admin-dsrs')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 14c0-2.761 2.239-5 5-5s5 2.239 5 5" stroke="currentColor" stroke-width="1.4"/><path d="M11 7l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          ทีม DSR
+        </div>
+
+        <div class="sidebar-section-label">โมดูล</div>
+        <div class="sidebar-item" onclick="navTo('mileage')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 4v4l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          Mileage & รถ
+        </div>
+        <div class="sidebar-item" onclick="navTo('allowance')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 4V3a3 3 0 0 1 6 0v1" stroke="currentColor" stroke-width="1.4"/></svg>
+          ค่าที่พัก/เบี้ย
+        </div>
+        <div class="sidebar-item" onclick="navTo('debt')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          เก็บหนี้
+        </div>
+        <div class="sidebar-item" onclick="navTo('settlement')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 9l3 3 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/></svg>
+          ยอดนำส่ง
+        </div>
+
+        <div class="sidebar-section-label">Admin</div>
+        <div class="sidebar-item" onclick="navTo('import')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 10v3h10v-3M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Import CSV
+        </div>
+        <div class="sidebar-item" onclick="navTo('print')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M3 9h10v5H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          สรุปใบโอน
+        </div>
+        <div style="flex:1;"></div>
+        <div class="sidebar-item" onclick="doLogout()" style="margin-top:auto;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 11l3-3-3-3M13 8H6M7 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ออกจากระบบ
+        </div>
+      </div>
+
+      
+      <div id="page-wrapper">
+
+        
+        <div class="page active" id="page-home">
+          <div class="dsr-greeting-bar anim-fadeup">
+            <div class="greeting-date" id="greeting-date">วันจันทร์ที่ 7 กรกฎาคม 2568</div>
+            <div class="greeting-name" id="greeting-name">สวัสดี, คุณนุช 👋</div>
+            <div class="greeting-session" id="greeting-session">
+              <span>🌅</span> Session เช้า — กำลังดำเนินการ
+            </div>
+          </div>
+
+          
+          <div class="section-header">
+            <div class="section-title">Session วันนี้</div>
+          </div>
+          <div class="session-flow anim-fadeup delay-1">
+            <div class="session-card done" onclick="openMileageSheet('morning')">
+              <div class="session-done-check">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 2.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+              <div class="session-icon">🌅</div>
+              <div class="session-label">เช้า</div>
+              <div class="session-status" style="color:var(--g);">บันทึกแล้ว</div>
+            </div>
+            <div class="session-arrow">→</div>
+            <div class="session-card active-now" onclick="openMileageSheet('evening')">
+              <div class="session-icon">🌆</div>
+              <div class="session-label">เย็น</div>
+              <div class="session-status" style="color:var(--o);">รอบันทึก</div>
+            </div>
+          </div>
+
+          
+          <div class="stat-grid anim-fadeup delay-2">
+            <div class="stat-card orange">
+              <div class="stat-label">ยอดเก็บเงินสัปดาห์นี้</div>
+              <div class="stat-value">248,500 <span class="stat-unit">฿</span></div>
+              <div class="stat-change up">↑ 12% vs สัปดาห์ที่แล้ว</div>
+            </div>
+            <div class="stat-card green">
+              <div class="stat-label">บิลที่เก็บแล้ว</div>
+              <div class="stat-value">14 <span class="stat-unit">/22</span></div>
+              <div class="stat-change up">เหลืออีก 8 บิล</div>
+            </div>
+            <div class="stat-card gray">
+              <div class="stat-label">ระยะทางวันนี้</div>
+              <div class="stat-value">87 <span class="stat-unit">km</span></div>
+              <div class="stat-change">ไมล์เช้า: 48,231</div>
+            </div>
+            <div class="stat-card red">
+              <div class="stat-label">ยอดนำส่งสุทธิ</div>
+              <div class="stat-value">241,200 <span class="stat-unit">฿</span></div>
+              <div class="stat-change">หัก expenses แล้ว</div>
+            </div>
+          </div>
+
+          
+          <div class="section-header anim-fadeup delay-3">
+            <div class="section-title">ทำรายการ</div>
+          </div>
+          <div class="quick-actions anim-fadeup delay-3">
+            <div class="qa-btn" onclick="navTo('mileage')">
+              <div class="qa-icon" style="background:var(--o-lite);">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="8" stroke="var(--o)" stroke-width="1.5"/><path d="M11 7v4l2.5 2.5" stroke="var(--o)" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+              <div class="qa-label">บันทึกไมล์รถ</div>
+            </div>
+            <div class="qa-btn" onclick="navTo('debt')">
+              <div class="qa-icon" style="background:var(--g-lite);">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="3" width="16" height="16" rx="2" stroke="var(--g)" stroke-width="1.5"/><path d="M7 8h8M7 11h6M7 14h4" stroke="var(--g)" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+              <div class="qa-label">เก็บหนี้ลูกค้า</div>
+            </div>
+            <div class="qa-btn" onclick="navTo('allowance')">
+              <div class="qa-icon" style="background:#FFF0F0;">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="6" width="16" height="12" rx="1.5" stroke="var(--r)" stroke-width="1.5"/><path d="M7 6V5a4 4 0 0 1 8 0v1" stroke="var(--r)" stroke-width="1.5"/></svg>
+              </div>
+              <div class="qa-label">ค่าที่พัก / เบี้ย</div>
+            </div>
+            <div class="qa-btn" onclick="navTo('settlement')">
+              <div class="qa-icon" style="background:#F0F7FF;">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 12l4 4 10-10" stroke="#185FA5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="qa-label">ยอดนำส่งบริษัท</div>
+            </div>
+          </div>
+
+          
+          <div class="section-header anim-fadeup delay-4">
+            <div class="section-title">แจ้งเตือนรถ</div>
+            <div class="section-action" onclick="navTo('mileage')">ดูทั้งหมด</div>
+          </div>
+          <div class="card anim-fadeup delay-4" style="padding:12px 14px;">
+            <div class="alert-card urgent">
+              <div class="alert-icon" style="background:#FEE9E9;">🔧</div>
+              <div class="alert-content">
+                <div class="alert-title">เปลี่ยนน้ำมันเครื่อง</div>
+                <div class="alert-subtitle">ครบกำหนด ที่ 50,000 km — ปัจจุบัน 48,231 km</div>
+              </div>
+              <div class="tag tag-red">เร่งด่วน</div>
+            </div>
+            <div class="alert-card warning">
+              <div class="alert-icon" style="background:#FFFDF0;">📋</div>
+              <div class="alert-content">
+                <div class="alert-title">พรบ. หมดอายุ</div>
+                <div class="alert-subtitle">หมดอายุ 31 กรกฎาคม 2568 — เหลือ 24 วัน</div>
+              </div>
+              <div class="tag tag-orange">ใกล้ครบ</div>
+            </div>
+          </div>
+        </div>
+        
+
+        
+        <div class="page" id="page-mileage">
+          <div class="section-header">
+            <div class="section-title">ไมล์รถ & ยานพาหนะ</div>
+            <div class="section-action" onclick="openSheet('add-vehicle')">+ เพิ่มรถ</div>
+          </div>
+
+          
+          <div class="form-group">
+            <select class="form-input" id="vehicle-select" onchange="updateVehicleDisplay()">
+              <option value="v1">🚗 กท 8821 — Toyota Hilux (รถบริษัท)</option>
+              <option value="v2">🚙 สพ 5543 — Honda Civic (รถตัวเอง)</option>
+            </select>
+          </div>
+
+          
+          <div class="mileage-header anim-fadeup">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div style="font-size:11px;opacity:.5;margin-bottom:2px;font-weight:500;letter-spacing:.04em;">ไมล์ล่าสุด</div>
+                <div class="km-display">48,231 <span class="km-unit">km</span></div>
+                <div class="km-label">อัปเดต วันนี้ 07:42 น.</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px;opacity:.5;margin-bottom:2px;">วันนี้วิ่ง</div>
+                <div style="font-family:var(--font-display);font-size:32px;font-weight:700;color:#F9A842;">87 km</div>
+              </div>
+            </div>
+          </div>
+
+          
+          <div class="mileage-sessions">
+            <div class="ms-card completed">
+              <div class="ms-time">🌅 เช้า</div>
+              <div class="ms-km">48,144 <span style="font-size:14px;color:var(--ink3);">km</span></div>
+              <div class="ms-status" style="color:var(--g);">✓ บันทึกแล้ว 07:42</div>
+            </div>
+            <div class="ms-card pending">
+              <div class="ms-time">🌆 เย็น</div>
+              <div class="ms-km" style="color:var(--ink3);">— km</div>
+              <div class="ms-status" style="color:var(--o);">⏳ รอบันทึก</div>
+            </div>
+          </div>
+
+          
+          <div class="btn btn-primary mb-16" onclick="openMileageSheet('evening')">
+            🌆 บันทึกไมล์ตอนเย็น
+          </div>
+
+          
+          <div class="section-header mt-16">
+            <div class="section-title">ประวัติเติมน้ำมัน</div>
+            <div class="section-action" onclick="openSheet('add-fuel')">+ เติมน้ำมัน</div>
+          </div>
+          <div class="card">
+            <div class="list-item" onclick="openSheet('fuel-detail')">
+              <div class="list-icon-wrap" style="background:#FEF0E7;">⛽</div>
+              <div class="list-meta">
+                <div class="list-primary">ปตท. สาขาสุพรรณบุรี</div>
+                <div class="list-secondary">5 ก.ค. — 30 ลิตร @ 38.50 ฿</div>
+              </div>
+              <div>
+                <div class="list-value">1,155 ฿</div>
+                <div class="list-value-sub">48,100 km</div>
+              </div>
+            </div>
+            <div class="list-item">
+              <div class="list-icon-wrap" style="background:#FEF0E7;">⛽</div>
+              <div class="list-meta">
+                <div class="list-primary">ปตท. อู่ทอง</div>
+                <div class="list-secondary">3 ก.ค. — 25 ลิตร @ 38.50 ฿</div>
+              </div>
+              <div>
+                <div class="list-value">962 ฿</div>
+                <div class="list-value-sub">47,944 km</div>
+              </div>
+            </div>
+          </div>
+
+          
+          <div class="section-header mt-16">
+            <div class="section-title">บำรุงรักษา</div>
+            <div class="section-action" onclick="openSheet('add-maintenance')">+ บันทึก</div>
+          </div>
+          <div class="alert-card urgent">
+            <div class="alert-icon" style="background:#FEE9E9;">🔧</div>
+            <div class="alert-content">
+              <div class="alert-title">น้ำมันเครื่อง — ครบกำหนดเปลี่ยน</div>
+              <div class="alert-subtitle">ถึงกำหนด 50,000 km / ปัจจุบัน 48,231 km — เหลือ 1,769 km</div>
+            </div>
+          </div>
+          <div class="alert-card ok">
+            <div class="alert-icon" style="background:var(--g-lite);">🛞</div>
+            <div class="alert-content">
+              <div class="alert-title">ยาง — ปกติ</div>
+              <div class="alert-subtitle">เปลี่ยนล่าสุด 15 ม.ค. 2568</div>
+            </div>
+          </div>
+        </div>
+        
+
+        
+        <div class="page" id="page-allowance">
+          <div class="section-title mb-16">ค่าที่พัก & เบี้ยเลี้ยง</div>
+
+          
+          <div class="card mb-16">
+            <div class="card-title">กฎการเบิก</div>
+            <div>
+              <div class="rule-chip">
+                🏨 ค่าที่พัก max <span class="rule-chip-value">500 ฿</span>/คืน
+              </div>
+              <div class="rule-chip">
+                📍 เบี้ยเลี้ยง <span class="rule-chip-value">200 ฿</span>/คืน (ต่างจังหวัดเท่านั้น)
+              </div>
+            </div>
+          </div>
+
+          
+          <div class="btn btn-primary mb-16" onclick="openSheet('add-allowance')">
+            + บันทึกการค้างคืน
+          </div>
+
+          
+          <div class="section-header">
+            <div class="section-title">สัปดาห์นี้</div>
+            <div class="tag tag-orange">สัปดาห์ที่ 28</div>
+          </div>
+          <div class="stat-grid">
+            <div class="stat-card green">
+              <div class="stat-label">ค่าที่พักที่เบิกได้</div>
+              <div class="stat-value">1,400 <span class="stat-unit">฿</span></div>
+              <div class="stat-change">3 คืน (ไม่เกิน 500 ฿/คืน)</div>
+            </div>
+            <div class="stat-card orange">
+              <div class="stat-label">เบี้ยเลี้ยงรวม</div>
+              <div class="stat-value">600 <span class="stat-unit">฿</span></div>
+              <div class="stat-change">3 คืน × 200 ฿</div>
+            </div>
+          </div>
+
+          
+          <div class="card mt-12">
+            <div class="list-item">
+              <div class="list-icon-wrap" style="background:var(--g-lite);">🏨</div>
+              <div class="list-meta">
+                <div class="list-primary">อ.ท่ายาง, ชัยนาท</div>
+                <div class="list-secondary">6 ก.ค. — โรงแรมชัยนาทพาเลซ</div>
+              </div>
+              <div>
+                <div class="list-value" style="color:var(--g);">700 ฿</div>
+                <div class="list-value-sub">เบิกได้ 500 ฿</div>
+              </div>
+            </div>
+            <div class="list-item">
+              <div class="list-icon-wrap" style="background:var(--g-lite);">🏨</div>
+              <div class="list-meta">
+                <div class="list-primary">อ.เมือง, นครสวรรค์</div>
+                <div class="list-secondary">5 ก.ค. — รอยัล นครสวรรค์</div>
+              </div>
+              <div>
+                <div class="list-value" style="color:var(--g);">500 ฿</div>
+                <div class="list-value-sub">เบิกได้ 500 ฿</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+
+        
+        <div class="page" id="page-debt">
+          <div class="week-nav">
+            <div class="week-nav-btn" onclick="changeWeek(-1)">‹</div>
+            <div class="week-label">สัปดาห์ที่ 28 / 2568</div>
+            <div class="week-nav-btn" onclick="changeWeek(1)">›</div>
+          </div>
+
+          
+          <div class="card mb-16">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <div style="font-size:13px;font-weight:600;">ความคืบหน้าการเก็บเงิน</div>
+              <div class="tag tag-green">14/22 บิล</div>
+            </div>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar-fill" style="width:64%;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;">
+              <div style="font-size:11px;color:var(--ink3);">248,500 ฿ เก็บแล้ว</div>
+              <div style="font-size:11px;color:var(--ink3);">รวม 388,000 ฿</div>
+            </div>
+          </div>
+
+          
+          <div class="section-header">
+            <div class="section-title">รายการบิล</div>
+            <div style="display:flex;gap:6px;">
+              <div class="tag tag-gray" style="cursor:pointer;" onclick="filterDebt('all')">ทั้งหมด</div>
+              <div class="tag tag-orange" style="cursor:pointer;" onclick="filterDebt('pending')">ค้างอยู่</div>
+            </div>
+          </div>
+          <div class="card" id="debt-list">
+            
+          </div>
+
+          
+          <div class="btn btn-green mt-16" onclick="generateCoverSheet()">
+            🖨️ สร้าง Cover Sheet สัปดาห์นี้
+          </div>
+        </div>
+        
+
+        
+        <div class="page" id="page-settlement">
+          <div class="section-title mb-16">ยอดนำส่งบริษัท</div>
+
+          
+          <div class="settlement-card anim-fadeup">
+            <div class="settlement-title">ยอดนำส่งสุทธิ (สัปดาห์ที่ 28)</div>
+            <div class="settlement-amount positive">
+              <span class="settlement-currency">฿</span>241,200
+            </div>
+            <div style="font-size:12px;opacity:.5;margin-top:8px;">อัปเดตอัตโนมัติ · สูตร: เงินสด − ค่าใช้จ่าย</div>
+          </div>
+
+          
+          <div class="card anim-fadeup delay-1">
+            <div class="card-title">รายละเอียด</div>
+            <div class="settlement-detail-row">
+              <div class="settlement-detail-label">💵 เงินสดที่เก็บได้</div>
+              <div class="settlement-detail-value pos">+ 248,500 ฿</div>
+            </div>
+            <div class="settlement-detail-row">
+              <div class="settlement-detail-label">⛽ ค่าน้ำมัน</div>
+              <div class="settlement-detail-value neg">− 4,200 ฿</div>
+            </div>
+            <div class="settlement-detail-row">
+              <div class="settlement-detail-label">🏨 ค่าที่พัก</div>
+              <div class="settlement-detail-value neg">− 1,400 ฿</div>
+            </div>
+            <div class="settlement-detail-row">
+              <div class="settlement-detail-label">📍 เบี้ยเลี้ยง</div>
+              <div class="settlement-detail-value neg">− 600 ฿</div>
+            </div>
+            <div class="settlement-detail-row">
+              <div class="settlement-detail-label">🔧 ค่าซ่อมบำรุง</div>
+              <div class="settlement-detail-value neg">− 1,100 ฿</div>
+            </div>
+            <div class="divider"></div>
+            <div class="settlement-detail-row">
+              <div style="font-size:14px;font-weight:700;">ยอดนำส่ง</div>
+              <div class="settlement-detail-value pos" style="font-size:20px;">241,200 ฿</div>
+            </div>
+          </div>
+
+          <div class="btn btn-primary mt-16 anim-fadeup delay-2" onclick="confirmSettlement()">
+            ✅ ยืนยันยอดนำส่งสัปดาห์นี้
+          </div>
+        </div>
+        
+
+        
+        <div class="page" id="page-admin-dsrs">
+          <div class="admin-page-content" style="padding:16px;">
+            <div class="admin-page-title">ภาพรวมทีม DSR</div>
+            <div class="admin-page-sub">สัปดาห์ที่ 28 · 30 มิ.ย. — 5 ก.ค. 2568</div>
+
+            <div class="admin-stat-row">
+              <div class="stat-card orange">
+                <div class="stat-label">ยอดเก็บรวมทีม</div>
+                <div class="stat-value">1.24 <span class="stat-unit">M฿</span></div>
+                <div class="stat-change up">↑ 8.4%</div>
+              </div>
+              <div class="stat-card green">
+                <div class="stat-label">บิลปิดแล้ว</div>
+                <div class="stat-value">68 <span class="stat-unit">/110</span></div>
+                <div class="stat-change">62% complete</div>
+              </div>
+              <div class="stat-card gray">
+                <div class="stat-label">ระยะทางรวม</div>
+                <div class="stat-value">2,847 <span class="stat-unit">km</span></div>
+                <div class="stat-change">สัปดาห์นี้</div>
+              </div>
+              <div class="stat-card red">
+                <div class="stat-label">ค่าใช้จ่ายรวม</div>
+                <div class="stat-value">38,400 <span class="stat-unit">฿</span></div>
+                <div class="stat-change down">↑ 5.2%</div>
+              </div>
+            </div>
+
+            
+            <div class="section-header">
+              <div class="section-title">ผลการทำงาน DSR</div>
+              <div class="section-action">Export Excel</div>
+            </div>
+            <div class="dsr-roster" id="dsr-roster">
+              
+            </div>
+          </div>
+        </div>
+        
+
+        
+        <div class="page" id="page-import">
+          <div class="section-title mb-16">Import CSV Debt</div>
+          <div class="card mb-16">
+            <div class="card-title">นำเข้าข้อมูลหนี้</div>
+            <div style="font-size:13px;color:var(--ink3);line-height:1.6;margin-bottom:16px;">
+              อัปโหลดไฟล์ <strong>debt_initial.csv</strong> เพื่อ sync ข้อมูลลูกหนี้รายสัปดาห์เข้าสู่ระบบ
+            </div>
+            <div class="photo-upload" onclick="document.getElementById('csv-upload').click()">
+              <input type="file" id="csv-upload" accept=".csv" onchange="previewCSV(event)">
+              <div class="photo-upload-icon">📄</div>
+              <div class="photo-upload-text">คลิกเพื่อเลือกไฟล์ CSV</div>
+              <div class="photo-upload-sub">debt_initial.csv · ขนาดสูงสุด 10 MB</div>
+            </div>
+          </div>
+          <div id="csv-preview" style="display:none;">
+            <div class="card">
+              <div class="card-title">ตัวอย่างข้อมูล (5 แถวแรก)</div>
+              <div style="overflow-x:auto;">
+                <table class="data-table" id="csv-table"></table>
+              </div>
+            </div>
+            <div class="btn btn-primary mt-16" onclick="importCSV()">✅ Import เข้าระบบ</div>
+          </div>
+        </div>
+        
+
+        
+        <div class="page" id="page-print">
+          <!-- DSR Review + Cover Sheet — ทำงานผ่าน google.script.run โดยตรง -->
+          <div class="section-header" style="margin-bottom:12px;">
+            <div class="section-title">📋 สรุปใบโอนสัปดาห์นี้</div>
+            <div class="section-action" onclick="csReload()">รีเฟรช</div>
+          </div>
+
+          <!-- Stats -->
+          <div style="display:flex;gap:12px;margin-bottom:12px;">
+            <div class="stat-card orange" style="flex:1;padding:12px;">
+              <div class="stat-label">จำนวน</div>
+              <div class="stat-value" id="cs-cnt" style="font-size:22px;">—</div>
+            </div>
+            <div class="stat-card green" style="flex:1;padding:12px;">
+              <div class="stat-label">ยอดรวม</div>
+              <div class="stat-value" id="cs-sum" style="font-size:18px;">—</div>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div id="cs-app" style="background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:auto;margin-bottom:12px;min-height:80px;display:flex;align-items:center;justify-content:center;color:var(--ink3);font-size:13px;">
+            กำลังโหลด...
+          </div>
+
+          <!-- Actions -->
+          <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;">
+            <div class="btn btn-secondary" style="padding:12px;" onclick="csReload()">รีเฟรช</div>
+            <div class="btn btn-green" id="cs-btn" style="padding:12px;" onclick="csSave()">บันทึก + สร้าง Cover Sheet</div>
+          </div>
+        </div>
+        
+
+      </div>
+    </div>
+  </div>
+
+  
+  <nav class="bottom-nav" id="bottom-nav">
+    <div class="bnav-item active" id="bnav-home" onclick="navTo('home')">
+      <div class="bnav-indicator"></div>
+      <div class="bnav-icon">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3 9L11 3l8 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9Z" stroke="var(--o)" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="bnav-label" style="color:var(--o);">หน้าหลัก</div>
+    </div>
+    <div class="bnav-item" id="bnav-mileage" onclick="navTo('mileage')">
+      <div class="bnav-indicator"></div>
+      <div class="bnav-icon">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="8" stroke="var(--ink3)" stroke-width="1.4"/><path d="M11 7v4l2.5 2.5" stroke="var(--ink3)" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </div>
+      <div class="bnav-label">ไมล์รถ</div>
+    </div>
+    <div class="bnav-item" id="bnav-debt" onclick="navTo('debt')">
+      <div class="bnav-indicator"></div>
+      <div class="bnav-badge" id="debt-badge">8</div>
+      <div class="bnav-icon">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="3" width="16" height="16" rx="2" stroke="var(--ink3)" stroke-width="1.4"/><path d="M7 9h8M7 12h5" stroke="var(--ink3)" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </div>
+      <div class="bnav-label">เก็บหนี้</div>
+    </div>
+    <div class="bnav-item" id="bnav-allowance" onclick="navTo('allowance')">
+      <div class="bnav-indicator"></div>
+      <div class="bnav-icon">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="7" width="16" height="12" rx="1.5" stroke="var(--ink3)" stroke-width="1.4"/><path d="M7 7V6a4 4 0 0 1 8 0v1" stroke="var(--ink3)" stroke-width="1.4"/></svg>
+      </div>
+      <div class="bnav-label">ค่าใช้จ่าย</div>
+    </div>
+    <div class="bnav-item" id="bnav-settlement" onclick="navTo('settlement')">
+      <div class="bnav-indicator"></div>
+      <div class="bnav-icon">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="8" stroke="var(--ink3)" stroke-width="1.4"/><path d="M8 11l2 2 4-4" stroke="var(--ink3)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="bnav-label">ยอดส่ง</div>
+    </div>
+  </nav>
+
+  
+  <div class="castrol-footer-stripe"></div>
+</div>
+
+
+
+
+
+<div class="modal-overlay" id="modal-mileage" onclick="closeModal('modal-mileage')">
+  <div class="bottom-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="mileage-sheet-title">บันทึกไมล์ตอนเย็น</div>
+    <div class="sheet-body">
+      <div class="form-group">
+        <label class="form-label">วันที่ <span>*</span></label>
+        <input type="date" class="form-input" id="mileage-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">เลขไมล์ <span>*</span></label>
+        <input type="number" class="form-input" id="mileage-km" placeholder="48,231" inputmode="numeric">
+        <div class="form-hint">กรอกตัวเลขเต็ม เช่น 48231</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ถ่ายรูปหน้าปัดไมล์ <span>*</span></label>
+        <div class="photo-upload" id="mileage-photo-zone">
+          <input type="file" accept="image/*" capture="environment" onchange="previewPhoto(event,'mileage-photo-zone')">
+          <div class="photo-upload-icon">📸</div>
+          <div class="photo-upload-text">ถ่ายรูป / เลือกรูป</div>
+          <div class="photo-upload-sub">ต้องเห็นตัวเลขชัดเจน</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <div class="btn btn-secondary" onclick="closeModal('modal-mileage')">ยกเลิก</div>
+        <div class="btn btn-primary" onclick="saveMileage()">บันทึก</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="modal-allowance" onclick="closeModal('modal-allowance')">
+  <div class="bottom-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">บันทึกการค้างคืน</div>
+    <div class="sheet-body">
+      <div class="form-group">
+        <label class="form-label">วันที่ค้างคืน <span>*</span></label>
+        <input type="date" class="form-input" id="stay-date">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">จังหวัด <span>*</span></label>
+          <select class="form-input" id="stay-province">
+            <option>สุพรรณบุรี</option>
+            <option>สิงห์บุรี</option>
+            <option>อ่างทอง</option>
+            <option>ชัยนาท</option>
+            <option>อุทัยธานี</option>
+            <option>นครสวรรค์</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ต่างจังหวัด?</label>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <label style="display:flex;align-items:center;gap:5px;font-size:14px;cursor:pointer;">
+              <input type="radio" name="is-provincial" value="yes" checked> ใช่
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:14px;cursor:pointer;">
+              <input type="radio" name="is-provincial" value="no"> ไม่ใช่
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ชื่อโรงแรม / ที่พัก</label>
+        <input type="text" class="form-input" placeholder="เช่น โรงแรมชัยนาทพาเลซ">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ค่าที่พักจริง (฿) <span>*</span></label>
+        <input type="number" class="form-input" id="accom-cost" placeholder="500" inputmode="decimal" oninput="calcAllowance()">
+        <div class="form-hint" id="accom-hint" style="color:var(--g);">ระบบจะเบิกได้สูงสุด 500 ฿</div>
+      </div>
+      <div class="card" style="background:var(--surface);margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--ink2);">ค่าที่พักที่เบิกได้</span>
+          <span class="font-display fw-700 text-green" id="calc-accom">— ฿</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;">
+          <span style="color:var(--ink2);">เบี้ยเลี้ยงต่างจังหวัด</span>
+          <span class="font-display fw-700 text-orange" id="calc-daily">200 ฿</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ใบเสร็จที่พัก</label>
+        <div class="photo-upload">
+          <input type="file" accept="image/*" capture="environment">
+          <div class="photo-upload-icon">📸</div>
+          <div class="photo-upload-text">ถ่ายรูปใบเสร็จ</div>
+          <div class="photo-upload-sub">ต้องมีใบเสร็จทุกครั้ง</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <div class="btn btn-secondary" onclick="closeModal('modal-allowance')">ยกเลิก</div>
+        <div class="btn btn-green" onclick="saveAllowance()">บันทึก</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="modal-fuel" onclick="closeModal('modal-fuel')">
+  <div class="bottom-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">บันทึกเติมน้ำมัน</div>
+    <div class="sheet-body">
+      <div class="form-group">
+        <label class="form-label">วันที่ <span>*</span></label>
+        <input type="date" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">เลขไมล์ขณะเติม <span>*</span></label>
+        <input type="number" class="form-input" placeholder="48,231" inputmode="numeric">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">จำนวนลิตร <span>*</span></label>
+          <input type="number" class="form-input" id="fuel-liters" placeholder="30" inputmode="decimal" oninput="calcFuel()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">ราคา/ลิตร (฿) <span>*</span></label>
+          <input type="number" class="form-input" id="fuel-price" placeholder="38.50" inputmode="decimal" step="0.01" oninput="calcFuel()">
+        </div>
+      </div>
+      <div class="card" style="background:var(--surface);margin-bottom:16px;padding:12px 14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--ink2);">ยอดรวม</span>
+          <span class="font-display fw-700" style="font-size:22px;" id="fuel-total">— ฿</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ชื่อสถานีบริการ</label>
+        <input type="text" class="form-input" placeholder="ปตท. / เชลล์ / Caltex...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ใบเสร็จน้ำมัน <span>*</span></label>
+        <div class="photo-upload">
+          <input type="file" accept="image/*" capture="environment">
+          <div class="photo-upload-icon">📸</div>
+          <div class="photo-upload-text">ถ่ายรูปใบเสร็จ</div>
+          <div class="photo-upload-sub">บังคับทุกครั้ง</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <div class="btn btn-secondary" onclick="closeModal('modal-fuel')">ยกเลิก</div>
+        <div class="btn btn-primary" onclick="saveFuel()">บันทึก</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="toast-container" id="toast-container"></div>
+
+
+
+
+
+<script>
+'use strict';
+
+// ─── CONFIG ──────────────────────────────────────────────────
+// แทนค่าสองอย่างนี้หลัง deploy Apps Script:
+// SCRIPT_URL ใช้สำหรับ API calls เท่านั้น (google.script.run จัดการ auth ให้อัตโนมัติ)
+const SCRIPT_URL = 'YOUR_DEPLOYMENT_URL'; // ใส่ URL จาก Deploy
+
+const DSR_COLORS = {
+  default: ['#E8631A','#007B40','#C8102E','#6B35C8','#0080C8','#C87000','#1A1A1A']
+};
+
+// ─── STATE ───────────────────────────────────────────────────
+let currentUser  = null;
+let currentPage  = 'home';
+let debtData     = [];
+let dsrRosterData= [];
+
+// ─── PWA: SERVICE WORKER ─────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+// ─── PWA: INSTALL PROMPT ─────────────────────────────────────
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+});
+
+function showInstallPrompt() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then(() => { deferredInstallPrompt = null; });
+  } else {
+    // iOS
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIOS) showToast('แตะ Share → "Add to Home Screen" เพื่อติดตั้ง', '');
+  }
+}
+
+// ─── ONLINE/OFFLINE ──────────────────────────────────────────
+window.addEventListener('offline', () => showToast('📴 ออฟไลน์ — บันทึกข้อมูลได้ จะส่งเมื่อมีเน็ต', 'warning'));
+window.addEventListener('online',  () => showToast('✅ กลับมาออนไลน์แล้ว', 'success'));
+
+// ─── AUTH — ใช้ google.script.run (built-in Apps Script auth) ───
+// ไม่ต้องใช้ OAuth Client ID เลย — Apps Script จัดการ session ให้อัตโนมัติ
+function handleLogin() {
+  const btn = document.querySelector('.btn-google');
+  btn.innerHTML = '<div style="width:18px;height:18px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px;"></div> กำลังเข้าสู่ระบบ...';
+  btn.style.opacity = '.8';
+  btn.disabled = true;
+
+  // google.script.run เรียก getUserProfile() ใน Code.gs โดยตรง
+  // Apps Script จะให้ user login ด้วย Google account อัตโนมัติก่อนถ้ายังไม่ได้ login
+  google.script.run
+    .withSuccessHandler(function(profile) {
+      if (!profile) {
+        resetLoginBtn();
+        showToast('ไม่พบบัญชีในระบบ — ติดต่อภูมิ หรือเฟิร์น', 'error');
+        return;
+      }
+      currentUser = profile;
+      sessionStorage.setItem('nco_session', JSON.stringify(profile));
+      enterApp(profile);
+      // เพิ่มบรรทัดนี้ต่อท้าย block role badge ใน enterApp()
+      applyRoleUI(user.role);
+    })
+    .withFailureHandler(function(err) {
+      resetLoginBtn();
+      const msg = err.message || 'เข้าสู่ระบบไม่ได้';
+      if (msg.includes('disabled')) {
+        showToast('❌ บัญชีถูกระงับ — ติดต่อ Admin', 'error');
+      } else if (msg.includes('not found')) {
+        showToast('❌ ไม่พบบัญชีในระบบ — ติดต่อภูมิ หรือเฟิร์น', 'error');
+      } else {
+        showToast('❌ ' + msg, 'error');
+      }
+    })
+    .getUserProfile();
+}
+
+function resetLoginBtn() {
+  const btn = document.querySelector('.btn-google');
+  if (!btn) return;
+  btn.disabled = false;
+  btn.style.opacity = '1';
+  btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="vertical-align:middle;margin-right:8px"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="white" opacity=".9"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18L12.048 13.56C11.242 14.1 10.211 14.42 9 14.42c-2.392 0-4.414-1.612-5.136-3.78H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="white" opacity=".9"/><path d="M3.864 10.64A5.403 5.403 0 0 1 3.581 9c0-.563.097-1.11.283-1.64V5.028H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.041l2.907-2.332Z" fill="white" opacity=".9"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 5.027L3.864 7.36C4.585 5.192 6.608 3.58 9 3.58Z" fill="white" opacity=".9"/></svg>เข้าสู่ระบบด้วย Google';
+}
+
+// ─── ENTER APP ───────────────────────────────────────────────
+function enterApp(user) {
+  // อัปเดต nav
+  const initials = user.display_name ? user.display_name.slice(0,2) : user.email.slice(0,2).toUpperCase();
+  const color    = DSR_COLORS.default[Object.keys({นุช:0,นา:1,แอน:2,กร:3,มัดหมี่:4,มาพราง:5}).indexOf(user.display_name)] || '#E8631A';
+  document.getElementById('nav-avatar').textContent    = initials;
+  document.getElementById('nav-avatar').style.background = color;
+  document.getElementById('nav-user-name').textContent = user.display_name || user.email.split('@')[0];
+  const greetEl = document.getElementById('greeting-name');
+  if (greetEl) greetEl.textContent = 'สวัสดี, คุณ' + (user.display_name || '') + ' 👋';
+
+  const roleEl  = document.getElementById('nav-role-badge');
+  const roleTh  = { admin:'Admin', specialist:'Specialist', dsr:'DSR' }[user.role] || user.role;
+  roleEl.textContent = roleTh;
+  if (user.role === 'admin')      roleEl.style.cssText = 'background:#F0F0F0;color:#1A1A1A;';
+  else if (user.role === 'specialist') roleEl.style.cssText = 'background:#FFF3E0;color:#C87000;';
+  else                            roleEl.style.cssText = 'background:var(--o-lite);color:var(--o-dark);';
+
+  // Admin/Specialist = sidebar layout
+  if (['admin','specialist'].includes(user.role)) {
+    const wrap = document.getElementById('admin-layout-wrap');
+    if (wrap) wrap.className = 'admin-layout';
+    const sb = document.getElementById('sidebar');
+    if (sb) sb.style.display = 'flex';
+  }
+
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('app').style.cssText = 'display:flex;flex-direction:column;';
+
+  // โหลดข้อมูลจริง
+  loadHomeData();
+
+  // PWA install hint
+  setTimeout(() => {
+    if (deferredInstallPrompt) showInstallBanner();
+    else if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone)
+      showToast('📲 แตะ Share → Add to Home Screen เพื่อติดตั้ง', '');
+  }, 3000);
+}
+
+function showInstallBanner() {
+  if (document.getElementById('pwa-install-banner')) return;
+  const b = document.createElement('div');
+  b.id = 'pwa-install-banner';
+  b.style.cssText = 'position:fixed;bottom:calc(var(--bottom-h) + 12px);left:12px;right:12px;background:var(--ink);color:#fff;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;z-index:250;box-shadow:0 4px 24px rgba(0,0,0,.3);animation:fadeUp .3s ease';
+  b.innerHTML = '<div style="font-size:26px">📲</div><div style="flex:1"><div style="font-weight:600;font-size:14px;">ติดตั้งแอปบนมือถือ</div><div style="font-size:12px;opacity:.7;margin-top:1px;">ใช้งานแบบ app ไม่ต้องเปิด browser</div></div><button onclick="installPWA()" style="background:var(--o);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);">ติดตั้ง</button><button onclick="this.parentElement.remove()" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:22px;cursor:pointer;line-height:1;">×</button>';
+  document.body.appendChild(b);
+}
+
+async function installPWA() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  document.getElementById('pwa-install-banner')?.remove();
+  if (outcome === 'accepted') showToast('✅ ติดตั้งแอปเรียบร้อย!', 'success');
+}
+
+function doLogout() {
+  currentUser = null;
+  sessionStorage.removeItem('nco_session');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('screen-login').style.display = 'flex';
+  resetLoginBtn();
+}
+
+// ─── API — ใช้ google.script.run (ไม่มี CORS ปัญหา) ──────────
+function apiCall(action, payload) {
+  payload = payload || {};
+  return new Promise(function(resolve) {
+    if (!currentUser) { resolve(null); return; }
+    if (!navigator.onLine && /^SAVE|^TOGGLE/.test(action)) {
+      showToast('📴 บันทึก offline — จะส่งเมื่อมีเน็ต', 'warning');
+      resolve({ queued: true }); return;
+    }
+    google.script.run
+      .withSuccessHandler(function(result) {
+        resolve(result);
+      })
+      .withFailureHandler(function(err) {
+        var msg = (err && err.message) ? err.message : 'เกิดข้อผิดพลาด';
+        showToast('⚠️ ' + msg, 'error');
+        resolve(null);
+      })
+      .handleApiCall(action, payload);
+  });
+}
+
+// ─── LOAD HOME DATA ──────────────────────────────────────────
+async function loadHomeData() {
+  setGreetingDate();
+  const today = new Date().toISOString().split('T')[0];
+  document.querySelectorAll('input[type="date"]').forEach(el => el.value = today);
+
+  // โหลด session วันนี้ (เช้า/เย็น)
+  const sessions = await apiCall('GET_TODAY_SESSIONS');
+  if (sessions) updateSessionCards(sessions);
+
+  // โหลดหนี้สัปดาห์นี้
+  const week = getCurrentWeekNumber();
+  const debts = await apiCall('GET_DEBT', { filters: { week_number: String(week) } });
+  if (debts) { debtData = debts; renderDebtList(); updateDebtBadge(); }
+
+  // โหลด settlement
+  const settle = await apiCall('GET_SETTLEMENT', { week_number: week });
+  if (settle) updateSettlementUI(settle);
+
+  // Admin: โหลด DSR summary
+  if (currentUser.role === 'admin' || currentUser.role === 'specialist') {
+    const summary = await apiCall('GET_ALL_DSR_SUMMARY', { week_number: week });
+    if (summary) { dsrRosterData = summary; renderDSRRoster(); }
+  }
+
+  // แจ้งเตือนรถ
+  const alerts = await apiCall('GET_MAINTENANCE_ALERTS');
+  if (alerts && alerts.length) renderMaintenanceAlerts(alerts);
+}
+
+function updateSessionCards(s) {
+  const morningCard = document.querySelector('.session-card:first-child');
+  const eveningCard = document.querySelector('.session-card:last-child');
+  if (!morningCard || !eveningCard) return;
+  if (s.morning_done) {
+    morningCard.classList.add('done');
+    morningCard.querySelector('.session-status').style.color = 'var(--g)';
+    morningCard.querySelector('.session-status').textContent = '✓ บันทึกแล้ว ' + (s.morning?.start_km ? parseInt(s.morning.start_km).toLocaleString() + ' km' : '');
+  }
+  if (s.evening_done) {
+    eveningCard.classList.add('done');
+    eveningCard.classList.remove('active-now');
+    eveningCard.querySelector('.session-status').style.color = 'var(--g)';
+    eveningCard.querySelector('.session-status').textContent = '✓ บันทึกแล้ว';
+  } else {
+    eveningCard.classList.add('active-now');
+  }
+}
+
+function updateSettlementUI(settle) {
+  const statCards = document.querySelectorAll('.stat-card');
+  if (!statCards.length) return;
+  // อัปเดต summary stats บน home page
+  const fmt = n => (parseFloat(n)||0).toLocaleString('th-TH');
+  const cashEl = document.getElementById('sum-cash');
+  const billEl = document.getElementById('sum-bills');
+  const expEl  = document.getElementById('sum-exp');
+  const netEl  = document.getElementById('sum-net');
+  if (cashEl) cashEl.textContent = fmt(settle.total_cash) + ' ฿';
+  if (billEl) billEl.textContent = settle.collected_count + '/' + settle.bill_count + ' บิล';
+  if (expEl)  expEl.textContent  = fmt(settle.total_expenses) + ' ฿';
+  if (netEl)  netEl.textContent  = fmt(settle.net_remittance) + ' ฿';
+
+  // Settlement page
+  const amtEl = document.querySelector('.settlement-amount');
+  if (amtEl) amtEl.textContent = '฿' + fmt(settle.net_remittance);
+}
+
+function renderMaintenanceAlerts(alerts) {
+  const container = document.querySelector('.card .alert-card')?.parentElement;
+  if (!container) return;
+  container.innerHTML = alerts.slice(0,3).map(a => `
+    <div class="alert-card ${a.severity}">
+      <div class="alert-icon" style="background:${a.severity==='urgent'?'#FEE9E9':'#FFFDF0'}">${a.type==='oil'?'🔧':a.type==='tire'?'🛞':a.type==='tax'?'📋':'⚠️'}</div>
+      <div class="alert-content">
+        <div class="alert-title">${a.message}</div>
+        <div class="alert-subtitle">${a.plate} — ${a.model}</div>
+      </div>
+      <div class="tag tag-${a.severity==='urgent'?'red':'orange'}">${a.severity==='urgent'?'เร่งด่วน':'ใกล้ครบ'}</div>
+    </div>`).join('');
+}
+
+function updateDebtBadge() {
+  const pending = debtData.filter(d => d.status === 'pending').length;
+  const badge   = document.getElementById('debt-badge');
+  if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none'; }
+}
+
+// ─── DEBT LIST ───────────────────────────────────────────────
+function renderDebtList() {
+  const container = document.getElementById('debt-list');
+  if (!container) return;
+  const list = debtData.length ? debtData : [];
+  if (!list.length) {
+    container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--ink3);font-size:13px;">ยังไม่มีข้อมูลบิล</div>';
+    return;
+  }
+  container.innerHTML = list.map(d => `
+    <div class="debt-item" onclick="toggleDebt('${d.debt_id}')">
+      <div class="debt-checkbox ${d.status==='collected'?'checked':''}" id="chk-${d.debt_id}">
+        ${d.status==='collected'?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg>':''}
+      </div>
+      <div class="debt-info">
+        <div class="debt-customer">${d.customer_name||''}</div>
+        <div class="debt-invoice">${d.invoice_no||''} · ครบ ${d.due_date||''}</div>
+      </div>
+      <div>
+        <div class="debt-amount" style="color:${d.status==='collected'?'var(--g)':'var(--ink)'};">${parseFloat(d.amount||0).toLocaleString('th-TH')} ฿</div>
+      </div>
+    </div>`).join('');
+}
+
+async function toggleDebt(debtId) {
+  const item = debtData.find(d => d.debt_id === debtId);
+  if (!item) return;
+  const newCollected = item.status !== 'collected';
+  // Optimistic UI update
+  item.status = newCollected ? 'collected' : 'pending';
+  renderDebtList();
+  updateDebtBadge();
+  // Sync to server
+  const result = await apiCall('TOGGLE_COLLECTED', { debt_id: debtId, collected: newCollected });
+  if (!result) {
+    // Revert on fail
+    item.status = newCollected ? 'pending' : 'collected';
+    renderDebtList();
+  } else {
+    showToast(newCollected ? '✅ บันทึกเก็บเงิน: ' + item.customer_name : '↩ ยกเลิก: ' + item.customer_name, newCollected ? 'success' : '');
+  }
+}
+
+function filterDebt(type) {
+  // Visual filter only
+}
+
+async function generateCoverSheet() {
+  showToast('⏳ กำลังสร้าง Cover Sheet...', '');
+  const week = getCurrentWeekNumber();
+  const result = await apiCall('GENERATE_COVER_SHEET', { week_number: week, dsr_id: currentUser.email });
+  if (result?.view_url) {
+    showToast('✅ Cover Sheet พร้อมแล้ว — เปิดลิงก์', 'success');
+    setTimeout(() => window.open(result.view_url, '_blank'), 1000);
+  }
+}
+
+// ─── DSR ROSTER (Admin) ──────────────────────────────────────
+function renderDSRRoster() {
+  const container = document.getElementById('dsr-roster');
+  if (!container || !dsrRosterData.length) return;
+  const colors    = DSR_COLORS.default;
+  const statusColor = { ahead:'var(--g)', 'on-track':'var(--o)', behind:'var(--r)' };
+  const statusTh    = { ahead:'เหนือเป้า', 'on-track':'ตามแผน', behind:'ล่าช้า' };
+  container.innerHTML = dsrRosterData.map((d, i) => {
+    const s  = d.settlement || {};
+    const fmt= n => Math.round(parseFloat(n)||0).toLocaleString('th-TH');
+    const st = s.collected_count >= s.bill_count * 0.8 ? 'ahead' : s.collected_count >= s.bill_count * 0.5 ? 'on-track' : 'behind';
+    const col= colors[i % colors.length];
+    return `<div class="dsr-card">
+      <div class="dsr-card-stripe" style="background:${col}"></div>
+      <div class="dsr-card-header">
+        <div class="dsr-avatar" style="background:${col}">${(d.display_name||'').slice(0,2)}</div>
+        <div><div class="dsr-name">${d.display_name||''}</div><div class="dsr-zone">📍 ${d.province_zone||''}</div></div>
+        <div class="tag" style="background:${statusColor[st]}22;color:${statusColor[st]};margin-left:auto;">${statusTh[st]}</div>
+      </div>
+      <div class="dsr-metrics">
+        <div class="dsr-metric"><div class="dsr-metric-val" style="color:var(--o)">${s.collected_count||0}</div><div class="dsr-metric-lbl">บิล</div></div>
+        <div class="dsr-metric"><div class="dsr-metric-val" style="color:var(--g)">${fmt((s.total_cash||0)/1000)}K</div><div class="dsr-metric-lbl">฿ เก็บ</div></div>
+        <div class="dsr-metric"><div class="dsr-metric-val">${fmt(s.net_remittance||0)}</div><div class="dsr-metric-lbl">นำส่ง</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── SAVE ACTIONS ────────────────────────────────────────────
+async function saveMileage() {
+  const km      = document.getElementById('mileage-km')?.value;
+  const dateVal = document.getElementById('mileage-date')?.value;
+  const vehicleId = document.getElementById('vehicle-select')?.value;
+  if (!km || !dateVal) { showToast('กรุณากรอกเลขไมล์และวันที่', 'error'); return; }
+
+  const isMorning = document.getElementById('mileage-sheet-title')?.textContent.includes('เช้า');
+  const session   = isMorning ? 'morning' : 'evening';
+  const field     = isMorning ? 'start_km' : 'end_km';
+  const photoField= isMorning ? 'start_photo_url' : 'end_photo_url';
+
+  let photoUrl = '';
+  const fileInput = document.querySelector('#modal-mileage input[type="file"]');
+  if (fileInput?.files[0]) {
+    showToast('⏳ อัปโหลดรูป...', '');
+    const b64 = await fileToBase64(fileInput.files[0]);
+    const uploaded = await apiCall('UPLOAD_PHOTO', { base64: b64, filename: 'mileage_' + session + '_' + Date.now() + '.jpg', context: 'mileage' });
+    if (uploaded?.view_url) photoUrl = uploaded.view_url;
+  }
+
+  const result = await apiCall('SAVE_MILEAGE', { data: {
+    vehicle_id: vehicleId, log_date: dateVal, session,
+    [field]: parseInt(km), [photoField]: photoUrl,
+  }});
+  if (result) {
+    closeModal('modal-mileage');
+    showToast('✅ บันทึกไมล์เรียบร้อย', 'success');
+    const sessions = await apiCall('GET_TODAY_SESSIONS');
+    if (sessions) updateSessionCards(sessions);
+  }
+}
+
+async function saveAllowance() {
+  const cost     = document.getElementById('accom-cost')?.value;
+  const province = document.getElementById('stay-province')?.value;
+  const dateVal  = document.getElementById('stay-date')?.value;
+  const isProv   = document.querySelector('input[name="is-provincial"]:checked')?.value === 'yes';
+  if (!cost || !dateVal) { showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
+
+  let photoUrl = '';
+  const fileInput = document.querySelector('#modal-allowance input[type="file"]');
+  if (fileInput?.files[0]) {
+    showToast('⏳ อัปโหลดใบเสร็จ...', '');
+    const b64 = await fileToBase64(fileInput.files[0]);
+    const up = await apiCall('UPLOAD_PHOTO', { base64: b64, filename: 'allowance_' + Date.now() + '.jpg', context: 'allowance' });
+    if (up?.view_url) photoUrl = up.view_url;
+  }
+
+  const result = await apiCall('SAVE_ALLOWANCE', { data: {
+    stay_date: dateVal, province, accommodation_cost: parseFloat(cost),
+    is_provincial: String(isProv), receipt_photo_url: photoUrl,
+    week_number: getCurrentWeekNumber(),
+  }});
+  if (result) {
+    closeModal('modal-allowance');
+    showToast('✅ บันทึกแล้ว — เบิกได้ ' + result.claimed + ' ฿ + เบี้ย ' + result.allowance + ' ฿', 'success');
+  }
+}
+
+async function saveFuel() {
+  const liters  = document.getElementById('fuel-liters')?.value;
+  const price   = document.getElementById('fuel-price')?.value;
+  const dateVal = document.querySelector('#modal-fuel input[type="date"]')?.value;
+  const vehicle = document.getElementById('vehicle-select')?.value;
+  if (!liters || !price || !dateVal) { showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
+
+  let photoUrl = '';
+  const fileInput = document.querySelector('#modal-fuel input[type="file"]');
+  if (fileInput?.files[0]) {
+    showToast('⏳ อัปโหลดใบเสร็จ...', '');
+    const b64 = await fileToBase64(fileInput.files[0]);
+    const up = await apiCall('UPLOAD_PHOTO', { base64: b64, filename: 'fuel_' + Date.now() + '.jpg', context: 'fuel' });
+    if (up?.view_url) photoUrl = up.view_url;
+  }
+
+  const result = await apiCall('SAVE_FUEL', { data: {
+    fuel_date: dateVal, vehicle_id: vehicle,
+    liters: parseFloat(liters), price_per_liter: parseFloat(price),
+    receipt_photo_url: photoUrl, week_number: getCurrentWeekNumber(),
+  }});
+  if (result) {
+    closeModal('modal-fuel');
+    showToast('✅ บันทึกน้ำมัน ' + (parseFloat(liters)*parseFloat(price)).toFixed(2) + ' ฿', 'success');
+  }
+}
+
+async function confirmSettlement() {
+  const result = await apiCall('CONFIRM_SETTLEMENT', { week_number: getCurrentWeekNumber() });
+  if (result) showToast('✅ ยืนยันยอดนำส่งแล้ว — รอส่งวันเสาร์', 'success');
+}
+
+async function printCoverSheet() {
+  await generateCoverSheet();
+}
+
+async function importCSV() {
+  showToast('⏳ กำลัง Import...', '');
+
+  // ใช้ข้อมูลที่ parse ไว้แล้ว
+  if (!window._csvParsed) { showToast('กรุณาเลือกไฟล์ CSV ก่อน', 'error'); return; }
+
+  var parsed  = window._csvParsed;
+  var lines   = parsed.allText.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  var headers = parsed.headers;
+  var rows    = [];
+
+  lines.slice(1).forEach(function(line) {
+    if (!line.trim()) return;
+    var cells = parseCSVLine(line, parsed.delimiter);
+    var row   = {};
+    headers.forEach(function(h, i) { row[cleanCell(h)] = cleanCell(cells[i] || ''); });
+    rows.push(row);
+  });
+
+  var result = await apiCall('IMPORT_DEBT_CSV', { rows: rows });
+  if (result) {
+    var msg = '✅ Import ' + result.imported + ' บิลเรียบร้อย';
+    if (result.skipped) msg += ' (ข้าม ' + result.skipped + ' แถว)';
+    showToast(msg, 'success');
+    if (result.errors && result.errors.length) {
+      setTimeout(function(){ showToast('⚠️ ' + result.errors[0], 'warning'); }, 1500);
+    }
+  }
+}
+
+// ─── PHOTO HELPERS ────────────────────────────────────────────
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const img    = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        const ratio = Math.min(1200/img.width, 1200/img.height, 1);
+        canvas.width  = img.width  * ratio;
+        canvas.height = img.height * ratio;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.75).split(',')[1]);
+      };
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function previewPhoto(event, zoneId) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const zone   = document.getElementById(zoneId);
+  const reader = new FileReader();
+  reader.onload = e => {
+    zone.style.padding = '8px';
+    zone.innerHTML = `<img src="${e.target.result}" style="width:100%;border-radius:8px;max-height:160px;object-fit:cover;"><div style="font-size:12px;color:var(--g);margin-top:6px;font-weight:600;">✓ รูปพร้อมส่ง</div>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewCSV(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+
+  // ลองอ่านด้วย UTF-8 ก่อน ถ้า garbled ให้ลอง TIS-620
+  readCSVWithEncoding(file, 'UTF-8', function(text) {
+    // เช็คว่า Thai ยังดีอยู่ไหม — ถ้ามี replacement char ลอง TIS-620
+    if (text.indexOf('�') !== -1 || /[-]/.test(text)) {
+      readCSVWithEncoding(file, 'windows-874', function(text2) {
+        parseAndShowCSV(text2, file.name);
+      });
+    } else {
+      parseAndShowCSV(text, file.name);
+    }
+  });
+}
+
+function readCSVWithEncoding(file, encoding, callback) {
+  var reader = new FileReader();
+  reader.onload = function(e) { callback(e.target.result); };
+  reader.readAsText(file, encoding);
+}
+
+function parseAndShowCSV(text, filename) {
+  // รองรับทั้ง comma และ tab delimited
+  var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if (!lines.length) { showToast('ไฟล์ว่างเปล่า', 'error'); return; }
+
+  var delimiter = lines[0].indexOf('\t') !== -1 ? '\t' : ',';
+  var headers   = parseCSVLine(lines[0], delimiter);
+  var rows      = lines.slice(1, 6);
+
+  var table = document.getElementById('csv-table');
+  table.innerHTML =
+    '<thead><tr>' + headers.map(function(h){ return '<th>' + cleanCell(h) + '</th>'; }).join('') + '</tr></thead>' +
+    '<tbody>' + rows.map(function(r){
+      return '<tr>' + parseCSVLine(r, delimiter).map(function(c){ return '<td>' + cleanCell(c) + '</td>'; }).join('') + '</tr>';
+    }).join('') + '</tbody>';
+
+  // เก็บ parsed data ไว้ใช้ตอน import
+  window._csvParsed = { headers: headers, delimiter: delimiter, allText: text, filename: filename };
+
+  document.getElementById('csv-preview').style.display = 'block';
+  showToast('โหลด ' + filename + ' — ' + (lines.length-1) + ' แถว', 'success');
+}
+
+function parseCSVLine(line, delimiter) {
+  // handle quoted fields
+  var result = [];
+  var cur = '';
+  var inQuote = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (ch === '"') { inQuote = !inQuote; }
+    else if (ch === delimiter && !inQuote) { result.push(cur.trim()); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function cleanCell(s) {
+  return String(s || '').replace(/^["']|["']$/g, '').trim();
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────
+function navTo(page) {
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const target = document.getElementById('page-' + page);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.bnav-item').forEach(el => el.classList.remove('active'));
+  const bnavItem = document.getElementById('bnav-' + page);
+  if (bnavItem) bnavItem.classList.add('active');
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+  currentPage = page;
+  window.scrollTo(0, 0);
+  // โหลดข้อมูล per page
+  if (page === 'debt' && !debtData.length) loadHomeData();
+  if (page === 'print') csLoad();
+}
+
+function openSheet(type) {
+  const map = { 'add-allowance':'modal-allowance', 'add-fuel':'modal-fuel', 'add-maintenance':'modal-maintenance' };
+  if (map[type]) openModal(map[type]);
+}
+function openMileageSheet(session) {
+  document.getElementById('mileage-sheet-title').textContent = session === 'morning' ? 'บันทึกไมล์ตอนเช้า' : 'บันทึกไมล์ตอนเย็น';
+  openModal('modal-mileage');
+}
+function openModal(id) { document.getElementById(id).classList.add('open'); document.body.style.overflow = 'hidden'; }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); document.body.style.overflow = ''; }
+
+// ─── FORM CALCULATIONS ───────────────────────────────────────
+function calcAllowance() {
+  const cost    = parseFloat(document.getElementById('accom-cost')?.value) || 0;
+  const claimed = Math.min(cost, 500);
+  const el = document.getElementById('calc-accom');
+  if (el) el.textContent = claimed.toLocaleString('th-TH') + ' ฿';
+  const hint = document.getElementById('accom-hint');
+  if (hint) {
+    hint.style.color = cost > 500 ? 'var(--r)' : 'var(--g)';
+    hint.textContent = cost > 500 ? `เบิกได้สูงสุด 500 ฿ (จริง ${cost.toLocaleString()} ฿)` : 'เบิกได้สูงสุด 500 ฿/คืน';
+  }
+}
+function calcFuel() {
+  const l = parseFloat(document.getElementById('fuel-liters')?.value) || 0;
+  const p = parseFloat(document.getElementById('fuel-price')?.value)  || 0;
+  const el = document.getElementById('fuel-total');
+  if (el) el.textContent = l && p ? (l*p).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',') + ' ฿' : '— ฿';
+}
+
+// ─── UTILITIES ────────────────────────────────────────────────
+function getCurrentWeekNumber() {
+  const d      = new Date();
+  const utc    = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNo  = (utc.getUTCDay() + 6) % 7;
+  utc.setUTCDate(utc.getUTCDate() - dayNo + 3);
+  const firstThu = new Date(Date.UTC(utc.getUTCFullYear(), 0, 4));
+  return 1 + Math.round((utc - firstThu) / 604800000);
+}
+
+function setGreetingDate() {
+  const d      = new Date();
+  const days   = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const el = document.getElementById('greeting-date');
+  if (el) el.textContent = 'วัน' + days[d.getDay()] + 'ที่ ' + d.getDate() + ' ' + months[d.getMonth()] + ' ' + (d.getFullYear()+543);
+  const hour = d.getHours();
+  const sEl  = document.getElementById('greeting-session');
+  if (sEl) sEl.innerHTML = hour < 12 ? '🌅 Session เช้า — บันทึกไมล์ตอนเช้า' : hour < 17 ? '☀️ ช่วงบ่าย' : '🌆 Session เย็น — กรุณาบันทึกปิดวัน';
+}
+
+function toggleAlerts() {
+  document.getElementById('bell-dot').style.display = 'none';
+  apiCall('GET_MAINTENANCE_ALERTS').then(alerts => {
+    if (!alerts?.length) { showToast('ไม่มีการแจ้งเตือนเร่งด่วน ✓', 'success'); return; }
+    const urgent = alerts.filter(a => a.severity === 'urgent');
+    if (urgent.length) showToast('⚠️ ' + urgent.length + ' รายการเร่งด่วน — เช็ค Module รถ', 'warning');
+  });
+}
+function showUserMenu() {
+  if (currentUser) showToast(currentUser.display_name + ' · ' + currentUser.email + ' · ' + currentUser.role, '');
+}
+function changeWeek(dir) { showToast(dir > 0 ? 'สัปดาห์ถัดไป' : 'สัปดาห์ก่อนหน้า', ''); }
+function updateVehicleDisplay() {}
+
+let toastTimer;
+function showToast(msg, type) {
+  type = type || '';
+  const c = document.getElementById('toast-container');
+  if (!c) return;
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .2s'; setTimeout(() => t.remove(), 200); }, 2800);
+}
+
+// ─── DSR REVIEW + COVER SHEET  v17 ───────────────────────────
+// แก้: dropdown z-index ไม่ทับกัน
+//      บิลหน้าร้าน lookup จากรหัสลูกค้า → tag 🏪 ในบิล
+//      pending rows แสดงพื้นเหลือง
+
+var csRows=[], csEdits={}, csBillCache={}, csDropSt={};
+var csWeekOffset=0, csRangeStart=null, csRangeEnd=null;
+var csBillAmounts={}, csStoreCache={};  // csStoreCache: { custCode: Set<trimmedInv> }
+var _fetchQueue=[], _fetchActive=0, _fetchMaxConcurrent=3;
+
+function csTrimInvoice(inv){
+  if(!inv)return'';var s=String(inv).trim();
+  return /^[A-Za-z]{2}\d{2}/.test(s)?s.slice(4):s;
+}
+
+function _localIso(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function _today(){var d=new Date();d.setHours(0,0,0,0);return d;}
+
+function csGetRange(){
+  if(csRangeStart&&csRangeEnd)return{mon:new Date(csRangeStart),sun:new Date(csRangeEnd)};
+  var now=_today(),day=now.getDay(),diff=(day===0)?-6:1-day;
+  var mon=new Date(now);mon.setDate(now.getDate()+diff+csWeekOffset*7);mon.setHours(0,0,0,0);
+  var sun=new Date(mon);sun.setDate(mon.getDate()+6);sun.setHours(23,59,59,0);
+  return{mon:mon,sun:sun};
+}
+function csFmtDateTh(d){var mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+mo[d.getMonth()+1]+' '+String(d.getFullYear()+543).slice(-2);}
+function csFmtRangeLabel(){var r=csGetRange();return csFmtDateTh(r.mon)+' - '+csFmtDateTh(r.sun);}
+
+function _buildDayOptions(sel){
+  var opts='',ref=_today();
+  for(var i=-60;i<=14;i++){var d=new Date(ref);d.setDate(ref.getDate()+i);var iso=_localIso(d);opts+='<option value="'+iso+'"'+(iso===sel?' selected':'')+'>'+csFmtDateTh(d)+'</option>';}
+  return opts;
+}
+
+function csInjectCSS(){
+  if(document.getElementById('cs-v17-css'))return;
+  var s=document.createElement('style');s.id='cs-v17-css';
+  s.textContent=[
+    '.cs-wnav{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}',
+    '.cs-wbtn{width:28px;height:28px;border:1px solid var(--border2);border-radius:7px;background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}',
+    '.cs-wbtn:active{background:var(--surface)}',
+    '.cs-wlabel{text-align:center;font-family:var(--font-display);font-size:14px;font-weight:700;white-space:nowrap}',
+    '.cs-range-wrap{display:flex;align-items:center;gap:4px;flex-wrap:wrap}',
+    '.cs-range-label{font-size:11px;color:var(--ink3);white-space:nowrap}',
+    '.cs-range-sel{border:1px solid var(--border2);border-radius:8px;padding:4px 6px;font-family:var(--font-body);font-size:12px;background:var(--card);cursor:pointer;color:var(--ink);min-width:80px}',
+    '.cs-range-sel:focus{outline:none;border-color:var(--o)}',
+    '.cs-range-reset{font-size:11px;color:var(--ink3);cursor:pointer;padding:3px 7px;border:1px solid var(--border2);border-radius:7px;background:var(--surface)}',
+    '.cs-range-reset:hover{border-color:var(--o);color:var(--o)}',
+    // table: overflow visible เพื่อให้ dropdown โผล่ออกได้
+    '.cs-tbl-wrap{overflow:visible!important}',
+    '.cs-tbl{width:100%;border-collapse:collapse;font-size:13px}',
+    '.cs-tbl th{padding:7px 5px;text-align:left;font-size:11px;color:var(--ink3);font-weight:700;border-bottom:2px solid var(--o);white-space:nowrap;background:var(--surface)}',
+    '.cs-tbl th.r{text-align:right}',
+    '.cs-tbl td{padding:6px 5px;border-bottom:1px solid var(--border);vertical-align:middle}',
+    '.cs-tbl tr:hover td{background:rgba(232,99,26,.03)}',
+    '.cs-tbl tr.cs-pending-row td{background:#FFFDE7!important}',
+    '.cs-pending-badge{font-size:10px;font-weight:700;background:#FFF59D;color:#F57F00;border:1px solid #FFD54F;border-radius:4px;padding:1px 5px;white-space:nowrap;vertical-align:middle}',
+    '.cs-val{font-size:13px;color:var(--ink)}',
+    '.cs-muted{font-size:12px;color:var(--ink3)}',
+    '.cs-inv{font-weight:700;font-size:13px}',
+    '.cs-amt{text-align:right;font-weight:600;font-size:13px}',
+    '.cs-shimmer{display:inline-block;width:48px;height:13px;border-radius:4px;background:linear-gradient(90deg,#f0ece8 25%,#e4ddd6 50%,#f0ece8 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;vertical-align:middle}',
+    '.cs-overdue{font-size:11px;font-weight:700;color:#C62828;white-space:nowrap}',
+    // 🏪 store tag — inline ใน bill dropdown
+    '.cs-store-tag{display:inline-block;font-size:10px;font-weight:700;background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;border-radius:4px;padding:1px 4px;margin-left:4px;vertical-align:middle;white-space:nowrap}',
+    '.cs-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap}',
+    '.cs-ok{background:#E2F4ED;color:#007B40}',
+    '.cs-warn{background:#FEF0E7;color:#C65410}',
+    '.cs-err{background:#FEE9E9;color:#B61010}',
+    '.cs-pend{background:#FFF8E1;color:#F57F17}',
+    '.cs-edit-row td{background:#F7F5F2!important;vertical-align:top;padding:4px 3px}',
+    '.cs-finp{width:100%;border:1px solid var(--border2);border-radius:6px;padding:5px 7px;font-family:var(--font-body);font-size:13px;background:#fff;box-sizing:border-box}',
+    '.cs-finp:focus{outline:none;border-color:var(--o)}',
+    '.cs-finp:disabled{background:var(--surface);color:var(--ink2);cursor:default;border-color:transparent}',
+    '.cs-shop-loading{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink3);padding:5px 0}',
+    '.cs-shop-spinner{width:10px;height:10px;border:2px solid var(--border2);border-top-color:var(--o);border-radius:50%;animation:spin .6s linear infinite}',
+    '.cs-row-btn{padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:var(--font-body);cursor:pointer;white-space:nowrap}',
+    '.cs-row-save{background:var(--g);color:#fff}',
+    '.cs-row-cancel{background:var(--surface);color:var(--ink2);border:1px solid var(--border2)}',
+    '.cs-bw{position:relative}',
+    '.cs-bi{width:100%;border:1px solid var(--border2);padding:5px 22px 5px 8px;border-radius:6px;font-family:var(--font-body);font-size:13px;background:#fff;box-sizing:border-box;cursor:pointer}',
+    '.cs-bi:focus{outline:none;border-color:var(--o)}',
+    '.cs-bi.sel{border-color:var(--g);background:#F0FAF5;font-weight:700;color:var(--g)}',
+    '.cs-ba{position:absolute;right:7px;top:50%;transform:translateY(-50%);pointer-events:none;color:#aaa;font-size:10px}',
+    // dropdown — fixed positioning เพื่อไม่ให้ถูก clip
+    '.cs-bd{display:none;position:fixed;background:#fff;border:1px solid var(--border2);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.16);z-index:99999;width:260px;flex-direction:column;overflow:hidden;max-height:280px}',
+    '.cs-bd.open{display:flex}',
+    '.cs-bs-wrap{padding:8px 8px 5px;border-bottom:1px solid var(--border);flex-shrink:0}',
+    '.cs-bs{width:100%;border:1px solid var(--border2);border-radius:6px;padding:6px 9px;font-family:var(--font-body);font-size:13px;box-sizing:border-box}',
+    '.cs-bs:focus{outline:none;border-color:var(--o)}',
+    '.cs-bl{overflow-y:auto;flex:1}',
+    '.cs-bo{padding:7px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;gap:6px;border-bottom:1px solid #f5f5f5;transition:background .1s}',
+    '.cs-bo:last-child{border-bottom:none}',
+    '.cs-bo:hover,.cs-bo.act{background:#FEF6EE}',
+    '.cs-bo-left{flex:1;min-width:0}',
+    '.cs-bo-inv{font-weight:700;font-size:12px;white-space:nowrap}',
+    '.cs-bo-r{text-align:right;flex-shrink:0}',
+    '.cs-bo-amt{font-weight:700;color:var(--o);font-size:12px}',
+    '.cs-bo-sub{font-size:10px;color:var(--ink3);margin-top:1px}',
+    '.cs-bo-sub.partial{color:#C65410}',
+    '.cs-bo-due{font-size:10px;margin-top:1px}',
+    '.cs-d-ov{color:#C62828}.cs-d-sn{color:#F57F17}.cs-d-ok{color:#2E7D32}.cs-d-no{color:#aaa}',
+    '.cs-bempty{padding:14px;text-align:center;color:#aaa;font-size:12px}',
+    '.cs-stcheck{font-size:11px;margin-top:3px;font-weight:600}',
+  ].join('');
+  document.head.appendChild(s);
+}
+
+function csLoad(){
+  if(!currentUser)return;
+  csInjectCSS();csBillCache={};csDropSt={};csEdits={};csBillAmounts={};csStoreCache={};
+  _fetchQueue=[];_fetchActive=0;
+
+  var navWrap=document.getElementById('cs-week-nav');
+  if(!navWrap){navWrap=document.createElement('div');navWrap.id='cs-week-nav';navWrap.className='cs-wnav';document.getElementById('cs-app').parentNode.insertBefore(navWrap,document.getElementById('cs-app'));}
+
+  var r=csGetRange(),startIso=_localIso(r.mon),endIso=_localIso(r.sun),isCustom=!!(csRangeStart||csRangeEnd);
+  navWrap.innerHTML=
+    '<button class="cs-wbtn" onclick="csChangeWeek(-1)">&#8249;</button>'
+    +'<div class="cs-wlabel">'+csFmtRangeLabel()+'</div>'
+    +'<button class="cs-wbtn" onclick="csChangeWeek(1)">&#8250;</button>'
+    +'<div class="cs-range-wrap">'
+      +'<span class="cs-range-label">เริ่ม</span>'
+      +'<select class="cs-range-sel" id="cs-sel-start" onchange="csOnRangeChange()">'+_buildDayOptions(startIso)+'</select>'
+      +'<span class="cs-range-label">สิ้นสุด</span>'
+      +'<select class="cs-range-sel" id="cs-sel-end" onchange="csOnRangeChange()">'+_buildDayOptions(endIso)+'</select>'
+      +(isCustom?'<span class="cs-range-reset" onclick="csResetRange()">รีเซ็ต</span>':'')
+    +'</div>';
+
+  var app=document.getElementById('cs-app');
+  app.style.cssText='background:transparent;border-radius:var(--radius);margin-bottom:12px;overflow:visible;';
+  app.innerHTML=csSkeleton();
+
+  var monStr=startIso+'T00:00:00',sunStr=endIso+'T23:59:59';
+  google.script.run
+    .withSuccessHandler(function(d){
+      if(!d||d.error){app.textContent='ERROR: '+(d?d.error:'no data');return;}
+      csRows=d.rows||[];
+      if(d.pendingRows&&d.pendingRows.length)csRows=csRows.concat(d.pendingRows);
+      csEdits={};csBillAmounts={};csStoreCache={};_fetchQueue=[];_fetchActive=0;
+      document.getElementById('cs-cnt').textContent=csRows.length;
+      document.getElementById('cs-sum').textContent=Number(d.total||0).toLocaleString('th-TH')+' ฿';
+      csRender(app);
+    })
+    .withFailureHandler(function(e){app.textContent='ERROR: '+e.message;})
+    .getDsrWeekSlipsWithPendingRows(currentUser.email,monStr,sunStr);
+}
+
+function csOnRangeChange(){
+  var sEl=document.getElementById('cs-sel-start'),eEl=document.getElementById('cs-sel-end');if(!sEl||!eEl)return;
+  var sv=sEl.value,ev=eEl.value;if(sv>ev){var t=sv;sv=ev;ev=t;sEl.value=sv;eEl.value=ev;}
+  function p(iso){var x=iso.split('-');return new Date(+x[0],+x[1]-1,+x[2]);}
+  csRangeStart=p(sv);csRangeStart.setHours(0,0,0,0);csRangeEnd=p(ev);csRangeEnd.setHours(23,59,59,0);
+  csWeekOffset=0;csLoad();
+}
+function csChangeWeek(dir){csWeekOffset+=dir;if(csWeekOffset>0)csWeekOffset=0;csRangeStart=null;csRangeEnd=null;csLoad();}
+function csResetRange(){csRangeStart=null;csRangeEnd=null;csWeekOffset=0;csLoad();}
+
+function csSkeleton(){var rows='';for(var i=0;i<5;i++)rows+='<div class="skeleton-row">'+['sk-no','sk-date','sk-code','sk-shop','sk-bill','sk-amt','sk-amt','sk-time','sk-st','sk-note'].map(function(c){return'<div class="sk '+c+'"></div>';}).join('')+'</div>';return'<div style="padding:4px 6px;">'+rows+'</div>';}
+
+function fmtD_cs(s){var mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];if(!s)return'';try{var dt=new Date(s);if(isNaN(dt))return s;var b=new Date(dt.toLocaleString('en-US',{timeZone:'Asia/Bangkok'}));return b.getDate()+' '+mo[b.getMonth()+1]+' '+String(b.getFullYear()+543).slice(-2);}catch(e){return s;}}
+
+function csSortRows(){csRows.sort(function(a,b){return new Date(a['วันที่ส่งสลิป']||a['created_at']||0)-new Date(b['วันที่ส่งสลิป']||b['created_at']||0);});}
+
+function csRender(container){
+  if(!csRows.length){container.style.cssText='background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:32px;text-align:center;color:var(--ink3);font-size:13px;margin-bottom:12px;';container.textContent='ยังไม่มีสลิปในช่วงนี้';return;}
+  csSortRows();
+  var tbl='<div class="cs-tbl-wrap" style="background:var(--card);border-radius:var(--radius);border:1px solid var(--border);animation:fadeUp .3s ease;margin-bottom:12px;">'
+    +'<table class="cs-tbl"><thead><tr>'
+    +'<th style="width:3%">#</th><th style="width:8%">วันที่ส่ง</th>'
+    +'<th style="width:8%">รหัส</th><th style="width:13%">ร้าน</th>'
+    +'<th style="width:10%">เลขบิล</th>'
+    +'<th class="r" style="width:9%">ยอดบิล</th>'
+    +'<th class="r" style="width:9%">ยอดโอน</th>'
+    +'<th style="width:8%">วันที่โอน</th><th style="width:7%">Overdue</th>'
+    +'<th style="width:8%">สถานะ</th><th style="width:11%">หมายเหตุ</th>'
+    +'<th style="width:4%"></th></tr></thead><tbody id="cs-tbody">';
+  csRows.forEach(function(r,i){tbl+=csStaticRow(r,i);});
+  tbl+='</tbody></table></div>';
+  container.style.cssText='background:transparent;border-radius:var(--radius);margin-bottom:12px;overflow:visible;';
+  container.innerHTML=tbl;
+  csRows.forEach(function(r){
+    var inv=(r['เลขที่บิล']||'').toString().trim();
+    var cust=(r['รหัสลูกค้า']||'').toString().trim();
+    if(cust)csEnqueueLookup(cust,r._row,inv);
+  });
+}
+
+function csStaticRow(r,i){
+  var ri=r._row,st=r['สถานะ']||'',billVal=(r['เลขที่บิล']||'').toString().trim(),isEmpty=!billVal;
+  var isPending=!!(r._isPending);
+  var stLbl=isPending?'⏳ รอระบุ':(isEmpty?'รอระบุบิล':(st||'-'));
+  var cls=isPending?'cs-pend':(isEmpty?'cs-pend':st==='เรียบร้อย'?'cs-ok':(st==='ยอดไม่ตรง'||st==='รอระบุ')?'cs-warn':'cs-err');
+  var amtT=parseFloat(r['ยอดเงิน'])||0;
+  var billAmtHtml=(billVal&&!isPending)?'<span class="cs-shimmer" id="cs-billamt-'+ri+'"></span>':'<span class="cs-muted" id="cs-billamt-'+ri+'">—</span>';
+  var trClass=isPending?'cs-pending-row':'';
+  return '<tr id="cs-sr-'+ri+'" class="'+trClass+'">'
+    +'<td class="cs-muted">'+(i+1)+(isPending?'&nbsp;<span class="cs-pending-badge">PENDING</span>':'')+'</td>'
+    +'<td class="cs-muted" style="white-space:nowrap">'+fmtD_cs(r['วันที่ส่งสลิป']||r['created_at']||'')+'</td>'
+    +'<td class="cs-val">'+csEsc((r['รหัสลูกค้า']||'').toString().trim())+'</td>'
+    +'<td class="cs-muted" id="cs-shop-'+ri+'" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+csEsc(r['ชื่อร้าน']||'')+'">'+csEsc(r['ชื่อร้าน']||'')+'</td>'
+    +'<td><div class="cs-inv" id="cs-inv-'+ri+'">'+(billVal?csEsc(csTrimInvoice(billVal)):'<span class="cs-muted">—</span>')+'</div></td>'
+    +'<td class="cs-amt">'+billAmtHtml+'</td>'
+    +'<td class="cs-amt">'+(amtT?amtT.toLocaleString('th-TH'):'—')+'</td>'
+    +'<td class="cs-muted" style="white-space:nowrap">'+fmtD_cs(r['วันที่โอน'])+'</td>'
+    +'<td id="cs-due-'+ri+'"><span class="cs-muted">—</span></td>'
+    +'<td><span class="cs-badge '+cls+'" id="cs-st-'+ri+'">'+csEsc(stLbl)+'</span></td>'
+    +'<td class="cs-muted">'+csEsc(r['note']||'')+'</td>'
+    +'<td><button class="cs-row-btn" style="background:var(--o-lite);color:var(--o-dark);font-size:11px" onclick="csEditRow('+ri+')">แก้ไข</button></td>'
+    +'</tr>';
+}
+
+// ── fetch queue ─────────────────────────────────────────────────
+function csEnqueueLookup(cust,ri,inv){
+  if(csBillCache[cust]){csApplyLookup(cust,ri,inv);return;}
+  _fetchQueue.push({cust:cust,ri:ri,inv:inv});
+  csProcessQueue();
+}
+function csProcessQueue(){
+  while(_fetchActive<_fetchMaxConcurrent&&_fetchQueue.length>0){
+    var job=_fetchQueue.shift();
+    if(csBillCache[job.cust]){csApplyLookup(job.cust,job.ri,job.inv);continue;}
+    _fetchActive++;
+    (function(j){
+      google.script.run
+        .withSuccessHandler(function(res){
+          _fetchActive--;
+          csBillCache[j.cust]={bills:(res&&res.ok)?res.bills:[],shopName:(res&&res.shopName)||''};
+          if(res&&res.storeInvSet)csStoreCache[j.cust]=res.storeInvSet;
+          csApplyLookup(j.cust,j.ri,j.inv);
+          csProcessQueue();
+        })
+        .withFailureHandler(function(){
+          _fetchActive--;
+          var el=document.getElementById('cs-billamt-'+j.ri);if(el){el.className='';el.innerHTML='<span class="cs-muted">—</span>';}
+          csProcessQueue();
+        })
+        .getBillsForCustomerCode(j.cust);
+    })(job);
+  }
+}
+
+// ── apply lookup result ─────────────────────────────────────────
+function csApplyLookup(cust,ri,inv){
+  var data=csBillCache[cust]||{bills:[],shopName:''};
+  var bills=data.bills||[];
+  // update shop name ถ้ายังไม่มี
+  var shopEl=document.getElementById('cs-shop-'+ri);
+  if(shopEl&&!shopEl.textContent.trim()&&data.shopName)shopEl.textContent=data.shopName;
+
+  if(!inv){var el=document.getElementById('cs-billamt-'+ri);if(el){el.className='';el.innerHTML='<span class="cs-muted">—</span>';}return;}
+  var norm=csTrimInvoice(inv).toLowerCase();
+  var match=bills.find(function(b){return csTrimInvoice(b.invoiceNo).toLowerCase()===norm||b.invoiceNo.toLowerCase().indexOf(norm)>=0;});
+  var amtEl=document.getElementById('cs-billamt-'+ri),dueEl=document.getElementById('cs-due-'+ri);
+  var invEl=document.getElementById('cs-inv-'+ri);
+
+  if(match&&match.amount){
+    var fullAmt=parseFloat(match.amount)||0,paid=csCalcPaidBefore(ri,norm);
+    var remaining=Math.max(0,fullAmt-paid),displayAmt=remaining>0?remaining:fullAmt;
+    csBillAmounts[ri]=displayAmt;
+    if(amtEl){amtEl.style.transition='opacity .3s';amtEl.style.opacity='0';setTimeout(function(){amtEl.className='cs-amt';amtEl.textContent=displayAmt.toLocaleString('th-TH');amtEl.style.opacity='1';},150);}
+    if(dueEl){var od=match.overdueDays;dueEl.innerHTML=(od!=null&&od>8)?'<span class="cs-overdue">'+od+' วัน</span>':'<span class="cs-muted">—</span>';}
+    // 🏪 store tag — ถ้า bill นี้อยู่ใน storeInvSet ของ cust
+    // ใหม่
+    var storeSet=csStoreCache[cust];
+    if(invEl&&storeSet&&storeSet.indexOf(norm)>=0){
+      var existTag=invEl.querySelector('.cs-store-tag');
+      if(!existTag)invEl.insertAdjacentHTML('beforeend','<span class="cs-store-tag">&#127978; หน้าร้าน</span>');
+    }else if(invEl&&!storeSet){
+      // แถวแรก: storeInvSet ยังไม่มา — retry หลัง 500ms
+      (function(capturedRi,capturedNorm){
+        setTimeout(function(){
+          var s2=csStoreCache[cust];
+          if(s2&&s2.indexOf(capturedNorm)>=0){
+            var el2=document.getElementById('cs-inv-'+capturedRi);
+            if(el2&&!el2.querySelector('.cs-store-tag'))
+              el2.insertAdjacentHTML('beforeend','<span class="cs-store-tag">&#127978; หน้าร้าน</span>');
+          }
+        },500);
+      })(ri,norm);
+    }
+    var row=csRows.find(function(x){return x._row===ri;});if(row)row['_billAmtFromLookup']=displayAmt;
+    var amtT=row?(parseFloat(row['ยอดเงิน'])||0):0;
+    var stEl=document.getElementById('cs-st-'+ri);
+    if(stEl&&displayAmt&&amtT&&!row._isPending){var ok=Math.abs(displayAmt-amtT)<1;stEl.className='cs-badge '+(ok?'cs-ok':'cs-warn');stEl.textContent=ok?'เรียบร้อย':'ยอดไม่ตรง';}
+  }else{
+    if(amtEl){amtEl.className='';amtEl.innerHTML='<span class="cs-muted">—</span>';}
+  }
+}
+
+function csCalcPaidBefore(ri,invNorm){var total=0;for(var i=0;i<csRows.length;i++){var r=csRows[i];if(r._row===ri)break;var bv=(r['เลขที่บิล']||'').toString().trim();if(bv&&csTrimInvoice(bv).toLowerCase()===invNorm)total+=(parseFloat(r['ยอดเงิน'])||0);}return total;}
+
+// ── edit row ──────────────────────────────────────────────────────
+function csEditRow(ri){
+  var r=csRows.find(function(x){return x._row===ri;});if(!r)return;
+  var billVal=(r['เลขที่บิล']||'').toString().trim(),cust=(r['รหัสลูกค้า']||'').toString().trim(),amtT=parseFloat(r['ยอดเงิน'])||0;
+  var idx=csRows.findIndex(function(x){return x._row===ri;});
+  var h='<tr class="cs-edit-row" id="cs-er-'+ri+'">'
+    +'<td class="cs-muted">'+(idx+1)+'</td>'
+    +'<td class="cs-muted">'+fmtD_cs(r['วันที่ส่งสลิป']||r['created_at']||'')+'</td>'
+    +'<td><input class="cs-finp" id="ce-cust-'+ri+'" value="'+csEsc(cust)+'" style="width:90px" oninput="csLookupShop('+ri+',this.value)"></td>'
+    +'<td><div id="ce-shop-wrap-'+ri+'"><input class="cs-finp" id="ce-shop-'+ri+'" value="'+csEsc(r['ชื่อร้าน']||'')+'" disabled style="min-width:80px"></div></td>'
+    +'<td>'  // ไม่มี position:relative ที่ระดับ td — ใช้ fixed positioning แทน
+      +'<div class="cs-bw" id="cs-bw-'+ri+'">'
+        +'<input class="cs-bi'+(billVal?' sel':'')+'" id="cs-bi-'+ri+'" readonly placeholder="เลือกบิล..." value="'+csEsc(billVal?csTrimInvoice(billVal):'')+'" data-row="'+ri+'" onclick="csOpenDrop(this)">'
+        +'<span class="cs-ba">&#9660;</span>'
+        +'<div class="cs-bd" id="cs-bd-'+ri+'">'
+          +'<div class="cs-bs-wrap"><input class="cs-bs" placeholder="พิมพ์เลขบิล..." oninput="csFilterDrop(this,'+ri+')" onclick="event.stopPropagation()"></div>'
+          +'<div class="cs-bl" id="cs-bl-'+ri+'"><div class="cs-bempty">กำลังโหลด...</div></div>'
+        +'</div></div>'
+      +'<div class="cs-stcheck" id="cs-stcheck-'+ri+'"></div></td>'
+    +'<td class="cs-amt" id="cs-bamt-edit-'+ri+'"><span class="cs-muted">—</span></td>'
+    +'<td class="cs-amt">'+(amtT?amtT.toLocaleString('th-TH'):'—')+'</td>'
+    +'<td class="cs-muted">'+fmtD_cs(r['วันที่โอน'])+'</td>'
+    +'<td id="cs-due-edit-'+ri+'"><span class="cs-muted">—</span></td>'
+    +'<td><span class="cs-badge" id="cs-st-edit-'+ri+'">—</span></td>'
+    +'<td><input class="cs-finp" id="ce-note-'+ri+'" value="'+csEsc(r['note']||'')+'" placeholder="หมายเหตุ" style="min-width:110px"></td>'
+    +'<td style="white-space:nowrap;vertical-align:middle"><button class="cs-row-btn cs-row-save" onclick="csSaveRow('+ri+')">&#10003;</button> <button class="cs-row-btn cs-row-cancel" onclick="csCancelEdit('+ri+')">&#10005;</button></td>'
+    +'</tr>';
+  var sr=document.getElementById('cs-sr-'+ri);if(sr)sr.outerHTML=h;
+  csFetchBillsForEdit(cust,ri,billVal);
+}
+
+var _shopTimer={};
+function csLookupShop(ri,cust){
+  cust=(cust||'').trim();var wrap=document.getElementById('ce-shop-wrap-'+ri);
+  if(wrap)wrap.innerHTML='<div class="cs-shop-loading"><div class="cs-shop-spinner"></div><span>ค้นหา...</span></div>';
+  if(_shopTimer[ri])clearTimeout(_shopTimer[ri]);
+  _shopTimer[ri]=setTimeout(function(){
+    if(!cust){_setShopWrap(ri,'');return;}
+    if(csBillCache[cust]){_setShopWrap(ri,csBillCache[cust].shopName||'');csDropSt[ri]={bills:csBillCache[cust].bills||[],selected:null,selectedAmt:0,selectedDue:null,storeBills:csStoreCache[cust]||[]};csRenderList(ri,csDropSt[ri].bills,'');return;}
+    google.script.run
+      .withSuccessHandler(function(res){
+        var bills=(res&&res.ok)?res.bills:[],sn=(res&&res.shopName)||'';
+        csBillCache[cust]={bills:bills,shopName:sn};
+        if(res&&res.storeInvSet)csStoreCache[cust]=res.storeInvSet;
+        _setShopWrap(ri,sn);
+        csDropSt[ri]={bills:bills,selected:null,selectedAmt:0,selectedDue:null,storeBills:csStoreCache[cust]||[]};
+        csRenderList(ri,bills,'');
+      })
+      .withFailureHandler(function(){_setShopWrap(ri,'(ไม่พบ)');})
+      .getBillsForCustomerCode(cust);
+  },300);
+}
+function _setShopWrap(ri,name){var wrap=document.getElementById('ce-shop-wrap-'+ri);if(!wrap)return;wrap.innerHTML='<input class="cs-finp" id="ce-shop-'+ri+'" value="'+csEsc(name)+'" disabled style="min-width:80px">';}
+
+function csFetchBillsForEdit(cust,ri,currentInv){
+  if(!cust)return;
+  function done(data){
+    var bills=data.bills||[],paidMap=csCalcPaidByBillExcept(ri),storeBills=csStoreCache[cust]||[];
+    csDropSt[ri]={bills:bills,selected:currentInv||null,selectedAmt:0,selectedDue:null,paidMap:paidMap,storeBills:storeBills};
+    csRenderList(ri,bills,'');
+    if(currentInv){var norm=csTrimInvoice(currentInv).toLowerCase();var match=bills.find(function(b){return csTrimInvoice(b.invoiceNo).toLowerCase()===norm;});if(match){var r=csRows.find(function(x){return x._row===ri;});csUpdateEditStatus(ri,match.amount,r?(parseFloat(r['ยอดเงิน'])||0):0,match.overdueDays,paidMap);}}
+  }
+  if(csBillCache[cust]){done(csBillCache[cust]);return;}
+  google.script.run
+    .withSuccessHandler(function(res){var d={bills:(res&&res.ok)?res.bills:[],shopName:(res&&res.shopName)||''};csBillCache[cust]=d;if(res&&res.storeInvSet)csStoreCache[cust]=res.storeInvSet;done(d);})
+    .withFailureHandler(function(){done({bills:[],shopName:''});})
+    .getBillsForCustomerCode(cust);
+}
+
+function csCalcPaidByBillExcept(exceptRi){
+  var paid={};
+  csRows.forEach(function(r){
+    if(r._row===exceptRi)return;
+    var inv=(r['เลขที่บิล']||'').toString().trim();
+    if(!inv)return;
+    var key=csTrimInvoice(inv).toLowerCase();
+    paid[key]=(paid[key]||0)+(parseFloat(r['ยอดเงิน'])||0);
+  });
+  return paid;
+}
+
+function csRenderList(ri,bills,q){
+  var listEl=document.getElementById('cs-bl-'+ri);if(!listEl)return;
+  q=(q||'').toLowerCase().trim();var paidMap=(csDropSt[ri]&&csDropSt[ri].paidMap)||{};
+  var storeBills=(csDropSt[ri]&&csDropSt[ri].storeBills)||[];
+  var filtered=bills.filter(function(b){var d=csTrimInvoice(b.invoiceNo).toLowerCase();return !q||d.indexOf(q)>=0||b.invoiceNo.toLowerCase().indexOf(q)>=0;});
+  if(!filtered.length){listEl.innerHTML='<div class="cs-bempty">'+(q?'ไม่พบ "'+q+'"':'ไม่มีบิลค้างชำระ')+'</div>';return;}
+  var today=new Date();today.setHours(0,0,0,0);var sel=csDropSt[ri]&&csDropSt[ri].selected;
+  var mo2=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];var selIdx=-1;
+  var html=filtered.map(function(b,idx){
+    var d=csTrimInvoice(b.invoiceNo),dt='',dc='cs-d-no';
+    if(b.dueDate){var due=new Date(b.dueDate),diff=Math.round((due-today)/86400000);if(diff<0){dt='เกิน '+Math.abs(diff)+' วัน';dc='cs-d-ov';}else if(diff===0){dt='ครบวันนี้';dc='cs-d-ov';}else if(diff<=7){dt='อีก '+diff+' วัน';dc='cs-d-sn';}else{var bd=new Date(new Date(b.dueDate).toLocaleString('en-US',{timeZone:'Asia/Bangkok'}));dt=bd.getDate()+' '+mo2[bd.getMonth()+1];dc='cs-d-ok';}}
+    var isSel=sel===b.invoiceNo;if(isSel)selIdx=idx;
+    var fullAmt=parseFloat(b.amount)||0,key=csTrimInvoice(b.invoiceNo).toLowerCase();
+    var paid=parseFloat(paidMap[key])||0,remaining=Math.max(0,fullAmt-paid);
+    var isPartial=paid>0&&remaining>0,isFullyPaid=paid>=fullAmt&&fullAmt>0,displayAmt=isFullyPaid?fullAmt:remaining;
+    var subHtml=isFullyPaid?'<div class="cs-bo-sub">ชำระครบแล้ว</div>':isPartial?'<div class="cs-bo-sub partial">คงเหลือ ฿'+remaining.toLocaleString('th-TH')+'</div>':'';
+      var isStore=storeBills.indexOf(key)>=0 || b.source==='store';
+      var storeTag=isStore?'<span class="cs-store-tag">&#127978; หน้าร้าน</span>':'';
+    return '<div class="cs-bo'+(isSel?' act':'')+'" id="cs-bo-'+ri+'-'+idx+'" data-inv="'+csEsc(b.invoiceNo)+'" data-amt="'+displayAmt+'" data-od="'+(b.overdueDays!=null?b.overdueDays:'')+'" onclick="csSelBillEdit('+ri+',this)">'
+      +'<div class="cs-bo-left"><span class="cs-bo-inv">'+csEsc(d)+'</span>'+storeTag
+        +(dt?'<div class="cs-bo-due '+dc+'">'+dt+'</div>':'')
+      +'</div>'
+      +'<div class="cs-bo-r"><div class="cs-bo-amt">฿'+displayAmt.toLocaleString('th-TH')+'</div>'+subHtml+'</div>'
+      +'</div>';
+  }).join('');
+  listEl.innerHTML=html;
+  if(selIdx>=0)setTimeout(function(){var el=document.getElementById('cs-bo-'+ri+'-'+selIdx);if(el)el.scrollIntoView({block:'nearest'});},30);
+}
+
+// dropdown positioning ใช้ fixed + getBoundingClientRect
+function csOpenDrop(inp){
+  var ri=inp.dataset.row;
+  document.querySelectorAll('.cs-bd.open').forEach(function(d){if(d.id!=='cs-bd-'+ri)d.classList.remove('open');});
+  var dd=document.getElementById('cs-bd-'+ri);if(!dd)return;
+  var isOpen=dd.classList.contains('open');
+  if(isOpen){dd.classList.remove('open');return;}
+  // วาง dropdown ด้วย fixed + rect
+  var rect=inp.getBoundingClientRect();
+  var spaceBelow=window.innerHeight-rect.bottom;
+  dd.style.left=rect.left+'px';
+  dd.style.width=Math.max(rect.width,260)+'px';
+  if(spaceBelow<200&&rect.top>200){
+    dd.style.top='';dd.style.bottom=(window.innerHeight-rect.top+2)+'px';
+  }else{
+    dd.style.bottom='';dd.style.top=(rect.bottom+2)+'px';
+  }
+  dd.classList.add('open');
+  var s=dd.querySelector('.cs-bs');if(s){s.value='';setTimeout(function(){s.focus();},50);}
+}
+function csFilterDrop(el,ri){var st=csDropSt[ri];if(st)csRenderList(ri,st.bills,el.value);}
+
+function csSelBillEdit(ri,el){
+  var inv=el.dataset.inv,amt=parseFloat(el.dataset.amt)||0,od=el.dataset.od!==''?parseInt(el.dataset.od):null;if(!inv)return;
+  if(!csDropSt[ri])csDropSt[ri]={bills:[],selected:null,selectedAmt:0,selectedDue:null};
+  csDropSt[ri].selected=inv;csDropSt[ri].selectedAmt=amt;csDropSt[ri].selectedDue=od;csBillAmounts[ri]=amt;
+  var inputEl=document.getElementById('cs-bi-'+ri);
+  if(inputEl){
+    var trimmed=csTrimInvoice(inv);
+    // เช็คว่าเป็นบิลหน้าร้านไหม
+    var storeBills=csDropSt[ri].storeBills||[];
+    var isStore=storeBills.indexOf(inv.toLowerCase())>=0 || storeBills.indexOf(csTrimInvoice(inv).toLowerCase())>=0;
+    // ดูจาก bills array ด้วย
+    var billObj=(csDropSt[ri].bills||[]).find(function(b){return b.invoiceNo===inv;});
+    if(billObj&&billObj.source==='store')isStore=true;
+    var storeTag=isStore?'&nbsp;<span class="cs-store-tag">&#127978; หน้าร้าน</span>':'';
+    inputEl.value=trimmed;
+    inputEl.classList.add('sel');
+    // แสดง tag ข้างๆ input
+    var bw=document.getElementById('cs-bw-'+ri);
+    if(bw){
+      var tagEl=bw.querySelector('.cs-store-tag-inline');
+      if(tagEl)tagEl.remove();
+      if(isStore){
+        var span=document.createElement('span');
+        span.className='cs-store-tag cs-store-tag-inline';
+        span.style.cssText='position:absolute;top:50%;right:28px;transform:translateY(-50%);pointer-events:none;';
+        span.innerHTML='&#127978;';
+        bw.appendChild(span);
+      }
+    }
+  }
+  var sq=document.querySelector('#cs-bd-'+ri+' .cs-bs');csRenderList(ri,csDropSt[ri].bills,sq?sq.value:'');
+  var dd=document.getElementById('cs-bd-'+ri);if(dd)dd.classList.remove('open');
+  var r=csRows.find(function(x){return x._row===ri;});csUpdateEditStatus(ri,amt,r?(parseFloat(r['ยอดเงิน'])||0):0,od,csDropSt[ri].paidMap);
+}
+
+function csUpdateEditStatus(ri,billAmt,transferAmt,overdueDays,paidMap){
+  var amtEl=document.getElementById('cs-bamt-edit-'+ri);if(amtEl)amtEl.textContent=billAmt?Number(billAmt).toLocaleString('th-TH'):'—';
+  var dueEl=document.getElementById('cs-due-edit-'+ri);if(dueEl)dueEl.innerHTML=(overdueDays!=null&&overdueDays>8)?'<span class="cs-overdue">'+overdueDays+' วัน</span>':'<span class="cs-muted">—</span>';
+  var diff=Math.abs(billAmt-transferAmt),isOk=billAmt&&transferAmt&&diff<1;
+  var stEl=document.getElementById('cs-st-edit-'+ri),chkEl=document.getElementById('cs-stcheck-'+ri);
+  if(stEl){if(!billAmt){stEl.className='cs-badge cs-pend';stEl.textContent='รอระบุบิล';}else if(isOk){stEl.className='cs-badge cs-ok';stEl.textContent='เรียบร้อย';}else{stEl.className='cs-badge cs-warn';stEl.textContent='ยอดไม่ตรง';}}
+  if(chkEl){if(billAmt&&transferAmt&&!isOk){var d=Math.round(billAmt-transferAmt);chkEl.style.color='#C65410';chkEl.textContent=(d>0?'บิลเกิน ':'บิลขาด ')+Math.abs(d).toLocaleString('th-TH')+' ฿';}else chkEl.textContent='';}
+}
+
+(function(){
+  if(window._csDropV17)return;window._csDropV17=true;
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    if(t.classList.contains('cs-bi')||t.classList.contains('cs-bs')||t.classList.contains('cs-bo')||(t.closest&&t.closest('.cs-bd')))return;
+    document.querySelectorAll('.cs-bd.open').forEach(function(d){d.classList.remove('open');});
+  },true);
+  // scroll/resize → reposition open dropdown
+  ['scroll','resize'].forEach(function(ev){
+    window.addEventListener(ev,function(){
+      var open=document.querySelector('.cs-bd.open');if(!open)return;
+      var ri=open.id.replace('cs-bd-','');
+      var inp=document.getElementById('cs-bi-'+ri);
+      if(!inp)return;
+      var rect=inp.getBoundingClientRect();
+      var spaceBelow=window.innerHeight-rect.bottom;
+      open.style.left=rect.left+'px';
+      open.style.width=Math.max(rect.width,260)+'px';
+      if(spaceBelow<200&&rect.top>200){
+        open.style.top='';open.style.bottom=(window.innerHeight-rect.top+2)+'px';
+      }else{
+        open.style.bottom='';open.style.top=(rect.bottom+2)+'px';
+      }
+    },true);
+  });
+})();
+
+function csSaveRow(ri){
+  var r=csRows.find(function(x){return x._row===ri;});if(!r)return;
+  var custEl=document.getElementById('ce-cust-'+ri),shopEl=document.getElementById('ce-shop-'+ri),noteEl=document.getElementById('ce-note-'+ri);
+  var newCust=custEl?custEl.value.trim():(r['รหัสลูกค้า']||''),newShop=shopEl?shopEl.value.trim():(r['ชื่อร้าน']||''),newNote=noteEl?noteEl.value.trim():(r['note']||'');
+  var newInv=csDropSt[ri]&&csDropSt[ri].selected?csDropSt[ri].selected:(r['เลขที่บิล']||'');
+  var newAmt=csDropSt[ri]&&csDropSt[ri].selectedAmt?csDropSt[ri].selectedAmt:0,newOd=csDropSt[ri]?csDropSt[ri].selectedDue:null;
+  var amtT=parseFloat(r['ยอดเงิน'])||0;
+  var newSt=!newInv?'รอระบุบิล':newAmt&&amtT&&Math.abs(newAmt-amtT)<1?'เรียบร้อย':newAmt&&amtT?'ยอดไม่ตรง':(r['สถานะ']||'');
+  r['รหัสลูกค้า']=newCust;r['ชื่อร้าน']=newShop;r['เลขที่บิล']=newInv;r['สถานะ']=newSt;r['note']=newNote;r['_billAmt']=newAmt;r['_od']=newOd;r['_isPending']=false;
+  if(newAmt)csBillAmounts[ri]=newAmt;
+  csEdits[ri]={row:parseInt(ri),fields:{'รหัสลูกค้า':newCust,'ชื่อร้าน':newShop,'เลขที่บิล':newInv,'สถานะ':newSt,'note':newNote}};
+  // ใน csSaveRow — หลัง csEdits[ri] = {...}
+  // refresh paidMap ของทุก edit row ที่เปิดอยู่
+  Object.keys(csDropSt).forEach(function(key){
+    if(csDropSt[key])csDropSt[key].paidMap=csCalcPaidByBillExcept(parseInt(key));
+  });
+  var idx=csRows.findIndex(function(x){return x._row===ri;});
+  var er=document.getElementById('cs-er-'+ri);if(er)er.outerHTML=csStaticRow(r,idx>=0?idx:0);
+  if(newAmt){var bEl=document.getElementById('cs-billamt-'+ri);if(bEl){bEl.className='cs-amt';bEl.textContent=Number(newAmt).toLocaleString('th-TH');}}
+  if(newOd!=null&&newOd>8){var dEl=document.getElementById('cs-due-'+ri);if(dEl)dEl.innerHTML='<span class="cs-overdue">'+newOd+' วัน</span>';}
+  showToast('บันทึกแถว '+(idx+1),'');
+}
+function csCancelEdit(ri){
+  var r=csRows.find(function(x){return x._row===ri;});if(!r)return;
+  var idx=csRows.findIndex(function(x){return x._row===ri;});
+  var er=document.getElementById('cs-er-'+ri);if(er)er.outerHTML=csStaticRow(r,idx>=0?idx:0);
+  if(r['_billAmt']){var bEl=document.getElementById('cs-billamt-'+ri);if(bEl){bEl.className='cs-amt';bEl.textContent=Number(r['_billAmt']).toLocaleString('th-TH');}}
+  if(r['_od']!=null&&r['_od']>8){var dEl=document.getElementById('cs-due-'+ri);if(dEl)dEl.innerHTML='<span class="cs-overdue">'+r['_od']+' วัน</span>';}
+}
+
+function csEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function csReload(){if(Object.keys(csEdits).length&&!confirm('มีการแก้ไขที่ยังไม่ได้บันทึก — โหลดใหม่?'))return;csLoad();}
+
+function csSave(){
+  var btn=document.getElementById('cs-btn');btn.style.opacity='0.6';btn.textContent='กำลังบันทึก...';
+  var list=Object.values(csEdits),range=csGetRange();
+  var rowOrder=csRows.filter(function(r){return !r._isPending;}).map(function(r){return r._row;});
+  var billAmt=csBillAmounts;
+  var monStr=_localIso(range.mon)+'T00:00:00',sunStr=_localIso(range.sun)+'T23:59:59';
+  function doPrint(){
+    btn.textContent='กำลังสร้างใบสรุป...';
+    google.script.run
+      .withSuccessHandler(function(htmlStr){btn.style.opacity='1';btn.textContent='บันทึก + สร้าง Cover Sheet';if(!htmlStr){showToast('ไม่มีข้อมูล','error');return;}var w=window.open('','_blank');w.document.write(htmlStr);w.document.close();showToast('เปิดหน้าพิมพ์แล้ว','success');})
+      .withFailureHandler(function(e){btn.style.opacity='1';btn.textContent='บันทึก + สร้าง Cover Sheet';showToast('ERROR: '+e.message,'error');})
+      .getCoverSheetHtml(currentUser.email,monStr,sunStr,billAmt,rowOrder);
+  }
+  if(!list.length){doPrint();return;}
+  google.script.run
+    .withSuccessHandler(function(){csEdits={};doPrint();})
+    .withFailureHandler(function(e){btn.style.opacity='1';btn.textContent='บันทึก + สร้าง Cover Sheet';showToast('ERROR: '+e.message,'error');})
+    .saveDsrEdits(list);
+}
+
+// ─── ROLE-BASED UI ───────────────────────────────────────────
+function applyRoleUI(role) {
+  // ── Bottom nav visibility ──
+  // map: bnav id → roles ที่มองเห็น
+  const bnavRules = {
+    'bnav-home':       ['admin','specialist','dsr'],
+    'bnav-mileage':    ['admin','dsr'],
+    'bnav-debt':       ['admin','specialist','dsr'],
+    'bnav-allowance':  ['admin','dsr'],
+    'bnav-settlement': ['admin','specialist','dsr'],
+  };
+  Object.entries(bnavRules).forEach(([id, allowed]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = allowed.includes(role) ? '' : 'none';
+  });
+
+  // ── Sidebar visibility ──
+  // sidebar-item ไม่มี id — ใช้ onclick text เป็น key
+  const sidebarRules = {
+    "navTo('home')":        ['admin','specialist','dsr'],
+    "navTo('admin-dsrs')":  ['admin','specialist'],
+    "navTo('mileage')":     ['admin','dsr'],
+    "navTo('allowance')":   ['admin','dsr'],
+    "navTo('debt')":        ['admin','specialist','dsr'],
+    "navTo('settlement')":  ['admin','specialist','dsr'],
+    "navTo('import')":      ['admin'],
+    "navTo('print')":       ['admin','dsr'],
+  };
+  document.querySelectorAll('.sidebar-item').forEach(el => {
+    const onclick = el.getAttribute('onclick') || '';
+    const key = Object.keys(sidebarRules).find(k => onclick.includes(k));
+    if (key) el.style.display = sidebarRules[key].includes(role) ? '' : 'none';
+  });
+
+  // ── Quick action buttons บน Home (ใช้ onclick เป็น key เช่นกัน) ──
+  const qaRules = {
+    "navTo('mileage')":    ['admin','dsr'],
+    "navTo('debt')":       ['admin','specialist','dsr'],
+    "navTo('allowance')":  ['admin','dsr'],
+    "navTo('settlement')": ['admin','specialist','dsr'],
+  };
+  document.querySelectorAll('.qa-btn').forEach(el => {
+    const onclick = el.getAttribute('onclick') || '';
+    const key = Object.keys(qaRules).find(k => onclick.includes(k));
+    if (key) el.style.display = qaRules[key].includes(role) ? '' : 'none';
+  });
+
+  // ── Specialist: ซ่อน edit actions (ปุ่มบันทึก/เพิ่ม) ──
+  if (role === 'specialist') {
+    document.querySelectorAll('.btn-primary, .btn-green').forEach(el => {
+      // ยกเว้นปุ่ม logout และ print
+      if (!el.textContent.includes('ออกจาก') && !el.textContent.includes('Cover')) {
+        el.style.display = 'none';
+      }
+    });
+    // ซ่อน section-action "+เพิ่ม" ต่างๆ
+    document.querySelectorAll('.section-action').forEach(el => {
+      if (el.textContent.includes('+')) el.style.display = 'none';
+    });
+  }
+}
+
+// ─── DEV MODE: ?devRole=admin|specialist|dsr ──────────────────
+// ใช้สำหรับเทสเท่านั้น — production จะ bypass ส่วนนี้เองเพราะ
+// URL จริงของ Apps Script จะมี google.script.run พร้อมอยู่แล้ว
+(function checkDevMode() {
+  const params  = new URLSearchParams(window.location.search);
+  const devRole = params.get('devRole');
+  if (!devRole) return;
+
+  const FAKE = {
+    admin:      { email:'admin@test.com',      display_name:'ภูมิ(Dev)',      role:'admin',      user_id:'dev-admin',      province_zone:'ทุกจังหวัด' },
+    specialist: { email:'specialist@test.com', display_name:'มะปราง(Dev)',   role:'specialist', user_id:'dev-specialist', province_zone:'ทุกจังหวัด' },
+    dsr:        { email:'dsr@test.com',        display_name:'นุช(Dev)',       role:'dsr',        user_id:'dev-dsr',        province_zone:'สุพรรณบุรี' },
+  };
+  const fakeUser = FAKE[devRole] || FAKE.dsr;
+
+  // Mock google.script.run ทั้งหมด
+  window.google = { script: { run: {
+    withSuccessHandler(fn) { this._s = fn; return this; },
+    withFailureHandler(fn) { this._f = fn; return this; },
+    getUserProfile()         { setTimeout(() => this._s?.(fakeUser), 50); },
+    handleApiCall(a, p)      { setTimeout(() => this._s?.({ mock:true, action:a, rows:[], total:0, imported:0, skipped:0 }), 100); },
+    getDsrWeekSlips()        { setTimeout(() => this._s?.({ rows:[], total:0 }), 100); },
+    generateCoverSheetPdf()  { setTimeout(() => this._s?.({ url:null }), 100); },
+    saveDsrEdits()           { setTimeout(() => this._s?.(true), 100); },
+  }}};
+
+  // Auto-trigger login ทันที ไม่ต้องกดปุ่ม
+  window.addEventListener('DOMContentLoaded', () => {
+    console.warn('[DEV MODE] role =', devRole, fakeUser);
+    // ซ่อน login screen แล้ว inject user โดยตรง
+    currentUser = fakeUser;
+    sessionStorage.setItem('nco_session', JSON.stringify(fakeUser));
+    enterApp(fakeUser);
+  });
+})();
+
+// ─── BOOT ────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  setGreetingDate();
+});
+</script>
+
+</body>
+</html>
