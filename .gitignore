@@ -1,0 +1,17 @@
+# Google Apps Script
+.clasp.json.bak
+
+# Environment / Secrets
+.env
+*.env
+secrets.json
+service-account.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
