@@ -260,6 +260,16 @@ function routeAction(action, payload, user) {
     GET_CASH_LOG:           () => getCashLog(user, payload.filters),
     GET_CHEQUE_LOG:         () => getChequeLog(user, payload.filters),
     GET_SUMMARY_DATA:       () => getSummaryData(user, payload.week_number, payload.dsr_email),
+    // Settlement Income / Expenses (Module F)
+    GET_SETTLEMENT_INCOME:    () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return getSettlementIncome(payload.weekStart, em);
+    },
+    GET_SETTLEMENT_EXPENSES:  () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return getSettlementExpenses(payload.weekStart, em);
+    },
+    SAVE_SETTLEMENT_EXPENSES: () => saveSettlementExpenses(payload.data, user),
   };
 
   if (!routes[action]) throw new Error('Unknown action: ' + action);
@@ -3423,4 +3433,281 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
     console.log('[getPendingRows] '+err.message);
     return getDsrWeekSlipsWithRange(email, monISO, sunISO);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  SECTION 22 │ SETTLEMENT INCOME / EXPENSES  (Module F)
+// ─────────────────────────────────────────────────────────────────────
+
+function getSettlementIncome(weekStart, dsrEmail) {
+  console.log('[getSettlementIncome] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  var start = new Date(weekStart + 'T00:00:00');
+  var end   = new Date(weekStart + 'T00:00:00');
+  end.setDate(end.getDate() + 6);
+
+  var thaiDay = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+
+  function inRange(dateStr) {
+    if (!dateStr) return false;
+    var d = new Date(String(dateStr).split('T')[0] + 'T00:00:00');
+    return d >= start && d <= end;
+  }
+
+  var cashRows   = sheetToObjects('CASH_LOG');
+  var chequeRows = sheetToObjects('CHEQUE_LOG');
+  var byDate     = {};
+
+  cashRows.forEach(function(r) {
+    if (r.dsr_email !== dsrEmail || !inRange(r.log_date)) return;
+    var dt = String(r.log_date).split('T')[0];
+    if (!byDate[dt]) byDate[dt] = { cashAmount: 0, chequeAmount: 0, billCount: 0 };
+    byDate[dt].cashAmount += parseFloat(r.amount) || 0;
+    byDate[dt].billCount++;
+  });
+
+  chequeRows.forEach(function(r) {
+    if (r.dsr_email !== dsrEmail || !inRange(r.log_date)) return;
+    var dt = String(r.log_date).split('T')[0];
+    if (!byDate[dt]) byDate[dt] = { cashAmount: 0, chequeAmount: 0, billCount: 0 };
+    byDate[dt].chequeAmount += parseFloat(r.amount) || 0;
+    byDate[dt].billCount++;
+  });
+
+  var result = Object.keys(byDate).sort().map(function(date) {
+    var d = new Date(date + 'T00:00:00');
+    return {
+      date:         date,
+      dateLabel:    thaiDay[d.getDay()] + '. ' + d.getDate(),
+      cashAmount:   r2(byDate[date].cashAmount),
+      chequeAmount: r2(byDate[date].chequeAmount),
+      billCount:    byDate[date].billCount,
+    };
+  });
+
+  console.log('[getSettlementIncome] result rows=%s', result.length);
+  return result;
+}
+
+function ensureSettlementExpensesSheet() {
+  var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  if (!ss.getSheetByName('SettlementExpenses')) {
+    var sh = ss.insertSheet('SettlementExpenses');
+    sh.appendRow(['dsrEmail', 'weekStart', 'date', 'fuel', 'hotel', 'allowance']);
+    sh.setFrozenRows(1);
+    console.log('[ensureSettlementExpensesSheet] created SettlementExpenses sheet');
+  }
+}
+
+function getSettlementExpenses(weekStart, dsrEmail) {
+  console.log('[getSettlementExpenses] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  ensureSettlementExpensesSheet();
+  var rows = sheetToObjects('SettlementExpenses');
+  var result = rows
+    .filter(function(r) { return r.dsrEmail === dsrEmail && r.weekStart === weekStart; })
+    .map(function(r) {
+      return {
+        date:      r.date,
+        fuel:      parseFloat(r.fuel)      || 0,
+        hotel:     parseFloat(r.hotel)     || 0,
+        allowance: parseFloat(r.allowance) || 0,
+      };
+    });
+  console.log('[getSettlementExpenses] found=%s rows', result.length);
+  return result;
+}
+
+function saveSettlementExpenses(data, user) {
+  if (!data || !data.weekStart || !data.expenses) throw new Error('weekStart and expenses required');
+  var targetEmail = (user.role === ROLES.DSR) ? user.email : (data.dsrEmail || user.email);
+  console.log('[saveSettlementExpenses] weekStart=%s dsr=%s', data.weekStart, targetEmail);
+
+  ensureSettlementExpensesSheet();
+
+  var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName('SettlementExpenses');
+  var vals  = sheet.getDataRange().getValues();
+
+  // Upsert: ลบแถวเดิมของ dsrEmail+weekStart ก่อน (loop จากล่างขึ้นบน)
+  if (vals.length > 1) {
+    for (var i = vals.length - 1; i >= 1; i--) {
+      if (String(vals[i][0]) === targetEmail && String(vals[i][1]) === data.weekStart) {
+        sheet.deleteRow(i + 1);
+      }
+    }
+  }
+
+  var inserted = 0;
+  data.expenses.forEach(function(ex) {
+    var fuel  = parseFloat(ex.fuel)  || 0;
+    var hotel = parseFloat(ex.hotel) || 0;
+    if (fuel === 0 && hotel === 0) return; // skip empty rows
+    var allowance = hotel > 0 ? 200 : 0;
+    sheet.appendRow([targetEmail, data.weekStart, ex.date, fuel, hotel, allowance]);
+    inserted++;
+  });
+
+  console.log('[saveSettlementExpenses] inserted=%s rows', inserted);
+  return { saved: inserted };
+}
+
+function generateSettlementPDF(payload) {
+  console.log('[generateSettlementPDF] dsr=%s weekStart=%s', payload.dsrEmail, payload.weekStart);
+  var logoHtml = getLogoBase64Html();
+  var dsrName  = escapeHtmlSrv(payload.dsrName || payload.dsrEmail);
+  var incRows  = payload.incomeRows  || [];
+  var expRows  = payload.expenseRows || [];
+
+  var thaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  function fmtDateTh(iso) {
+    if (!iso) return '';
+    var d = new Date(iso + 'T00:00:00');
+    return d.getDate() + ' ' + thaiMonths[d.getMonth()] + ' ' + (d.getFullYear() + 543);
+  }
+  function fmtMon(n) {
+    var v = parseFloat(n) || 0;
+    return v ? v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '—';
+  }
+  function fmtMonAlways(n) {
+    var v = parseFloat(n) || 0;
+    return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  }
+
+  var printDate = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
+  var weekRange = fmtDateTh(payload.weekStart) + ' – ' + fmtDateTh(payload.weekEnd);
+
+  // Income table
+  var totalCash = 0, totalCheque = 0;
+  var incHtml = incRows.map(function(r) {
+    var tot = (parseFloat(r.cashAmount)||0) + (parseFloat(r.chequeAmount)||0);
+    totalCash   += parseFloat(r.cashAmount)   || 0;
+    totalCheque += parseFloat(r.chequeAmount) || 0;
+    return '<tr>' +
+      '<td>' + escapeHtmlSrv(r.dateLabel || r.date) + '</td>' +
+      '<td class="r">' + fmtMon(r.cashAmount)   + '</td>' +
+      '<td class="r">' + fmtMon(r.chequeAmount)  + '</td>' +
+      '<td class="r b">' + fmtMonAlways(tot)     + '</td>' +
+      '</tr>';
+  }).join('') || '<tr><td colspan="4" class="empty">ไม่มีข้อมูล</td></tr>';
+  var totalInc = totalCash + totalCheque;
+
+  var incFoot = '<tr><td class="b">รวม</td>' +
+    '<td class="r b">' + fmtMonAlways(totalCash)   + '</td>' +
+    '<td class="r b">' + fmtMonAlways(totalCheque) + '</td>' +
+    '<td class="r b">' + fmtMonAlways(totalInc)    + '</td></tr>';
+
+  // Expense table
+  var totFuel = 0, totHotel = 0, totAllow = 0;
+  var expHtml = expRows.map(function(r) {
+    var hotel = parseFloat(r.hotel)     || 0;
+    var fuel  = parseFloat(r.fuel)      || 0;
+    var allow = parseFloat(r.allowance) || 0;
+    totFuel  += fuel;
+    totHotel += hotel;
+    totAllow += allow;
+    var hotelStyle = hotel > 500 ? ' style="background:#FFF3E0"' : '';
+    return '<tr>' +
+      '<td>' + escapeHtmlSrv(r.dateLabel || r.date) + '</td>' +
+      '<td class="r">' + fmtMon(fuel) + '</td>' +
+      '<td class="r"' + hotelStyle + '>' + fmtMon(hotel) + '</td>' +
+      '<td class="r">' + fmtMon(allow) + '</td>' +
+      '</tr>';
+  }).join('') || '<tr><td colspan="4" class="empty">ไม่มีค่าใช้จ่าย</td></tr>';
+
+  var expFoot = '<tr><td class="b">รวม</td>' +
+    '<td class="r b">' + fmtMonAlways(totFuel)  + '</td>' +
+    '<td class="r b">' + fmtMonAlways(totHotel) + '</td>' +
+    '<td class="r b">' + fmtMonAlways(totAllow) + '</td></tr>';
+
+  var netRemit  = totalInc - totFuel - totHotel - totAllow;
+  var netClass  = netRemit >= 0 ? 'pos' : 'neg';
+
+  var css = [
+    '* { box-sizing: border-box; margin: 0; padding: 0; }',
+    '@page { size: A4 portrait; margin: 15mm; }',
+    'body { font-family: "Sarabun", Tahoma, sans-serif; font-size: 13px; color: #1A1A1A; }',
+    '@media screen {',
+    '  body { background: #f0f0f0; display: flex; flex-direction: column; align-items: center; padding: 24px; }',
+    '  .page-wrap { background: #fff; padding: 15mm; width: 210mm; box-shadow: 0 4px 24px rgba(0,0,0,.15); }',
+    '  .print-btn { position: fixed; top: 16px; right: 16px; background: #007B40; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: 0 2px 8px rgba(0,0,0,.2); }',
+    '  .print-btn:active { transform: scale(.97); }',
+    '}',
+    '@media print {',
+    '  body { background: none; padding: 0; }',
+    '  .page-wrap { box-shadow: none; padding: 0; width: 100%; }',
+    '  .print-btn { display: none; }',
+    '}',
+    '.hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1A1A1A; padding-bottom: 8px; margin-bottom: 16px; gap: 12px; }',
+    '.hdr-left { display: flex; align-items: center; gap: 10px; min-width: 140px; }',
+    '.hdr-title { font-size: 15px; font-weight: 700; }',
+    '.hdr-sub { font-size: 11px; color: #666; }',
+    '.hdr-center { text-align: center; flex: 1; }',
+    '.hdr-dsr { font-size: 15px; font-weight: 600; }',
+    '.hdr-range { font-size: 12px; color: #555; margin-top: 2px; }',
+    '.hdr-right { text-align: right; font-size: 11px; color: #666; min-width: 120px; }',
+    'h3 { font-size: 13px; font-weight: 700; margin: 14px 0 6px; border-left: 4px solid #E8631A; padding-left: 8px; }',
+    'table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }',
+    'th { font-size: 11px; font-weight: 700; border: 1px solid #555; padding: 4px 6px; text-align: center; background: #f0f0f0; }',
+    'th:first-child { text-align: left; }',
+    'td { border: 1px solid #ccc; padding: 4px 8px; font-size: 12px; }',
+    'tfoot td { font-weight: 700; background: #f8f8f8; border: 1px solid #555; }',
+    '.r { text-align: right; }',
+    '.b { font-weight: 700; }',
+    '.empty { text-align: center; color: #999; font-style: italic; padding: 12px; }',
+    '.summary-box { border: 2px solid #1A1A1A; border-radius: 8px; padding: 14px 18px; margin-top: 16px; }',
+    '.sum-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 13px; }',
+    '.sum-row.deduct { color: #444; }',
+    '.sum-divider { border-top: 2px solid #1A1A1A; margin: 8px 0; }',
+    '.net-row { display: flex; justify-content: space-between; align-items: baseline; padding-top: 4px; }',
+    '.net-label { font-size: 14px; font-weight: 700; }',
+    '.net-amount { font-size: 26px; font-weight: 700; }',
+    '.pos { color: #007B40; }',
+    '.neg { color: #C8102E; }',
+    '.sig-row { display: flex; justify-content: space-around; margin-top: 28px; }',
+    '.sig-box { text-align: center; min-width: 180px; }',
+    '.sig-line { border-top: 1px solid #555; margin-top: 44px; padding-top: 6px; font-size: 12px; font-weight: 600; }',
+  ].join('\n');
+
+  return '<!DOCTYPE html><html lang="th"><head>' +
+    '<meta charset="UTF-8">' +
+    '<link rel="preconnect" href="https://fonts.googleapis.com">' +
+    '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">' +
+    '<title>ใบสรุปยอดนำส่ง — ' + dsrName + '</title>' +
+    '<style>' + css + '</style>' +
+    '</head><body>' +
+    '<button class="print-btn" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>' +
+    '<div class="page-wrap">' +
+
+    '<div class="hdr">' +
+      '<div class="hdr-left">' + logoHtml + '<div><div class="hdr-title">ใบสรุปยอดนำส่ง</div><div class="hdr-sub">Nice Center Oil</div></div></div>' +
+      '<div class="hdr-center"><div class="hdr-dsr">' + dsrName + '</div><div class="hdr-range">' + escapeHtmlSrv(weekRange) + '</div></div>' +
+      '<div class="hdr-right">วันที่พิมพ์<br><b>' + printDate + '</b></div>' +
+    '</div>' +
+
+    '<h3>A. ยอดเก็บเงิน</h3>' +
+    '<table><thead><tr><th>วันที่</th><th>เงินสด (฿)</th><th>เช็ค (฿)</th><th>รวม (฿)</th></tr></thead>' +
+    '<tbody>' + incHtml + '</tbody>' +
+    '<tfoot>' + incFoot + '</tfoot></table>' +
+
+    '<h3>B. ค่าใช้จ่าย</h3>' +
+    '<table><thead><tr><th>วันที่</th><th>น้ำมันสด (฿)</th><th>ที่พัก (฿)</th><th>เบี้ยเลี้ยง (฿)</th></tr></thead>' +
+    '<tbody>' + expHtml + '</tbody>' +
+    '<tfoot>' + expFoot + '</tfoot></table>' +
+
+    '<div class="summary-box">' +
+      '<div class="sum-row"><span>รวมยอดเก็บ</span><span>' + fmtMonAlways(totalInc) + ' ฿</span></div>' +
+      '<div class="sum-row deduct"><span>หัก น้ำมันสด</span><span>− ' + fmtMonAlways(totFuel) + ' ฿</span></div>' +
+      '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtMonAlways(totHotel) + ' ฿</span></div>' +
+      '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtMonAlways(totAllow) + ' ฿</span></div>' +
+      '<div class="sum-divider"></div>' +
+      '<div class="net-row"><span class="net-label">ยอดนำส่งสุทธิ</span><span class="net-amount ' + netClass + '">' + fmtMonAlways(netRemit) + ' ฿</span></div>' +
+    '</div>' +
+
+    '<div class="sig-row">' +
+      '<div class="sig-box"><div class="sig-line">ผู้ส่ง (DSR) · ' + dsrName + '</div></div>' +
+      '<div class="sig-box"><div class="sig-line">ผู้รับ (ออฟฟิศ)</div></div>' +
+    '</div>' +
+
+    '</div>' +
+    '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});<\/script>' +
+    '</body></html>';
 }
