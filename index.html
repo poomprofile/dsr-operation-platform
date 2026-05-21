@@ -36,6 +36,8 @@
   --font-body:    'Sarabun', sans-serif;
   --nav-h:   64px;
   --bottom-h: 68px;
+  --sidebar-w: 200px;
+  --sidebar-collapsed-w: 52px;
 }
 
 
@@ -384,9 +386,11 @@ img { max-width: 100%; }
   .main-content { padding-top: var(--nav-h); padding-bottom: 24px; }
   .admin-layout {
     display: grid;
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: var(--sidebar-w) 1fr;
     min-height: calc(100vh - var(--nav-h));
+    transition: grid-template-columns .2s ease;
   }
+  .admin-layout.sb-collapsed { grid-template-columns: var(--sidebar-collapsed-w) 1fr; }
   .sidebar {
     display: flex !important;
     flex-direction: column;
@@ -397,6 +401,13 @@ img { max-width: 100%; }
     top: var(--nav-h);
     height: calc(100vh - var(--nav-h));
     overflow-y: auto;
+    overflow-x: hidden;
+    width: var(--sidebar-w);
+    transition: width .2s ease, padding .2s ease;
+  }
+  .sidebar.collapsed {
+    width: var(--sidebar-collapsed-w);
+    padding: 20px 8px;
   }
 }
 .sidebar { display: none; }
@@ -431,6 +442,47 @@ img { max-width: 100%; }
 .sidebar-item.active svg rect,
 .sidebar-item.active svg circle { stroke: var(--o); }
 
+/* ── Collapsible sidebar ── */
+.sb-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  cursor: pointer;
+  margin-bottom: 12px;
+  align-self: flex-end;
+  flex-shrink: 0;
+  color: var(--ink3);
+  transition: background .15s;
+}
+.sb-toggle:hover { background: var(--border); color: var(--ink); }
+.sidebar-label { transition: opacity .15s; white-space: nowrap; }
+.sidebar.collapsed .sidebar-label { opacity: 0; width: 0; overflow: hidden; pointer-events: none; }
+.sidebar.collapsed .sidebar-section-label { opacity: 0; height: 0; overflow: hidden; margin: 0; padding: 0; }
+.sidebar.collapsed .sidebar-item { justify-content: center; gap: 0; }
+.sidebar.collapsed .sidebar-item svg { flex-shrink: 0; }
+/* Tooltip on hover when collapsed */
+.sidebar.collapsed .sidebar-item { position: relative; }
+.sidebar.collapsed .sidebar-item[data-label]:hover::after {
+  content: attr(data-label);
+  position: absolute;
+  left: calc(var(--sidebar-collapsed-w) - 4px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 200;
+}
+.sidebar.collapsed .sb-toggle { align-self: center; }
 
 .card {
   background: var(--card);
@@ -1539,48 +1591,48 @@ img { max-width: 100%; }
 
       
       <div class="sidebar" id="sidebar">
-        <div class="sidebar-section-label">ภาพรวม</div>
-        <div class="sidebar-item active" onclick="navTo('home')">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6L8 2l6 4v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
-          Dashboard
+        <div class="sb-toggle" onclick="toggleSidebar()" title="ย่อ/ขยาย เมนู">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M2 7h10M2 10.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </div>
-        <div class="sidebar-item" onclick="navTo('admin-dsrs')">
+
+        <div class="sidebar-section-label">ภาพรวม</div>
+        <div class="sidebar-item active" onclick="navTo('home')" data-label="Dashboard">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6L8 2l6 4v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <span class="sidebar-label">Dashboard</span>
+        </div>
+        <div class="sidebar-item" onclick="navTo('admin-dsrs')" data-label="ทีม DSR">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 14c0-2.761 2.239-5 5-5s5 2.239 5 5" stroke="currentColor" stroke-width="1.4"/><path d="M11 7l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          ทีม DSR
+          <span class="sidebar-label">ทีม DSR</span>
         </div>
 
         <div class="sidebar-section-label">โมดูล</div>
-        <div class="sidebar-item" onclick="navTo('mileage')">
+        <div class="sidebar-item" onclick="navTo('mileage')" data-label="บันทึกไมล์">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 4v4l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          บันทึกไมล์
+          <span class="sidebar-label">บันทึกไมล์</span>
         </div>
-        <div class="sidebar-item" onclick="navTo('allowance')">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 4V3a3 3 0 0 1 6 0v1" stroke="currentColor" stroke-width="1.4"/></svg>
-          ค่าที่พัก/เบี้ย
-        </div>
-        <div class="sidebar-item" onclick="navTo('collection')">
+        <div class="sidebar-item" onclick="navTo('collection')" data-label="สรุปการเก็บเงิน">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          สรุปการเก็บเงิน
+          <span class="sidebar-label">สรุปการเก็บเงิน</span>
         </div>
-        <div class="sidebar-item" onclick="navTo('settlement')">
+        <div class="sidebar-item" onclick="navTo('settlement')" data-label="ยอดนำส่ง">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 9l3 3 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/></svg>
-          ยอดนำส่ง
+          <span class="sidebar-label">ยอดนำส่ง</span>
         </div>
 
         <div class="sidebar-section-label sidebar-admin-section">ADMIN</div>
-        <div class="sidebar-item sidebar-admin-section" onclick="navTo('import')">
+        <div class="sidebar-item sidebar-admin-section" onclick="navTo('import')" data-label="Import CSV">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 10v3h10v-3M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Import CSV
+          <span class="sidebar-label">Import CSV</span>
         </div>
-        <div class="sidebar-item sidebar-admin-section" onclick="navTo('print')">
+        <div class="sidebar-item sidebar-admin-section" onclick="navTo('print')" data-label="สรุปใบโอน">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M3 9h10v5H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          สรุปใบโอน Slip2Go
+          <span class="sidebar-label">สรุปใบโอน Slip2Go</span>
         </div>
 
         <div style="flex:1;"></div>
-        <div class="sidebar-item" onclick="doLogout()" style="margin-top:auto;">
+        <div class="sidebar-item" onclick="doLogout()" data-label="ออกจากระบบ" style="margin-top:auto;">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 11l3-3-3-3M13 8H6M7 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          ออกจากระบบ
+          <span class="sidebar-label">ออกจากระบบ</span>
         </div>
       </div>
 
@@ -1702,171 +1754,38 @@ img { max-width: 100%; }
         
         <div class="page" id="page-mileage">
           <div class="section-header">
-            <div class="section-title">ไมล์รถ & ยานพาหนะ</div>
-            <div class="section-action" onclick="openSheet('add-vehicle')">+ เพิ่มรถ</div>
+            <div class="section-title">สรุปไมล์รถ</div>
           </div>
 
-          
-          <div class="form-group">
-            <select class="form-input" id="vehicle-select" onchange="updateVehicleDisplay()">
-              <option value="v1">🚗 กท 8821 — Toyota Hilux (รถบริษัท)</option>
-              <option value="v2">🚙 สพ 5543 — Honda Civic (รถตัวเอง)</option>
+          <div class="stl-week-bar">
+            <select id="ml-week-sel" class="stl-week-sel" onchange="mileageLoad()">
+              <!-- populated by mileageBuildWeekOptions() -->
             </select>
           </div>
 
-          
-          <div class="mileage-header anim-fadeup">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-              <div>
-                <div style="font-size:11px;opacity:.5;margin-bottom:2px;font-weight:500;letter-spacing:.04em;">ไมล์ล่าสุด</div>
-                <div class="km-display">48,231 <span class="km-unit">km</span></div>
-                <div class="km-label">อัปเดต วันนี้ 07:42 น.</div>
-              </div>
-              <div style="text-align:right;">
-                <div style="font-size:11px;opacity:.5;margin-bottom:2px;">วันนี้วิ่ง</div>
-                <div style="font-family:var(--font-display);font-size:32px;font-weight:700;color:#F9A842;">87 km</div>
-              </div>
-            </div>
-          </div>
-
-          
-          <div class="mileage-sessions">
-            <div class="ms-card completed">
-              <div class="ms-time">🌅 เช้า</div>
-              <div class="ms-km">48,144 <span style="font-size:14px;color:var(--ink3);">km</span></div>
-              <div class="ms-status" style="color:var(--g);">✓ บันทึกแล้ว 07:42</div>
-            </div>
-            <div class="ms-card pending">
-              <div class="ms-time">🌆 เย็น</div>
-              <div class="ms-km" style="color:var(--ink3);">— km</div>
-              <div class="ms-status" style="color:var(--o);">⏳ รอบันทึก</div>
-            </div>
-          </div>
-
-          
-          <div class="btn btn-primary mb-16" onclick="openMileageSheet('evening')">
-            🌆 บันทึกไมล์ตอนเย็น
-          </div>
-
-          
-          <div class="section-header mt-16">
-            <div class="section-title">ประวัติเติมน้ำมัน</div>
-            <div class="section-action" onclick="openSheet('add-fuel')">+ เติมน้ำมัน</div>
-          </div>
-          <div class="card">
-            <div class="list-item" onclick="openSheet('fuel-detail')">
-              <div class="list-icon-wrap" style="background:#FEF0E7;">⛽</div>
-              <div class="list-meta">
-                <div class="list-primary">ปตท. สาขาสุพรรณบุรี</div>
-                <div class="list-secondary">5 ก.ค. — 30 ลิตร @ 38.50 ฿</div>
-              </div>
-              <div>
-                <div class="list-value">1,155 ฿</div>
-                <div class="list-value-sub">48,100 km</div>
-              </div>
-            </div>
-            <div class="list-item">
-              <div class="list-icon-wrap" style="background:#FEF0E7;">⛽</div>
-              <div class="list-meta">
-                <div class="list-primary">ปตท. อู่ทอง</div>
-                <div class="list-secondary">3 ก.ค. — 25 ลิตร @ 38.50 ฿</div>
-              </div>
-              <div>
-                <div class="list-value">962 ฿</div>
-                <div class="list-value-sub">47,944 km</div>
-              </div>
-            </div>
-          </div>
-
-          
-          <div class="section-header mt-16">
-            <div class="section-title">บำรุงรักษา</div>
-            <div class="section-action" onclick="openSheet('add-maintenance')">+ บันทึก</div>
-          </div>
-          <div class="alert-card urgent">
-            <div class="alert-icon" style="background:#FEE9E9;">🔧</div>
-            <div class="alert-content">
-              <div class="alert-title">น้ำมันเครื่อง — ครบกำหนดเปลี่ยน</div>
-              <div class="alert-subtitle">ถึงกำหนด 50,000 km / ปัจจุบัน 48,231 km — เหลือ 1,769 km</div>
-            </div>
-          </div>
-          <div class="alert-card ok">
-            <div class="alert-icon" style="background:var(--g-lite);">🛞</div>
-            <div class="alert-content">
-              <div class="alert-title">ยาง — ปกติ</div>
-              <div class="alert-subtitle">เปลี่ยนล่าสุด 15 ม.ค. 2568</div>
+          <div class="card mb-16" id="ml-summary-card">
+            <div class="card-title">🚗 ระยะทางรายวัน</div>
+            <div style="overflow-x:auto;">
+              <table class="stl-table">
+                <thead>
+                  <tr>
+                    <th>วันที่</th>
+                    <th>เขต/จังหวัด</th>
+                    <th class="r">ระยะทาง (กม.)</th>
+                    <th>ประเภทรถ</th>
+                    <th class="r">ค่าเสื่อม (฿)</th>
+                  </tr>
+                </thead>
+                <tbody id="ml-body">
+                  <tr><td colspan="5" class="stl-empty-msg">กำลังโหลด...</td></tr>
+                </tbody>
+                <tfoot id="ml-foot"></tfoot>
+              </table>
             </div>
           </div>
         </div>
         
 
-        
-        <div class="page" id="page-allowance">
-          <div class="section-title mb-16">ค่าที่พัก & เบี้ยเลี้ยง</div>
-
-          
-          <div class="card mb-16">
-            <div class="card-title">กฎการเบิก</div>
-            <div>
-              <div class="rule-chip">
-                🏨 ค่าที่พัก max <span class="rule-chip-value">500 ฿</span>/คืน
-              </div>
-              <div class="rule-chip">
-                📍 เบี้ยเลี้ยง <span class="rule-chip-value">200 ฿</span>/คืน (ต่างจังหวัดเท่านั้น)
-              </div>
-            </div>
-          </div>
-
-          
-          <div class="btn btn-primary mb-16" onclick="openSheet('add-allowance')">
-            + บันทึกการค้างคืน
-          </div>
-
-          
-          <div class="section-header">
-            <div class="section-title">สัปดาห์นี้</div>
-            <div class="tag tag-orange">สัปดาห์ที่ 28</div>
-          </div>
-          <div class="stat-grid">
-            <div class="stat-card green">
-              <div class="stat-label">ค่าที่พักที่เบิกได้</div>
-              <div class="stat-value">1,400 <span class="stat-unit">฿</span></div>
-              <div class="stat-change">3 คืน (ไม่เกิน 500 ฿/คืน)</div>
-            </div>
-            <div class="stat-card orange">
-              <div class="stat-label">เบี้ยเลี้ยงรวม</div>
-              <div class="stat-value">600 <span class="stat-unit">฿</span></div>
-              <div class="stat-change">3 คืน × 200 ฿</div>
-            </div>
-          </div>
-
-          
-          <div class="card mt-12">
-            <div class="list-item">
-              <div class="list-icon-wrap" style="background:var(--g-lite);">🏨</div>
-              <div class="list-meta">
-                <div class="list-primary">อ.ท่ายาง, ชัยนาท</div>
-                <div class="list-secondary">6 ก.ค. — โรงแรมชัยนาทพาเลซ</div>
-              </div>
-              <div>
-                <div class="list-value" style="color:var(--g);">700 ฿</div>
-                <div class="list-value-sub">เบิกได้ 500 ฿</div>
-              </div>
-            </div>
-            <div class="list-item">
-              <div class="list-icon-wrap" style="background:var(--g-lite);">🏨</div>
-              <div class="list-meta">
-                <div class="list-primary">อ.เมือง, นครสวรรค์</div>
-                <div class="list-secondary">5 ก.ค. — รอยัล นครสวรรค์</div>
-              </div>
-              <div>
-                <div class="list-value" style="color:var(--g);">500 ฿</div>
-                <div class="list-value-sub">เบิกได้ 500 ฿</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
 
         
         <div class="page" id="page-debt">
@@ -1937,9 +1856,19 @@ img { max-width: 100%; }
             <div class="col-subtab" id="coltab-btn-slip" onclick="switchCollectionTab('slip')">สรุปเงินโอน Slip2Go</div>
           </div>
 
-          <!-- Tab 1: สรุปเงินสด / เช็ค (cash_entry.html ผ่าน iframe) -->
+          <!-- Tab 1: สรุปเงินสด / เช็ค (inline render) -->
           <div class="col-tab-pane active" id="coltab-cash">
-            <!-- iframe จะถูก inject เมื่อเปิด tab ครั้งแรก -->
+            <div style="margin:16px 0 8px;display:flex;gap:8px;align-items:center;">
+              <select class="form-input" id="col-week-sel" style="flex:1;" onchange="collectionLoadCash()">
+                <!-- populated by collectionBuildWeekOptions() -->
+              </select>
+            </div>
+            <div id="col-cash-content">
+              <div class="empty-state" style="padding:40px 20px;">
+                <div class="empty-icon">💳</div>
+                <div class="empty-title">กำลังโหลด...</div>
+              </div>
+            </div>
           </div>
 
           <!-- Tab 2: สรุปเงินโอน Slip2Go (empty state) -->
@@ -1984,6 +1913,28 @@ img { max-width: 100%; }
             </div>
           </div>
 
+          <!-- Section B.5: สรุปการเดินทาง (read-only, from mileage) -->
+          <div class="card mb-16" id="stl-travel-card">
+            <div class="card-title">🚗 B.5 การเดินทาง</div>
+            <div style="overflow-x:auto;">
+              <table class="stl-table">
+                <thead>
+                  <tr>
+                    <th>วันที่</th>
+                    <th>เขต</th>
+                    <th class="r">ระยะทาง (กม.)</th>
+                    <th>รถที่ใช้</th>
+                    <th class="r">ค่าเสื่อม (฿)</th>
+                  </tr>
+                </thead>
+                <tbody id="stl-travel-body">
+                  <tr><td colspan="5" class="stl-empty-msg">กำลังโหลด...</td></tr>
+                </tbody>
+                <tfoot id="stl-travel-foot"></tfoot>
+              </table>
+            </div>
+          </div>
+
           <!-- Section B: ค่าใช้จ่ายรายวัน (editable) -->
           <div class="card mb-16">
             <div class="card-title">⛽ B. ค่าใช้จ่ายรายวัน</div>
@@ -2023,6 +1974,10 @@ img { max-width: 100%; }
             <div class="stl-sum-row deduct">
               <span>หัก เบี้ยเลี้ยง</span>
               <span class="stl-sum-val" id="stl-s-allow">—</span>
+            </div>
+            <div class="stl-sum-row deduct">
+              <span>หัก ค่าเสื่อมรถ</span>
+              <span class="stl-sum-val" id="stl-s-depr">—</span>
             </div>
             <div class="stl-sum-divider"></div>
             <div class="stl-net-row">
@@ -2164,13 +2119,6 @@ img { max-width: 100%; }
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="3" width="16" height="16" rx="2" stroke="var(--ink3)" stroke-width="1.4"/><path d="M7 9h8M7 12h5" stroke="var(--ink3)" stroke-width="1.4" stroke-linecap="round"/></svg>
       </div>
       <div class="bnav-label">เก็บเงิน</div>
-    </div>
-    <div class="bnav-item" id="bnav-allowance" onclick="navTo('allowance')">
-      <div class="bnav-indicator"></div>
-      <div class="bnav-icon">
-        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="7" width="16" height="12" rx="1.5" stroke="var(--ink3)" stroke-width="1.4"/><path d="M7 7V6a4 4 0 0 1 8 0v1" stroke="var(--ink3)" stroke-width="1.4"/></svg>
-      </div>
-      <div class="bnav-label">ค่าใช้จ่าย</div>
     </div>
     <div class="bnav-item" id="bnav-settlement" onclick="navTo('settlement')">
       <div class="bnav-indicator"></div>
@@ -2474,6 +2422,7 @@ function enterApp(user) {
 
   // โหลดข้อมูลจริง
   loadHomeData();
+  sidebarInitCollapse();
 
   // PWA install hint
   setTimeout(() => {
@@ -2796,12 +2745,79 @@ async function confirmSettlement() {
   if (result) showToast('✅ ยืนยันยอดนำส่งแล้ว — รอส่งวันเสาร์', 'success');
 }
 
+// ─── MILEAGE SUMMARY (Task 4) ─────────────────────────────────
+function mileageBuildWeekOptions() {
+  var sel = document.getElementById('ml-week-sel');
+  if (!sel || sel.options.length > 0) return;
+  var today  = new Date();
+  var monday = stlGetMonday(today);
+  for (var i = 0; i < 9; i++) {
+    var mon = new Date(monday);
+    mon.setDate(monday.getDate() - i * 7);
+    var opt = document.createElement('option');
+    opt.value       = stlDateISO(mon);
+    opt.textContent = (i === 0 ? '▶ ' : '') + stlWeekLabel(mon);
+    sel.appendChild(opt);
+  }
+}
+
+async function mileageLoad() {
+  var sel = document.getElementById('ml-week-sel');
+  var weekStart = sel ? sel.value : '';
+  if (!weekStart || !currentUser) return;
+
+  var tbody = document.getElementById('ml-body');
+  var tfoot = document.getElementById('ml-foot');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" class="stl-empty-msg">⏳ กำลังโหลด...</td></tr>';
+  if (tfoot) tfoot.innerHTML = '';
+
+  var rows = await apiCall('GET_MILEAGE_SUMMARY', { weekStart: weekStart, dsrEmail: currentUser.email });
+  rows = rows || [];
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="stl-empty-msg">ไม่มีข้อมูลไมล์อาทิตย์นี้</td></tr>';
+    return;
+  }
+
+  var totDist = 0, totDepr = 0;
+  tbody.innerHTML = rows.map(function(r) {
+    totDist += parseFloat(r.distance) || 0;
+    totDepr += parseFloat(r.depreciation) || 0;
+    return '<tr>' +
+      '<td>' + (r.dateLabel || r.date) + '</td>' +
+      '<td>' + (r.zone || '—') + '</td>' +
+      '<td class="r">' + stlFmtAlways(r.distance || 0) + '</td>' +
+      '<td>' + (r.vehicleType === 'personal' ? '🚙 รถส่วนตัว' : '🚗 รถบริษัท') + '</td>' +
+      '<td class="r">' + stlFmt(r.depreciation) + '</td>' +
+      '</tr>';
+  }).join('');
+  if (tfoot) {
+    tfoot.innerHTML = '<tr>' +
+      '<td colspan="2">รวม</td>' +
+      '<td class="r" style="font-weight:600">' + stlFmtAlways(totDist) + ' กม.</td>' +
+      '<td></td>' +
+      '<td class="r" style="font-weight:600">' + stlFmtAlways(totDepr) + ' ฿</td>' +
+      '</tr>';
+  }
+}
+
 // ─── SETTLEMENT MODULE F ───────────────────────────────────────
-var _stlIncomeRows = [];
-var _stlSavedExp   = {};  // date → { fuel, hotel, allowance }
+var _stlIncomeRows  = [];
+var _stlSavedExp    = {};   // date → { fuel, hotel, allowance }
+var _stlMileageRows = [];   // from GET_MILEAGE_SUMMARY
+var _stlDirty       = false;
 
 var _THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 var _THAI_DAYS   = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+function weekNumFE(date) {
+  var d     = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  var dayNo = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dayNo + 3);
+  var firstThu = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  return 1 + Math.round((d - firstThu) / 604800000);
+}
 
 function stlGetMonday(d) {
   var day  = d.getDay();
@@ -2863,20 +2879,31 @@ async function stlLoadSettlement() {
   var dsrEmail  = currentUser ? currentUser.email : '';
   if (!weekStart || !dsrEmail) return;
 
+  // dirty state check
+  if (_stlDirty) {
+    if (!confirm('มีการแก้ไขค่าใช้จ่ายที่ยังไม่ได้บันทึก\nเปลี่ยนอาทิตย์จะทำให้ข้อมูลหาย — ดำเนินการต่อ?')) return;
+    _stlDirty = false;
+  }
+
   document.getElementById('stl-inc-body').innerHTML = '<tr><td colspan="4" class="stl-empty-msg">กำลังโหลด...</td></tr>';
   document.getElementById('stl-inc-foot').innerHTML = '';
+  var tb = document.getElementById('stl-travel-body');
+  if (tb) tb.innerHTML = '<tr><td colspan="5" class="stl-empty-msg">กำลังโหลด...</td></tr>';
   stlBuildExpRows(weekStart);   // build input rows immediately (don't wait)
 
-  const [income, expenses] = await Promise.all([
+  const [income, expenses, mileage] = await Promise.all([
     apiCall('GET_SETTLEMENT_INCOME',   { weekStart, dsrEmail }),
     apiCall('GET_SETTLEMENT_EXPENSES', { weekStart, dsrEmail }),
+    apiCall('GET_MILEAGE_SUMMARY',     { weekStart, dsrEmail }),
   ]);
 
-  _stlIncomeRows = income || [];
-  _stlSavedExp   = {};
+  _stlIncomeRows  = income   || [];
+  _stlMileageRows = mileage  || [];
+  _stlSavedExp    = {};
   (expenses || []).forEach(function(r) { _stlSavedExp[r.date] = r; });
 
   stlRenderIncome();
+  stlRenderTravel();
   stlPreFillExp();
   stlRecalc();
 }
@@ -2910,6 +2937,37 @@ function stlRenderIncome() {
     '</tr>';
 }
 
+function stlRenderTravel() {
+  var tbody = document.getElementById('stl-travel-body');
+  var tfoot = document.getElementById('stl-travel-foot');
+  if (!tbody) return;
+  if (!_stlMileageRows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="stl-empty-msg">ไม่มีข้อมูลไมล์อาทิตย์นี้</td></tr>';
+    if (tfoot) tfoot.innerHTML = '';
+    return;
+  }
+  var totDist = 0, totDepr = 0;
+  tbody.innerHTML = _stlMileageRows.map(function(r) {
+    totDist += parseFloat(r.distance) || 0;
+    totDepr += parseFloat(r.depreciation) || 0;
+    return '<tr>' +
+      '<td>' + (r.dateLabel || r.date) + '</td>' +
+      '<td>' + (r.zone || '—') + '</td>' +
+      '<td class="r">' + stlFmt(r.distance) + '</td>' +
+      '<td>' + (r.vehicleType === 'personal' ? 'รถส่วนตัว' : 'รถบริษัท') + '</td>' +
+      '<td class="r">' + stlFmt(r.depreciation) + '</td>' +
+      '</tr>';
+  }).join('');
+  if (tfoot) {
+    tfoot.innerHTML = '<tr>' +
+      '<td colspan="2">รวม</td>' +
+      '<td class="r" style="font-weight:600">' + stlFmtAlways(totDist) + '</td>' +
+      '<td></td>' +
+      '<td class="r" style="font-weight:600">' + stlFmtAlways(totDepr) + '</td>' +
+      '</tr>';
+  }
+}
+
 function stlBuildExpRows(weekStart) {
   var tbody = document.getElementById('stl-exp-body');
   if (!tbody) return;
@@ -2923,9 +2981,9 @@ function stlBuildExpRows(weekStart) {
     html += '<tr data-date="' + iso + '">' +
       '<td>' + lbl + '</td>' +
       '<td><input type="number" class="stl-input" id="stl-fuel-' + iso +
-        '" placeholder="—" min="0" step="1" oninput="stlRecalc()"></td>' +
+        '" placeholder="—" min="0" step="1" oninput="_stlDirty=true;stlRecalc()"></td>' +
       '<td><input type="number" class="stl-input" id="stl-hotel-' + iso +
-        '" placeholder="—" min="0" step="1" oninput="stlUpdateAllow(\'' + iso + '\');stlRecalc()"></td>' +
+        '" placeholder="—" min="0" step="1" oninput="_stlDirty=true;stlUpdateAllow(\'' + iso + '\');stlRecalc()"></td>' +
       '<td id="stl-allow-' + iso + '" style="text-align:center;font-size:12px;">—</td>' +
       '</tr>';
   }
@@ -2973,13 +3031,15 @@ function stlRecalc() {
     totAllow += hotel > 0 ? 200 : 0;
   });
 
-  var net = totInc - totFuel - totHotel - totAllow;
+  var totDepr = _stlMileageRows.reduce(function(s, r) { return s + (parseFloat(r.depreciation) || 0); }, 0);
+  var net = totInc - totFuel - totHotel - totAllow - totDepr;
 
   function setTxt(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
   setTxt('stl-s-income', stlFmtAlways(totInc)   + ' ฿');
   setTxt('stl-s-fuel',   '− ' + stlFmtAlways(totFuel)  + ' ฿');
   setTxt('stl-s-hotel',  '− ' + stlFmtAlways(totHotel) + ' ฿');
   setTxt('stl-s-allow',  '− ' + stlFmtAlways(totAllow) + ' ฿');
+  setTxt('stl-s-depr',   '− ' + stlFmtAlways(totDepr)  + ' ฿');
 
   var netEl = document.getElementById('stl-s-net');
   if (netEl) {
@@ -3020,6 +3080,7 @@ async function stlSaveExpenses() {
 
   if (btn) { btn.textContent = '💾 บันทึกค่าใช้จ่าย'; btn.style.opacity = '1'; btn.style.pointerEvents = ''; }
   if (result != null) {
+    _stlDirty = false;
     showToast('✅ บันทึกแล้ว (' + (result.saved || 0) + ' รายการ)', 'success');
     _stlSavedExp = {};
     expenses.forEach(function(e) {
@@ -3073,6 +3134,7 @@ async function stlPrint() {
       weekEnd:     weekEnd,
       incomeRows:  _stlIncomeRows,
       expenseRows: expenseRows,
+      mileageRows: _stlMileageRows,
     });
 }
 
@@ -3208,6 +3270,26 @@ function cleanCell(s) {
   return String(s || '').replace(/^["']|["']$/g, '').trim();
 }
 
+// ─── SIDEBAR COLLAPSE ─────────────────────────────────────────
+function toggleSidebar() {
+  var sb   = document.getElementById('sidebar');
+  var wrap = document.getElementById('admin-layout-wrap');
+  if (!sb) return;
+  var collapsed = sb.classList.toggle('collapsed');
+  if (wrap) wrap.classList.toggle('sb-collapsed', collapsed);
+  try { localStorage.setItem('sb_collapsed', collapsed ? '1' : '0'); } catch(_) {}
+}
+function sidebarInitCollapse() {
+  try {
+    if (localStorage.getItem('sb_collapsed') === '1') {
+      var sb   = document.getElementById('sidebar');
+      var wrap = document.getElementById('admin-layout-wrap');
+      if (sb)   sb.classList.add('collapsed');
+      if (wrap) wrap.classList.add('sb-collapsed');
+    }
+  } catch(_) {}
+}
+
 // ─── NAVIGATION ───────────────────────────────────────────────
 function navTo(page) {
   document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
@@ -3223,7 +3305,8 @@ function navTo(page) {
   // โหลดข้อมูล per page
   if (page === 'debt' && !debtData.length) loadHomeData();
   if (page === 'debt') switchDebtTab('collect');   // reset to tab 1 on nav
-  if (page === 'collection') switchCollectionTab('cash');  // reset to tab 1 on nav
+  if (page === 'collection') { collectionBuildWeekOptions(); switchCollectionTab('cash'); }
+  if (page === 'mileage')    { mileageBuildWeekOptions(); mileageLoad(); }
   if (page === 'print') csLoad();
   if (page === 'settlement') { stlBuildWeekOptions(); stlLoadSettlement(); }
 }
@@ -3250,21 +3333,98 @@ function switchDebtTab(tab) {
 }
 
 // ─── COLLECTION SUB-TABS ───────────────────────────────────────
-var _colCashFrameLoaded = false;
 function switchCollectionTab(tab) {
   document.getElementById('coltab-btn-cash').classList.toggle('active', tab === 'cash');
   document.getElementById('coltab-btn-slip').classList.toggle('active', tab === 'slip');
   document.getElementById('coltab-cash').classList.toggle('active', tab === 'cash');
   document.getElementById('coltab-slip').classList.toggle('active', tab === 'slip');
-  if (tab === 'cash' && !_colCashFrameLoaded) {
-    _colCashFrameLoaded = true;
-    var base = window.location.href.replace(/\?.*$/, '');
-    var iframe = document.createElement('iframe');
-    iframe.src = base + '?page=cash-entry';
-    iframe.className = 'cash-entry-frame';
-    iframe.setAttribute('allowfullscreen', '');
-    document.getElementById('coltab-cash').appendChild(iframe);
+  if (tab === 'cash') collectionLoadCash();
+}
+
+function collectionBuildWeekOptions() {
+  var sel = document.getElementById('col-week-sel');
+  if (!sel || sel.options.length > 0) return;
+  var today  = new Date();
+  var monday = stlGetMonday(today);
+  for (var i = 0; i < 9; i++) {
+    var mon = new Date(monday);
+    mon.setDate(monday.getDate() - i * 7);
+    var opt = document.createElement('option');
+    opt.value       = stlDateISO(mon);
+    opt.textContent = (i === 0 ? '▶ ' : '') + stlWeekLabel(mon);
+    sel.appendChild(opt);
   }
+}
+
+async function collectionLoadCash() {
+  var sel = document.getElementById('col-week-sel');
+  var weekStart = sel ? sel.value : '';
+  if (!weekStart) return;
+
+  var start = new Date(weekStart + 'T00:00:00');
+  var startWk = weekNumFE(start);
+
+  var container = document.getElementById('col-cash-content');
+  if (!container) return;
+  container.innerHTML = '<div class="stl-empty-msg" style="padding:24px;text-align:center;">⏳ กำลังโหลด...</div>';
+
+  var [cashRows, chequeRows] = await Promise.all([
+    apiCall('GET_CASH_LOG',   { filters: { week_number: String(startWk) } }),
+    apiCall('GET_CHEQUE_LOG', { filters: { week_number: String(startWk) } }),
+  ]);
+
+  cashRows   = cashRows   || [];
+  chequeRows = chequeRows || [];
+
+  if (!cashRows.length && !chequeRows.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:40px 20px;"><div class="empty-icon">💳</div><div class="empty-title">ยังไม่มีรายการ</div><div class="empty-desc">อาทิตย์นี้ยังไม่มีการบันทึกเงินสด/เช็ค</div></div>';
+    return;
+  }
+
+  var thaiDay = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  function fmtDate(dt) {
+    var d = new Date(String(dt).split('T')[0] + 'T00:00:00');
+    return thaiDay[d.getDay()] + '. ' + d.getDate();
+  }
+  function fmtAmt(n) { return (parseFloat(n)||0).toLocaleString('en-US',{maximumFractionDigits:0}); }
+
+  var cashHtml = '';
+  var cashTotal = 0;
+  if (cashRows.length) {
+    cashTotal = cashRows.reduce(function(s,r){ return s+(parseFloat(r.amount)||0); }, 0);
+    cashHtml = '<h4 style="font-size:13px;font-weight:600;margin:16px 0 8px;">💵 เงินสด (' + cashRows.length + ' รายการ)</h4>' +
+      '<table class="stl-table"><thead><tr><th>วันที่</th><th>รหัส</th><th>ชื่อ</th><th>เลขบิล</th><th class="r">จำนวน (฿)</th></tr></thead><tbody>' +
+      cashRows.map(function(r){
+        return '<tr><td>' + fmtDate(r.log_date) + '</td><td>' + (r.customer_code||'') + '</td>' +
+          '<td>' + (r.customer_name||'') + '</td><td>' + (r.invoice_no||'') + '</td>' +
+          '<td class="r">' + fmtAmt(r.amount) + '</td></tr>';
+      }).join('') +
+      '</tbody><tfoot><tr><td colspan="4" style="font-weight:600">รวมเงินสด</td><td class="r" style="font-weight:600">' + fmtAmt(cashTotal) + '</td></tr></tfoot></table>';
+  }
+
+  var chequeHtml = '';
+  var chequeTotal = 0;
+  if (chequeRows.length) {
+    chequeTotal = chequeRows.reduce(function(s,r){ return s+(parseFloat(r.amount)||0); }, 0);
+    chequeHtml = '<h4 style="font-size:13px;font-weight:600;margin:16px 0 8px;">🏦 เช็ค (' + chequeRows.length + ' รายการ)</h4>' +
+      '<table class="stl-table"><thead><tr><th>วันที่</th><th>รหัส</th><th>ชื่อ</th><th>เลขเช็ค</th><th class="r">จำนวน (฿)</th></tr></thead><tbody>' +
+      chequeRows.map(function(r){
+        return '<tr><td>' + fmtDate(r.log_date) + '</td><td>' + (r.customer_code||'') + '</td>' +
+          '<td>' + (r.customer_name||'') + '</td><td>' + (r.cheque_no||'') + '</td>' +
+          '<td class="r">' + fmtAmt(r.amount) + '</td></tr>';
+      }).join('') +
+      '</tbody><tfoot><tr><td colspan="4" style="font-weight:600">รวมเช็ค</td><td class="r" style="font-weight:600">' + fmtAmt(chequeTotal) + '</td></tr></tfoot></table>';
+  }
+
+  var grandTotal = cashTotal + chequeTotal;
+  var summaryHtml = '<div class="stl-summary-box" style="margin-top:16px;">' +
+    (cashRows.length   ? '<div class="stl-sum-row"><span>รวมเงินสด</span><span class="stl-sum-val">' + fmtAmt(cashTotal)   + ' ฿</span></div>' : '') +
+    (chequeRows.length ? '<div class="stl-sum-row"><span>รวมเช็ค</span><span class="stl-sum-val">' + fmtAmt(chequeTotal) + ' ฿</span></div>' : '') +
+    '<div class="stl-sum-divider"></div>' +
+    '<div class="stl-net-row"><span class="stl-net-label">รวมทั้งหมด</span><span class="stl-net-amount pos">' + fmtAmt(grandTotal) + ' ฿</span></div>' +
+    '</div>';
+
+  container.innerHTML = '<div style="overflow-x:auto;">' + cashHtml + chequeHtml + '</div>' + summaryHtml;
 }
 
 function openSheet(type) {
@@ -3915,7 +4075,6 @@ function applyRoleUI(role) {
     'bnav-home':       ['admin','specialist','dsr'],
     'bnav-mileage':    ['admin','dsr'],
     'bnav-collection': ['admin','specialist','dsr'],
-    'bnav-allowance':  ['admin','dsr'],
     'bnav-settlement': ['admin','specialist','dsr'],
   };
   Object.entries(bnavRules).forEach(([id, allowed]) => {
@@ -3929,7 +4088,6 @@ function applyRoleUI(role) {
     "navTo('home')":        ['admin','specialist','dsr'],
     "navTo('admin-dsrs')":  ['admin','specialist'],
     "navTo('mileage')":     ['admin','dsr'],
-    "navTo('allowance')":   ['admin','dsr'],
     "navTo('collection')":  ['admin','specialist','dsr'],
     "navTo('settlement')":  ['admin','specialist','dsr'],
     "navTo('import')":      ['admin'],
@@ -3949,7 +4107,6 @@ function applyRoleUI(role) {
   const qaRules = {
     "navTo('mileage')":      ['admin','dsr'],
     "navTo('collection')":   ['admin','specialist','dsr'],
-    "navTo('allowance')":    ['admin','dsr'],
     "navTo('settlement')":   ['admin','specialist','dsr'],
   };
   document.querySelectorAll('.qa-btn').forEach(el => {

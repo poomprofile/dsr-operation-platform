@@ -270,6 +270,11 @@ function routeAction(action, payload, user) {
       return getSettlementExpenses(payload.weekStart, em);
     },
     SAVE_SETTLEMENT_EXPENSES: () => saveSettlementExpenses(payload.data, user),
+    // Mileage Summary (Module A extended)
+    GET_MILEAGE_SUMMARY: () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return getMileageSummary(payload.weekStart, em);
+    },
   };
 
   if (!routes[action]) throw new Error('Unknown action: ' + action);
@@ -3439,6 +3444,75 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
 //  SECTION 22 │ SETTLEMENT INCOME / EXPENSES  (Module F)
 // ─────────────────────────────────────────────────────────────────────
 
+// ─── getMileageSummary ────────────────────────────────────────────────
+// คืนรายการไมล์รายวัน Mon–Sat พร้อมค่าเสื่อมรถ
+function getMileageSummary(weekStart, dsrEmail) {
+  console.log('[getMileageSummary] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  var thaiDay = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+  var start = new Date(weekStart + 'T00:00:00');
+  var end   = new Date(weekStart + 'T00:00:00');
+  end.setDate(end.getDate() + 5); // Mon–Sat
+
+  function isoStr(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function inRange(dateStr) {
+    if (!dateStr) return false;
+    var d = new Date(String(dateStr).split('T')[0] + 'T00:00:00');
+    return d >= start && d <= end;
+  }
+
+  // อ่าน MILEAGE_LOG
+  var mileRows = sheetToObjects(SH.MILEAGE).filter(function(r) {
+    return r.dsr_id === dsrEmail && inRange(r.log_date);
+  });
+  console.log('[getMileageSummary] LOAD mileage: ' + mileRows.length + ' rows');
+
+  // อ่าน depreciation_rate จาก USERS
+  var userRow = sheetToObjects(SH.USERS).find(function(r){ return r.email === dsrEmail; }) || {};
+  var deprRate = parseFloat(userRow.depreciation_rate);
+  if (isNaN(deprRate)) deprRate = 2.5; // ค่าเริ่มต้น
+  console.log('[getMileageSummary] DEPRECIATION rate: ' + deprRate + ' for ' + dsrEmail);
+
+  // อ่าน VEHICLES เพื่อรู้ vehicle_type
+  var vehicleMap = {};
+  sheetToObjects(SH.VEHICLES).forEach(function(v) {
+    vehicleMap[v.vehicle_id] = v;
+  });
+
+  // รวมระยะทางต่อวัน (morning + evening)
+  var byDate = {};
+  mileRows.forEach(function(r) {
+    var dt = String(r.log_date).split('T')[0];
+    if (!byDate[dt]) byDate[dt] = { distance: 0, zone: '', vehicleId: r.vehicle_id };
+    byDate[dt].distance  += parseFloat(r.distance_km) || 0;
+    byDate[dt].zone       = r.zone || r.province || byDate[dt].zone;
+    byDate[dt].vehicleId  = r.vehicle_id || byDate[dt].vehicleId;
+  });
+
+  var result = Object.keys(byDate).sort().map(function(date) {
+    var row     = byDate[date];
+    var vehicle = vehicleMap[row.vehicleId] || {};
+    // vehicle_type: 'company' ค่าเสื่อม 0, 'personal' ค่าเสื่อม = distance * deprRate
+    var vType   = (vehicle.vehicle_type || vehicle.type || 'company').toLowerCase();
+    var isPersonal = vType === 'personal' || vType === 'own';
+    var depreciation = isPersonal ? r2(row.distance * deprRate) : 0;
+    var d = new Date(date + 'T00:00:00');
+    return {
+      date:        date,
+      dateLabel:   thaiDay[d.getDay()] + '. ' + d.getDate(),
+      zone:        row.zone,
+      distance:    r2(row.distance),
+      vehicleId:   row.vehicleId,
+      vehicleType: isPersonal ? 'personal' : 'company',
+      depreciation: depreciation,
+    };
+  });
+
+  return result;
+}
+
 function getSettlementIncome(weekStart, dsrEmail) {
   console.log('[getSettlementIncome] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
   var start = new Date(weekStart + 'T00:00:00');
@@ -3549,10 +3623,11 @@ function saveSettlementExpenses(data, user) {
 
 function generateSettlementPDF(payload) {
   console.log('[generateSettlementPDF] dsr=%s weekStart=%s', payload.dsrEmail, payload.weekStart);
-  var logoHtml = getLogoBase64Html();
-  var dsrName  = escapeHtmlSrv(payload.dsrName || payload.dsrEmail);
-  var incRows  = payload.incomeRows  || [];
-  var expRows  = payload.expenseRows || [];
+  var logoHtml  = getLogoBase64Html();
+  var dsrName   = escapeHtmlSrv(payload.dsrName || payload.dsrEmail);
+  var incRows   = payload.incomeRows  || [];
+  var expRows   = payload.expenseRows || [];
+  var mileRows  = payload.mileageRows || [];
 
   var thaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   function fmtDateTh(iso) {
@@ -3615,7 +3690,27 @@ function generateSettlementPDF(payload) {
     '<td class="r b">' + fmtMonAlways(totHotel) + '</td>' +
     '<td class="r b">' + fmtMonAlways(totAllow) + '</td></tr>';
 
-  var netRemit  = totalInc - totFuel - totHotel - totAllow;
+  // Travel / Mileage table
+  var totDist = 0, totDepr = 0;
+  var mileHtml = mileRows.map(function(r) {
+    var dist = parseFloat(r.distance)    || 0;
+    var depr = parseFloat(r.depreciation)|| 0;
+    totDist += dist;
+    totDepr += depr;
+    return '<tr>' +
+      '<td>' + escapeHtmlSrv(r.dateLabel || r.date) + '</td>' +
+      '<td>' + escapeHtmlSrv(r.zone || '—') + '</td>' +
+      '<td class="r">' + fmtMonAlways(dist) + '</td>' +
+      '<td>' + (r.vehicleType === 'personal' ? 'รถส่วนตัว' : 'รถบริษัท') + '</td>' +
+      '<td class="r">' + fmtMon(depr) + '</td>' +
+      '</tr>';
+  }).join('') || '<tr><td colspan="5" class="empty">ไม่มีข้อมูลไมล์</td></tr>';
+  var mileFoot = '<tr><td colspan="2" class="b">รวม</td>' +
+    '<td class="r b">' + fmtMonAlways(totDist) + ' กม.</td>' +
+    '<td></td>' +
+    '<td class="r b">' + fmtMonAlways(totDepr) + '</td></tr>';
+
+  var netRemit  = totalInc - totFuel - totHotel - totAllow - totDepr;
   var netClass  = netRemit >= 0 ? 'pos' : 'neg';
 
   var css = [
@@ -3685,6 +3780,11 @@ function generateSettlementPDF(payload) {
     '<tbody>' + incHtml + '</tbody>' +
     '<tfoot>' + incFoot + '</tfoot></table>' +
 
+    '<h3>B.5 การเดินทาง</h3>' +
+    '<table><thead><tr><th>วันที่</th><th>เขต</th><th class="r">ระยะทาง (กม.)</th><th>ประเภทรถ</th><th class="r">ค่าเสื่อม (฿)</th></tr></thead>' +
+    '<tbody>' + mileHtml + '</tbody>' +
+    '<tfoot>' + mileFoot + '</tfoot></table>' +
+
     '<h3>B. ค่าใช้จ่าย</h3>' +
     '<table><thead><tr><th>วันที่</th><th>น้ำมันสด (฿)</th><th>ที่พัก (฿)</th><th>เบี้ยเลี้ยง (฿)</th></tr></thead>' +
     '<tbody>' + expHtml + '</tbody>' +
@@ -3695,6 +3795,7 @@ function generateSettlementPDF(payload) {
       '<div class="sum-row deduct"><span>หัก น้ำมันสด</span><span>− ' + fmtMonAlways(totFuel) + ' ฿</span></div>' +
       '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtMonAlways(totHotel) + ' ฿</span></div>' +
       '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtMonAlways(totAllow) + ' ฿</span></div>' +
+      '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtMonAlways(totDepr) + ' ฿</span></div>' +
       '<div class="sum-divider"></div>' +
       '<div class="net-row"><span class="net-label">ยอดนำส่งสุทธิ</span><span class="net-amount ' + netClass + '">' + fmtMonAlways(netRemit) + ' ฿</span></div>' +
     '</div>' +
