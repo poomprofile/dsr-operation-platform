@@ -7,6 +7,7 @@
 <title>DSR Portal — Nice Center Oil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600&display=swap" rel="stylesheet">
 
 
 
@@ -1405,6 +1406,43 @@ img { max-width: 100%; }
 .text-red    { color: var(--r); }
 .fw-700 { font-weight: 700; }
 .font-display { font-family: var(--font-display); }
+
+/* ── Prompt heading font ── */
+.greeting-name { font-family: 'Prompt', sans-serif; font-weight: 600; }
+.section-title,
+.card-title,
+.admin-page-title { font-family: 'Prompt', sans-serif; font-weight: 500; }
+.sidebar-section-label { font-family: 'Prompt', sans-serif; }
+
+/* ── Collection page sub-tabs ── */
+.col-subtabs {
+  display: flex;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  margin-bottom: 14px;
+  gap: 2px;
+}
+.col-subtab {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink3);
+  text-align: center;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.col-subtab.active {
+  background: var(--card);
+  color: var(--o-dark);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.col-tab-pane { display: none; }
+.col-tab-pane.active { display: block; }
 </style>
 </head>
 <body>
@@ -1514,34 +1552,31 @@ img { max-width: 100%; }
         <div class="sidebar-section-label">โมดูล</div>
         <div class="sidebar-item" onclick="navTo('mileage')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 4v4l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          Mileage & รถ
+          บันทึกไมล์
         </div>
         <div class="sidebar-item" onclick="navTo('allowance')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 4V3a3 3 0 0 1 6 0v1" stroke="currentColor" stroke-width="1.4"/></svg>
           ค่าที่พัก/เบี้ย
         </div>
-        <div class="sidebar-item" onclick="navTo('debt')">
+        <div class="sidebar-item" onclick="navTo('collection')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          เก็บหนี้
+          สรุปการเก็บเงิน
         </div>
         <div class="sidebar-item" onclick="navTo('settlement')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 9l3 3 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/></svg>
           ยอดนำส่ง
         </div>
-        <div class="sidebar-item" id="nav-slip2go" onclick="navTo('print')">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4"/><path d="M10 2v4h4M5 9h6M5 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          สรุปใบโอน Slip2Go
-        </div>
 
-        <div class="sidebar-section-label">Admin</div>
-        <div class="sidebar-item" onclick="navTo('import')">
+        <div class="sidebar-section-label sidebar-admin-section">ADMIN</div>
+        <div class="sidebar-item sidebar-admin-section" onclick="navTo('import')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 10v3h10v-3M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Import CSV
         </div>
-        <div class="sidebar-item" onclick="navTo('print')">
+        <div class="sidebar-item sidebar-admin-section" onclick="navTo('print')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M3 9h10v5H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          สรุปใบโอน
+          สรุปใบโอน Slip2Go
         </div>
+
         <div style="flex:1;"></div>
         <div class="sidebar-item" onclick="doLogout()" style="margin-top:auto;">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 11l3-3-3-3M13 8H6M7 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1618,11 +1653,11 @@ img { max-width: 100%; }
               </div>
               <div class="qa-label">บันทึกไมล์รถ</div>
             </div>
-            <div class="qa-btn" onclick="navTo('debt')">
+            <div class="qa-btn" onclick="navTo('collection')">
               <div class="qa-icon" style="background:var(--g-lite);">
                 <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="3" width="16" height="16" rx="2" stroke="var(--g)" stroke-width="1.5"/><path d="M7 8h8M7 11h6M7 14h4" stroke="var(--g)" stroke-width="1.5" stroke-linecap="round"/></svg>
               </div>
-              <div class="qa-label">เก็บหนี้ลูกค้า</div>
+              <div class="qa-label">สรุปการเก็บเงิน</div>
             </div>
             <div class="qa-btn" onclick="navTo('allowance')">
               <div class="qa-icon" style="background:#FFF0F0;">
@@ -1887,9 +1922,38 @@ img { max-width: 100%; }
             <!-- iframe จะถูก inject เมื่อเปิด tab ครั้งแรก -->
           </div>
         </div>
-        
 
-        
+
+
+        <!-- ── page-collection ── สรุปการเก็บเงิน (hub 2 tabs) ── -->
+        <div class="page" id="page-collection">
+          <div class="section-header" style="margin-bottom:14px;">
+            <div class="section-title">สรุปการเก็บเงิน</div>
+          </div>
+
+          <!-- Sub-tab bar -->
+          <div class="col-subtabs">
+            <div class="col-subtab active" id="coltab-btn-cash" onclick="switchCollectionTab('cash')">สรุปเงินสด / เช็ค</div>
+            <div class="col-subtab" id="coltab-btn-slip" onclick="switchCollectionTab('slip')">สรุปเงินโอน Slip2Go</div>
+          </div>
+
+          <!-- Tab 1: สรุปเงินสด / เช็ค (cash_entry.html ผ่าน iframe) -->
+          <div class="col-tab-pane active" id="coltab-cash">
+            <!-- iframe จะถูก inject เมื่อเปิด tab ครั้งแรก -->
+          </div>
+
+          <!-- Tab 2: สรุปเงินโอน Slip2Go (empty state) -->
+          <div class="col-tab-pane" id="coltab-slip">
+            <div class="empty-state" style="padding:60px 20px;">
+              <div class="empty-icon">📲</div>
+              <div class="empty-title">ข้อมูลดึงจาก LINE OA อัตโนมัติ</div>
+              <div class="empty-desc">ยังไม่มีข้อมูลอาทิตย์นี้<br>สลิปที่ DSR ส่งผ่าน LINE จะปรากฏที่นี่</div>
+            </div>
+          </div>
+        </div>
+
+
+
         <div class="page" id="page-settlement">
 
           <!-- Week selector -->
@@ -2094,13 +2158,12 @@ img { max-width: 100%; }
       </div>
       <div class="bnav-label">ไมล์รถ</div>
     </div>
-    <div class="bnav-item" id="bnav-debt" onclick="navTo('debt')">
+    <div class="bnav-item" id="bnav-collection" onclick="navTo('collection')">
       <div class="bnav-indicator"></div>
-      <div class="bnav-badge" id="debt-badge">8</div>
       <div class="bnav-icon">
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="3" width="16" height="16" rx="2" stroke="var(--ink3)" stroke-width="1.4"/><path d="M7 9h8M7 12h5" stroke="var(--ink3)" stroke-width="1.4" stroke-linecap="round"/></svg>
       </div>
-      <div class="bnav-label">เก็บหนี้</div>
+      <div class="bnav-label">เก็บเงิน</div>
     </div>
     <div class="bnav-item" id="bnav-allowance" onclick="navTo('allowance')">
       <div class="bnav-indicator"></div>
@@ -2852,7 +2915,7 @@ function stlBuildExpRows(weekStart) {
   if (!tbody) return;
   var mon = new Date(weekStart + 'T00:00:00');
   var html = '';
-  for (var i = 0; i < 7; i++) {
+  for (var i = 0; i < 6; i++) {
     var d   = new Date(mon);
     d.setDate(mon.getDate() + i);
     var iso = stlDateISO(d);
@@ -3160,6 +3223,7 @@ function navTo(page) {
   // โหลดข้อมูล per page
   if (page === 'debt' && !debtData.length) loadHomeData();
   if (page === 'debt') switchDebtTab('collect');   // reset to tab 1 on nav
+  if (page === 'collection') switchCollectionTab('cash');  // reset to tab 1 on nav
   if (page === 'print') csLoad();
   if (page === 'settlement') { stlBuildWeekOptions(); stlLoadSettlement(); }
 }
@@ -3182,6 +3246,24 @@ function switchDebtTab(tab) {
     iframe.className = 'cash-entry-frame';
     iframe.setAttribute('allowfullscreen', '');
     document.getElementById('dbtab-cash').appendChild(iframe);
+  }
+}
+
+// ─── COLLECTION SUB-TABS ───────────────────────────────────────
+var _colCashFrameLoaded = false;
+function switchCollectionTab(tab) {
+  document.getElementById('coltab-btn-cash').classList.toggle('active', tab === 'cash');
+  document.getElementById('coltab-btn-slip').classList.toggle('active', tab === 'slip');
+  document.getElementById('coltab-cash').classList.toggle('active', tab === 'cash');
+  document.getElementById('coltab-slip').classList.toggle('active', tab === 'slip');
+  if (tab === 'cash' && !_colCashFrameLoaded) {
+    _colCashFrameLoaded = true;
+    var base = window.location.href.replace(/\?.*$/, '');
+    var iframe = document.createElement('iframe');
+    iframe.src = base + '?page=cash-entry';
+    iframe.className = 'cash-entry-frame';
+    iframe.setAttribute('allowfullscreen', '');
+    document.getElementById('coltab-cash').appendChild(iframe);
   }
 }
 
@@ -3819,7 +3901,7 @@ function applyRoleUI(role) {
   const bnavRules = {
     'bnav-home':       ['admin','specialist','dsr'],
     'bnav-mileage':    ['admin','dsr'],
-    'bnav-debt':       ['admin','specialist','dsr'],
+    'bnav-collection': ['admin','specialist','dsr'],
     'bnav-allowance':  ['admin','dsr'],
     'bnav-settlement': ['admin','specialist','dsr'],
   };
@@ -3835,27 +3917,27 @@ function applyRoleUI(role) {
     "navTo('admin-dsrs')":  ['admin','specialist'],
     "navTo('mileage')":     ['admin','dsr'],
     "navTo('allowance')":   ['admin','dsr'],
-    "navTo('debt')":        ['admin','specialist','dsr'],
+    "navTo('collection')":  ['admin','specialist','dsr'],
     "navTo('settlement')":  ['admin','specialist','dsr'],
     "navTo('import')":      ['admin'],
-    "navTo('print')":       ['admin','dsr'],
+    "navTo('print')":       ['admin'],
   };
   document.querySelectorAll('.sidebar-item').forEach(el => {
-    if (el.id === 'nav-slip2go') return;  // จัดการแยกด้านล่าง
     const onclick = el.getAttribute('onclick') || '';
     const key = Object.keys(sidebarRules).find(k => onclick.includes(k));
     if (key) el.style.display = sidebarRules[key].includes(role) ? '' : 'none';
   });
-  // nav-slip2go: admin + specialist + dsr เห็นทั้งหมด
-  const navSlip2go = document.getElementById('nav-slip2go');
-  if (navSlip2go) navSlip2go.style.display = ['admin','specialist','dsr'].includes(role) ? '' : 'none';
+  // ADMIN section labels: ซ่อนทั้งก้อนถ้าไม่ใช่ admin
+  document.querySelectorAll('.sidebar-admin-section').forEach(el => {
+    el.style.display = role === 'admin' ? '' : 'none';
+  });
 
   // ── Quick action buttons บน Home (ใช้ onclick เป็น key เช่นกัน) ──
   const qaRules = {
-    "navTo('mileage')":    ['admin','dsr'],
-    "navTo('debt')":       ['admin','specialist','dsr'],
-    "navTo('allowance')":  ['admin','dsr'],
-    "navTo('settlement')": ['admin','specialist','dsr'],
+    "navTo('mileage')":      ['admin','dsr'],
+    "navTo('collection')":   ['admin','specialist','dsr'],
+    "navTo('allowance')":    ['admin','dsr'],
+    "navTo('settlement')":   ['admin','specialist','dsr'],
   };
   document.querySelectorAll('.qa-btn').forEach(el => {
     const onclick = el.getAttribute('onclick') || '';

@@ -3484,7 +3484,6 @@ function getSettlementIncome(weekStart, dsrEmail) {
     };
   });
 
-  console.log('[getSettlementIncome] result rows=%s', result.length);
   return result;
 }
 
@@ -3512,7 +3511,6 @@ function getSettlementExpenses(weekStart, dsrEmail) {
         allowance: parseFloat(r.allowance) || 0,
       };
     });
-  console.log('[getSettlementExpenses] found=%s rows', result.length);
   return result;
 }
 
@@ -3546,7 +3544,6 @@ function saveSettlementExpenses(data, user) {
     inserted++;
   });
 
-  console.log('[saveSettlementExpenses] inserted=%s rows', inserted);
   return { saved: inserted };
 }
 
