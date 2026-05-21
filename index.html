@@ -1784,53 +1784,14 @@ img { max-width: 100%; }
             <div class="col-subtab" id="coltab-btn-slip" onclick="switchCollectionTab('slip')">สรุปเงินโอน Slip2Go</div>
           </div>
 
-          <!-- Tab 1: สรุปเงินสด / เช็ค -->
+          <!-- Tab 1: บันทึกเงินสด / เช็ค (iframe → cash_entry.html) -->
           <div class="col-tab-pane active" id="coltab-cash">
-            <div style="margin:16px 0 8px;display:flex;gap:8px;align-items:center;">
-              <select class="form-input" id="col-week-sel" style="flex:1;" onchange="collectionWeekChanged()">
-                <!-- populated by collectionBuildWeekOptions() -->
-              </select>
-            </div>
-
-            <!-- ส่วนบน: บันทึกรายการ -->
-            <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--ink);">บันทึกรายการ</div>
-            <div style="overflow-x:auto;">
-              <table class="stl-table" id="col-entry-table">
-                <thead>
-                  <tr>
-                    <th>วันที่</th>
-                    <th>รหัสลูกค้า</th>
-                    <th>ชื่อร้าน</th>
-                    <th>เลขบิล</th>
-                    <th>ประเภท</th>
-                    <th class="r">จำนวน (฿)</th>
-                    <th>หมายเหตุ</th>
-                  </tr>
-                </thead>
-                <tbody id="col-entry-body">
-                  <!-- populated by collectionBuildEntryForm() -->
-                </tbody>
-              </table>
-            </div>
-            <div style="margin-top:10px;">
-              <div class="btn btn-primary" id="col-save-btn" onclick="collectionSaveBatch()">💾 บันทึก</div>
-            </div>
-
-            <!-- ส่วนล่าง: สรุปประจำอาทิตย์ -->
-            <div style="font-size:13px;font-weight:600;margin:20px 0 6px;color:var(--ink);">สรุปประจำอาทิตย์</div>
-            <div id="col-cash-content">
-              <div class="stl-empty-msg" style="padding:20px;text-align:center;">— กรอกรายการแล้วกดบันทึก หรือเลือกอาทิตย์เพื่อดูสรุป —</div>
-            </div>
-            <div style="font-size:11px;color:var(--ink3);margin-top:6px;padding:4px 0;">
-              * ยอดเช็คไม่นำไปคำนวณหักค่าใช้จ่าย
-            </div>
+            <div id="col-cash-iframe-wrap"></div>
           </div>
 
-          <!-- Tab 2: สรุปเงินโอน Slip2Go (editable) -->
+          <!-- Tab 2: ตรวจสอบสลิป / Cover Sheet (iframe → dsr_review.html) -->
           <div class="col-tab-pane" id="coltab-slip">
-            <div id="col-slip-content">
-              <div class="stl-empty-msg" style="padding:20px;text-align:center;">⏳ กำลังโหลด...</div>
-            </div>
+            <div id="col-slip-iframe-wrap"></div>
           </div>
         </div>
 
@@ -3277,7 +3238,7 @@ function navTo(page) {
   // โหลดข้อมูล per page
   if (page === 'debt' && !debtData.length) loadHomeData();
   if (page === 'debt') switchDebtTab('collect');   // reset to tab 1 on nav
-  if (page === 'collection') { collectionBuildWeekOptions(); switchCollectionTab('cash'); collectionBuildEntryForm(); collectionLoadSummary(); }
+  if (page === 'collection') { switchCollectionTab('cash'); }
   if (page === 'mileage')    { mileageBuildWeekOptions(); mileageLoad(); }
   if (page === 'print') csLoad();
   if (page === 'settlement') { stlBuildWeekOptions(); stlLoadSettlement(); }
@@ -3305,13 +3266,35 @@ function switchDebtTab(tab) {
 }
 
 // ─── COLLECTION SUB-TABS ───────────────────────────────────────
+var _colCashLoaded = false;
+var _colSlipLoaded = false;
 function switchCollectionTab(tab) {
   document.getElementById('coltab-btn-cash').classList.toggle('active', tab === 'cash');
   document.getElementById('coltab-btn-slip').classList.toggle('active', tab === 'slip');
   document.getElementById('coltab-cash').classList.toggle('active', tab === 'cash');
   document.getElementById('coltab-slip').classList.toggle('active', tab === 'slip');
-  if (tab === 'cash') { collectionBuildEntryForm(); collectionLoadSummary(); }
-  if (tab === 'slip') collectionLoadSlips();
+
+  var base = window.location.href.replace(/\?.*$/, '');
+
+  // lazy-load tab 1: บันทึกเงินสด/เช็ค (cash_entry.html)
+  if (tab === 'cash' && !_colCashLoaded) {
+    _colCashLoaded = true;
+    var f1 = document.createElement('iframe');
+    f1.src = base + '?page=cash-entry';
+    f1.className = 'cash-entry-frame';
+    f1.setAttribute('allowfullscreen', '');
+    document.getElementById('col-cash-iframe-wrap').appendChild(f1);
+  }
+
+  // lazy-load tab 2: ตรวจสอบสลิป / Cover Sheet (dsr_review.html)
+  if (tab === 'slip' && !_colSlipLoaded) {
+    _colSlipLoaded = true;
+    var f2 = document.createElement('iframe');
+    f2.src = base + '?page=dsr-review';
+    f2.className = 'cash-entry-frame';
+    f2.setAttribute('allowfullscreen', '');
+    document.getElementById('col-slip-iframe-wrap').appendChild(f2);
+  }
 }
 
 function collectionBuildWeekOptions() {

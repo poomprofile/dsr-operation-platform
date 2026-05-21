@@ -3456,37 +3456,43 @@ function updateSlipBillMapping(slipRowIndex, newBillNo, dsrEmail) {
 
 function getSettlementIncome(weekStart, dsrEmail) {
   console.log('[getSettlementIncome] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
-  var start = new Date(weekStart + 'T00:00:00');
-  var end   = new Date(weekStart + 'T00:00:00');
-  end.setDate(end.getDate() + 6);
+
+  // ใช้ week_number filter แทน date range
+  // เพราะ rowToObj แปลง Date object เป็น locale string ทำให้ date range parse ผิด
+  var targetWeekNum = weekNum(new Date(weekStart + 'T00:00:00'));
+  console.log('[getSettlementIncome] targetWeekNum=%s', targetWeekNum);
 
   var thaiDay = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 
-  function inRange(dateStr) {
-    if (!dateStr) return false;
-    var d = new Date(String(dateStr).split('T')[0] + 'T00:00:00');
-    return d >= start && d <= end;
-  }
-
   var cashRows   = sheetToObjects('CASH_LOG');
   var chequeRows = sheetToObjects('CHEQUE_LOG');
-  var byDate     = {};
+  console.log('[getSettlementIncome] cashRows.total=%s chequeRows.total=%s', cashRows.length, chequeRows.length);
+
+  var byDate = {};
 
   cashRows.forEach(function(r) {
-    if (r.dsr_email !== dsrEmail || !inRange(r.log_date)) return;
-    var dt = String(r.log_date).split('T')[0];
+    if (r.dsr_email !== dsrEmail) return;
+    if (Number(r.week_number) !== targetWeekNum) return;
+    var dt = normDateStr(r.log_date);
+    if (!dt) return;
     if (!byDate[dt]) byDate[dt] = { cashAmount: 0, chequeAmount: 0, billCount: 0 };
     byDate[dt].cashAmount += parseFloat(r.amount) || 0;
     byDate[dt].billCount++;
   });
 
   chequeRows.forEach(function(r) {
-    if (r.dsr_email !== dsrEmail || !inRange(r.log_date)) return;
-    var dt = String(r.log_date).split('T')[0];
+    if (r.dsr_email !== dsrEmail) return;
+    if (Number(r.week_number) !== targetWeekNum) return;
+    var dt = normDateStr(r.log_date);
+    if (!dt) return;
     if (!byDate[dt]) byDate[dt] = { cashAmount: 0, chequeAmount: 0, billCount: 0 };
     byDate[dt].chequeAmount += parseFloat(r.amount) || 0;
     byDate[dt].billCount++;
   });
+
+  var matchedCash   = cashRows.filter(function(r){ return r.dsr_email === dsrEmail; }).length;
+  var matchedWeek   = cashRows.filter(function(r){ return r.dsr_email === dsrEmail && Number(r.week_number) === targetWeekNum; }).length;
+  console.log('[getSettlementIncome] cashRows for this dsr=%s, for this week=%s, byDate keys=%s', matchedCash, matchedWeek, Object.keys(byDate).length);
 
   var result = Object.keys(byDate).sort().map(function(date) {
     var d = new Date(date + 'T00:00:00');
@@ -3660,11 +3666,11 @@ function generateSettlementPDF(payload) {
 
   var css = [
     '* { box-sizing: border-box; margin: 0; padding: 0; }',
-    '@page { size: A4 portrait; margin: 15mm; }',
-    'body { font-family: "Sarabun", Tahoma, sans-serif; font-size: 13px; color: #1A1A1A; }',
+    '@page { size: A4 landscape; margin: 12mm 15mm; }',
+    'body { font-family: "Sarabun", Tahoma, sans-serif; font-size: 12px; color: #1A1A1A; }',
     '@media screen {',
     '  body { background: #f0f0f0; display: flex; flex-direction: column; align-items: center; padding: 24px; }',
-    '  .page-wrap { background: #fff; padding: 15mm; width: 210mm; box-shadow: 0 4px 24px rgba(0,0,0,.15); }',
+    '  .page-wrap { background: #fff; padding: 12mm 15mm; width: 297mm; min-height: 210mm; box-shadow: 0 4px 24px rgba(0,0,0,.15); }',
     '  .print-btn { position: fixed; top: 16px; right: 16px; background: #007B40; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: 0 2px 8px rgba(0,0,0,.2); }',
     '  .print-btn:active { transform: scale(.97); }',
     '}',
@@ -3673,7 +3679,7 @@ function generateSettlementPDF(payload) {
     '  .page-wrap { box-shadow: none; padding: 0; width: 100%; }',
     '  .print-btn { display: none; }',
     '}',
-    '.hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1A1A1A; padding-bottom: 8px; margin-bottom: 16px; gap: 12px; }',
+    '.hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1A1A1A; padding-bottom: 8px; margin-bottom: 12px; gap: 12px; }',
     '.hdr-left { display: flex; align-items: center; gap: 10px; min-width: 140px; }',
     '.hdr-title { font-size: 15px; font-weight: 700; }',
     '.hdr-sub { font-size: 11px; color: #666; }',
@@ -3681,27 +3687,33 @@ function generateSettlementPDF(payload) {
     '.hdr-dsr { font-size: 15px; font-weight: 600; }',
     '.hdr-range { font-size: 12px; color: #555; margin-top: 2px; }',
     '.hdr-right { text-align: right; font-size: 11px; color: #666; min-width: 120px; }',
-    'h3 { font-size: 13px; font-weight: 700; margin: 14px 0 6px; border-left: 4px solid #E8631A; padding-left: 8px; }',
-    'table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }',
-    'th { font-size: 11px; font-weight: 700; border: 1px solid #555; padding: 4px 6px; text-align: center; background: #f0f0f0; }',
+    /* ── landscape: 3 tables side-by-side ── */
+    '.tables-row { display: grid; grid-template-columns: 2fr 2fr 1.5fr; gap: 12px; margin-bottom: 12px; }',
+    '.table-col h3 { font-size: 12px; font-weight: 700; margin: 0 0 5px; border-left: 4px solid #E8631A; padding-left: 7px; }',
+    'table { width: 100%; border-collapse: collapse; }',
+    'th { font-size: 10px; font-weight: 700; border: 1px solid #555; padding: 3px 5px; text-align: center; background: #f0f0f0; }',
     'th:first-child { text-align: left; }',
-    'td { border: 1px solid #ccc; padding: 4px 8px; font-size: 12px; }',
+    'td { border: 1px solid #ccc; padding: 3px 6px; font-size: 11px; }',
     'tfoot td { font-weight: 700; background: #f8f8f8; border: 1px solid #555; }',
     '.r { text-align: right; }',
     '.b { font-weight: 700; }',
-    '.empty { text-align: center; color: #999; font-style: italic; padding: 12px; }',
-    '.summary-box { border: 2px solid #1A1A1A; border-radius: 8px; padding: 14px 18px; margin-top: 16px; }',
-    '.sum-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 13px; }',
+    '.empty { text-align: center; color: #999; font-style: italic; padding: 10px; }',
+    /* ── 2-column summary box ── */
+    '.summary-box { border: 2px solid #1A1A1A; border-radius: 8px; padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }',
+    '.sum-col-label { font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }',
+    '.sum-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 12px; }',
     '.sum-row.deduct { color: #444; }',
-    '.sum-divider { border-top: 2px solid #1A1A1A; margin: 8px 0; }',
+    '.sum-divider { border-top: 2px solid #1A1A1A; margin: 6px 0; }',
     '.net-row { display: flex; justify-content: space-between; align-items: baseline; padding-top: 4px; }',
-    '.net-label { font-size: 14px; font-weight: 700; }',
-    '.net-amount { font-size: 26px; font-weight: 700; }',
+    '.net-label { font-size: 13px; font-weight: 700; }',
+    '.net-amount { font-size: 28px; font-weight: 700; line-height: 1; }',
     '.pos { color: #007B40; }',
     '.neg { color: #C8102E; }',
-    '.sig-row { display: flex; justify-content: space-around; margin-top: 28px; }',
-    '.sig-box { text-align: center; min-width: 180px; }',
-    '.sig-line { border-top: 1px solid #555; margin-top: 44px; padding-top: 6px; font-size: 12px; font-weight: 600; }',
+    '.net-col { display: flex; flex-direction: column; justify-content: space-between; }',
+    /* ── signatures bottom-right ── */
+    '.sig-row { display: flex; justify-content: flex-end; gap: 40px; margin-top: 16px; }',
+    '.sig-box { text-align: center; min-width: 160px; }',
+    '.sig-line { border-top: 1px solid #555; margin-top: 40px; padding-top: 5px; font-size: 11px; font-weight: 600; }',
   ].join('\n');
 
   return '<!DOCTYPE html><html lang="th"><head>' +
@@ -3720,36 +3732,64 @@ function generateSettlementPDF(payload) {
       '<div class="hdr-right">วันที่พิมพ์<br><b>' + printDate + '</b></div>' +
     '</div>' +
 
-    '<h3>A. ยอดเก็บเงิน</h3>' +
-    '<table><thead><tr><th>วันที่</th><th>เงินสด (฿)</th><th>เช็ค (฿)</th><th>รวม (฿)</th></tr></thead>' +
-    '<tbody>' + incHtml + '</tbody>' +
-    '<tfoot>' + incFoot + '</tfoot></table>' +
+    /* ── 3 tables in one row (landscape) ── */
+    '<div class="tables-row">' +
 
-    '<h3>B.5 การเดินทาง</h3>' +
-    '<table><thead><tr><th>วันที่</th><th>เขต</th><th class="r">ระยะทาง (กม.)</th><th>ประเภทรถ</th><th class="r">ค่าเสื่อม (฿)</th></tr></thead>' +
-    '<tbody>' + mileHtml + '</tbody>' +
-    '<tfoot>' + mileFoot + '</tfoot></table>' +
+      '<div class="table-col">' +
+        '<h3>A. ยอดเก็บเงิน</h3>' +
+        '<table><thead><tr><th>วันที่</th><th>เงินสด (฿)</th><th>เช็ค (฿)</th><th>รวม (฿)</th></tr></thead>' +
+        '<tbody>' + incHtml + '</tbody><tfoot>' + incFoot + '</tfoot></table>' +
+      '</div>' +
 
-    '<h3>B. ค่าใช้จ่าย</h3>' +
-    '<table><thead><tr><th>วันที่</th><th>น้ำมันสด (฿)</th><th>ที่พัก (฿)</th><th>เบี้ยเลี้ยง (฿)</th></tr></thead>' +
-    '<tbody>' + expHtml + '</tbody>' +
-    '<tfoot>' + expFoot + '</tfoot></table>' +
+      '<div class="table-col">' +
+        '<h3>B. ค่าใช้จ่าย</h3>' +
+        '<table><thead><tr><th>วันที่</th><th>น้ำมัน (฿)</th><th>ที่พัก (฿)</th><th>เบี้ยเลี้ยง (฿)</th></tr></thead>' +
+        '<tbody>' + expHtml + '</tbody><tfoot>' + expFoot + '</tfoot></table>' +
+      '</div>' +
 
-    '<div class="summary-box">' +
-      '<div class="sum-row"><span>รวมเงินสด</span><span>' + fmtMonAlways(cashOnlyTotal) + ' ฿</span></div>' +
-      (slipTotal ? '<div class="sum-row"><span>รวมเงินโอน Slip2Go</span><span>' + fmtMonAlways(slipTotal) + ' ฿</span></div>' : '') +
-      '<div class="sum-row deduct"><span>หัก จ่ายเงินน้ำมัน/แก๊ส</span><span>− ' + fmtMonAlways(totFuel) + ' ฿</span></div>' +
-      '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtMonAlways(totHotel) + ' ฿</span></div>' +
-      '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtMonAlways(totAllow) + ' ฿</span></div>' +
-      '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtMonAlways(totDepr) + ' ฿</span></div>' +
-      '<div class="sum-divider"></div>' +
-      '<div class="net-row"><span class="net-label">ยอดนำส่งสุทธิ</span><span class="net-amount ' + netClass + '">' + fmtMonAlways(netRemit) + ' ฿</span></div>' +
-      (chequeTotal ? '<div class="sum-row" style="margin-top:8px;color:#666;font-size:12px;"><span>รวมเช็ค (ส่งแยก)</span><span>' + fmtMonAlways(chequeTotal) + ' ฿</span></div>' : '') +
+      '<div class="table-col">' +
+        '<h3>C. การเดินทาง</h3>' +
+        '<table><thead><tr><th>วันที่</th><th>เขต</th><th class="r">กม.</th><th class="r">เสื่อม (฿)</th></tr></thead>' +
+        '<tbody>' + mileRows.map(function(r){
+          var dist = parseFloat(r.distance)||0;
+          var depr = parseFloat(r.depreciation)||0;
+          return '<tr>' +
+            '<td>' + escapeHtmlSrv(r.dateLabel||r.date) + '</td>' +
+            '<td>' + escapeHtmlSrv(r.zone||'—') + '</td>' +
+            '<td class="r">' + fmtMonAlways(dist) + '</td>' +
+            '<td class="r">' + fmtMon(depr) + '</td>' +
+            '</tr>';
+        }).join('') || '<tr><td colspan="4" class="empty">ไม่มีข้อมูล</td></tr>' + '</tbody>' +
+        '<tfoot><tr><td colspan="2" class="b">รวม</td><td class="r b">' + fmtMonAlways(totDist) + '</td><td class="r b">' + fmtMonAlways(totDepr) + '</td></tr></tfoot></table>' +
+      '</div>' +
+
     '</div>' +
 
-    '<div class="sig-row">' +
-      '<div class="sig-box"><div class="sig-line">ผู้ส่ง (DSR) · ' + dsrName + '</div></div>' +
-      '<div class="sig-box"><div class="sig-line">ผู้รับ (ออฟฟิศ)</div></div>' +
+    /* ── 2-column summary box ── */
+    '<div class="summary-box">' +
+      /* left col: breakdown */
+      '<div>' +
+        '<div class="sum-col-label">รายละเอียด</div>' +
+        '<div class="sum-row"><span>รวมเงินสด</span><span>' + fmtMonAlways(cashOnlyTotal) + ' ฿</span></div>' +
+        (slipTotal ? '<div class="sum-row"><span>รวมเงินโอน Slip2Go</span><span>' + fmtMonAlways(slipTotal) + ' ฿</span></div>' : '') +
+        '<div class="sum-divider"></div>' +
+        '<div class="sum-row deduct"><span>หัก น้ำมัน/แก๊ส</span><span>− ' + fmtMonAlways(totFuel) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtMonAlways(totHotel) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtMonAlways(totAllow) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtMonAlways(totDepr) + ' ฿</span></div>' +
+        (chequeTotal ? '<div class="sum-row" style="margin-top:6px;color:#666;font-size:11px;"><span>รวมเช็ค (ส่งแยก)</span><span>' + fmtMonAlways(chequeTotal) + ' ฿</span></div>' : '') +
+      '</div>' +
+      /* right col: net + signatures */
+      '<div class="net-col">' +
+        '<div>' +
+          '<div class="sum-col-label">ยอดนำส่งสุทธิ</div>' +
+          '<div class="net-row"><span class="net-amount ' + netClass + '">' + fmtMonAlways(netRemit) + ' ฿</span></div>' +
+        '</div>' +
+        '<div class="sig-row">' +
+          '<div class="sig-box"><div class="sig-line">ผู้ส่ง (DSR) · ' + dsrName + '</div></div>' +
+          '<div class="sig-box"><div class="sig-line">ผู้รับ (ออฟฟิศ)</div></div>' +
+        '</div>' +
+      '</div>' +
     '</div>' +
 
     '</div>' +
