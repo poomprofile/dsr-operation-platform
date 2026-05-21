@@ -297,6 +297,18 @@ function routeAction(action, payload, user) {
       var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
       return getMileageSummary(payload.weekStart, em);
     },
+    // Slip summary view-only (TASK 1C) — no status filter, grouped by date
+    GET_WEEKLY_SLIP_SUMMARY: () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return getWeeklySlipSummary(payload.weekStart, em);
+    },
+    // Cash entry upsert by date (TASK 2B)
+    SAVE_CASH_ENTRY_DATE: () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return saveCashEntryForDate(payload.date, em, payload.rows);
+    },
+    // Cash entry A4 PDF (TASK 2C)
+    GENERATE_CASH_ENTRY_PDF: () => generateCashEntryPDF(payload),
   };
 
   if (!routes[action]) throw new Error('Unknown action: ' + action);
@@ -3510,6 +3522,250 @@ function getDsrWeekSlipsForWeek(weekStart, dsrEmail) {
   }
 }
 
+// ─── getWeeklySlipByDate — per-day Slip2Go amounts (no status filter) ──
+// Used by settlement income table (TASK 4A)
+function getWeeklySlipByDate(weekStart, dsrEmail) {
+  console.log('[getWeeklySlipByDate] LOAD weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  var byDate = {};
+  try {
+    var ss    = SpreadsheetApp.openById(prop('SPREADSHEET_ID_SLIP'));
+    var sheet = ss.getSheetByName(SH.SLIPS);
+    if (!sheet) return byDate;
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return byDate;
+    var h = data[0];
+    function col(names) {
+      for (var ni = 0; ni < names.length; ni++)
+        for (var hi = 0; hi < h.length; hi++)
+          if (String(h[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi;
+      return -1;
+    }
+    var eIdx   = col(['email','dsr_email','dsr email']);
+    var dIdx   = col(['วันที่โอน','วันที่ส่งสลิป','created_at']);
+    var amtIdx = col(['ยอดเงิน','amount']);
+    if (eIdx < 0 || amtIdx < 0) return byDate;
+    var start = new Date(weekStart + 'T00:00:00');
+    var end   = new Date(weekStart + 'T00:00:00');
+    end.setDate(end.getDate() + 5);
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][eIdx]||'').trim().toLowerCase() !== dsrEmail.toLowerCase()) continue;
+      var dateStr = '';
+      if (dIdx >= 0 && data[i][dIdx]) {
+        var dt = data[i][dIdx] instanceof Date ? data[i][dIdx] : new Date(data[i][dIdx]);
+        if (!isNaN(dt.getTime())) {
+          var dtBKK = new Date(dt.toLocaleString('en-US',{timeZone:'Asia/Bangkok'}));
+          dtBKK.setHours(0,0,0,0);
+          if (dtBKK < start || dtBKK > end) continue;
+          dateStr = Utilities.formatDate(dtBKK, 'Asia/Bangkok', 'yyyy-MM-dd');
+        }
+      }
+      if (!dateStr) continue;
+      var amt = parseFloat(data[i][amtIdx]) || 0;
+      byDate[dateStr] = (byDate[dateStr] || 0) + amt;
+    }
+  } catch(err) {
+    console.error('[getWeeklySlipByDate] err: ' + err.message);
+  }
+  console.log('[getWeeklySlipByDate] found dates=%s', Object.keys(byDate).length);
+  return byDate;
+}
+
+// ─── getWeeklySlipSummary — สรุป Slip2Go รายวัน (TASK 1C) ─────────────
+// ไม่กรองสถานะ — แสดงทุก slip ของอาทิตย์นั้น
+function getWeeklySlipSummary(weekStart, dsrEmail) {
+  console.log('[getWeeklySlipSummary] LOAD weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  var byDate = {};
+  var grandTotal = 0;
+  try {
+    var ss    = SpreadsheetApp.openById(prop('SPREADSHEET_ID_SLIP'));
+    var sheet = ss.getSheetByName(SH.SLIPS);
+    if (!sheet) return { rows: [], grandTotal: 0 };
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return { rows: [], grandTotal: 0 };
+    var h = data[0];
+    function col(names) {
+      for (var ni = 0; ni < names.length; ni++)
+        for (var hi = 0; hi < h.length; hi++)
+          if (String(h[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi;
+      return -1;
+    }
+    var eIdx   = col(['email','dsr_email','dsr email']);
+    var dIdx   = col(['วันที่โอน','วันที่ส่งสลิป','created_at']);
+    var amtIdx = col(['ยอดเงิน','amount']);
+    if (eIdx < 0 || amtIdx < 0) return { rows: [], grandTotal: 0 };
+    var start = new Date(weekStart + 'T00:00:00');
+    var end   = new Date(weekStart + 'T00:00:00');
+    end.setDate(end.getDate() + 6); // Mon–Sun
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][eIdx]||'').trim().toLowerCase() !== dsrEmail.toLowerCase()) continue;
+      var dateStr = '';
+      if (dIdx >= 0 && data[i][dIdx]) {
+        var dt = data[i][dIdx] instanceof Date ? data[i][dIdx] : new Date(data[i][dIdx]);
+        if (!isNaN(dt.getTime())) {
+          var dtBKK = new Date(dt.toLocaleString('en-US',{timeZone:'Asia/Bangkok'}));
+          dtBKK.setHours(0,0,0,0);
+          if (dtBKK < start || dtBKK > end) continue;
+          dateStr = Utilities.formatDate(dtBKK, 'Asia/Bangkok', 'yyyy-MM-dd');
+        }
+      }
+      if (!dateStr) continue;
+      var amt = parseFloat(data[i][amtIdx]) || 0;
+      if (!byDate[dateStr]) byDate[dateStr] = { total: 0, count: 0 };
+      byDate[dateStr].total += amt;
+      byDate[dateStr].count++;
+      grandTotal += amt;
+    }
+  } catch(err) {
+    console.error('[getWeeklySlipSummary] err: ' + err.message);
+    return { rows: [], grandTotal: 0 };
+  }
+  var rows = Object.keys(byDate).sort().map(function(d) {
+    return { date: d, total: r2(byDate[d].total), count: byDate[d].count };
+  });
+  console.log('[getWeeklySlipSummary] found=%s rows grandTotal=%s', rows.length, grandTotal);
+  return { rows: rows, grandTotal: r2(grandTotal) };
+}
+
+// ─── saveCashEntryForDate — upsert CASH_LOG by date+email (TASK 2B) ────
+function saveCashEntryForDate(date, dsrEmail, rows) {
+  console.log('[saveCashEntryForDate] SAVE key=date:%s dsrEmail:%s rows:%s', date, dsrEmail, (rows||[]).length);
+  ensureCashChequeSheets();
+  var ss         = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var cashSheet  = ss.getSheetByName(SH_CC.CASH);
+  var cheqSheet  = ss.getSheetByName(SH_CC.CHEQUE);
+
+  // ลบแถวเดิมของวันนั้น (loop จากล่างขึ้นบน)
+  function deleteByDateEmail(sheet) {
+    var vals = sheet.getDataRange().getValues();
+    var h    = vals[0];
+    var dCol = h.indexOf('log_date');
+    var eCol = h.indexOf('dsr_email');
+    if (dCol < 0 || eCol < 0 || vals.length < 2) return 0;
+    var deleted = 0;
+    for (var i = vals.length - 1; i >= 1; i--) {
+      var rowEmail = String(vals[i][eCol] || '');
+      var rawDate  = vals[i][dCol];
+      var rowDate  = (rawDate instanceof Date)
+        ? Utilities.formatDate(rawDate, 'Asia/Bangkok', 'yyyy-MM-dd')
+        : normDateStr(String(rawDate));
+      if (rowEmail === dsrEmail && rowDate === date) {
+        sheet.deleteRow(i + 1);
+        deleted++;
+      }
+    }
+    return deleted;
+  }
+  var delCash = deleteByDateEmail(cashSheet);
+  var delCheq = deleteByDateEmail(cheqSheet);
+  console.log('[saveCashEntryForDate] deleted cash=%s cheq=%s', delCash, delCheq);
+
+  // Insert แถวใหม่
+  var fakeUser = { email: dsrEmail };
+  var inserted = 0, skipped = 0;
+  (rows || []).forEach(function(r) {
+    var amt = parseFloat(r.amount);
+    if (!amt || amt <= 0) { skipped++; return; }
+    r.log_date = date;
+    try {
+      if (r.type === 'cheque') { saveCheque(r, fakeUser); }
+      else                     { saveCash(r, fakeUser); }
+      inserted++;
+    } catch(e) { skipped++; console.error('[saveCashEntryForDate] skip: ' + e.message); }
+  });
+  console.log('[saveCashEntryForDate] inserted=%s skipped=%s', inserted, skipped);
+  return { deleted: delCash + delCheq, inserted: inserted, skipped: skipped };
+}
+
+// ─── generateCashEntryPDF — A4 print form (TASK 2C) ──────────────────
+function generateCashEntryPDF(payload) {
+  console.log('[generateCashEntryPDF] dsr=%s date=%s rows=%s', payload.dsrEmail, payload.selectedDate, (payload.rows||[]).length);
+  var dsrName    = escapeHtmlSrv(payload.dsrName || payload.dsrEmail || '');
+  var dateLabel  = escapeHtmlSrv(payload.selectedDate || '');
+  var rows       = payload.rows || [];
+  var logoHtml   = getLogoBase64Html();
+
+  function fmtN(n) {
+    var v = parseFloat(n) || 0;
+    return v ? v.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}) : '—';
+  }
+  function fmtNAlways(n) {
+    return (parseFloat(n)||0).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0});
+  }
+  function esc(s) { return escapeHtmlSrv(String(s||'')); }
+
+  var totCash = 0, totCheq = 0;
+  var bodyRows = rows.map(function(r, idx) {
+    var cash = parseFloat(r.cash_amount) || 0;
+    var cheq = parseFloat(r.cheq_amount) || 0;
+    totCash += cash; totCheq += cheq;
+    return '<tr>' +
+      '<td style="text-align:center">' + (idx+1) + '</td>' +
+      '<td>' + esc(r.customer_code) + '</td>' +
+      '<td>' + esc(r.customer_name) + '</td>' +
+      '<td>' + esc(r.invoice_no)    + '</td>' +
+      '<td style="text-align:right">' + fmtN(cash) + '</td>' +
+      '<td style="text-align:right">' + fmtN(cheq) + '</td>' +
+      '<td>' + esc(r.note) + '</td>' +
+      '</tr>';
+  }).join('');
+
+  var printDate = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+    '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">' +
+    '<style>' +
+    '@page{size:A4;margin:12mm 14mm}' +
+    '*{box-sizing:border-box;margin:0;padding:0}' +
+    'body{font-family:"Sarabun",sans-serif;font-size:12pt;color:#111;}' +
+    '.hdr{display:grid;grid-template-columns:80px 1fr auto;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #111;}' +
+    '.hdr-logo img{width:70px;}' +
+    '.hdr-title{font-size:15pt;font-weight:700;}' +
+    '.hdr-sub{font-size:10pt;color:#555;}' +
+    '.hdr-meta{font-size:10pt;text-align:right;line-height:1.7;}' +
+    'table{width:100%;border-collapse:collapse;font-size:10pt;margin-top:12px;}' +
+    'th{background:#111;color:#fff;padding:6px 8px;text-align:left;font-weight:600;}' +
+    'td{padding:5px 8px;border-bottom:1px solid #ddd;}' +
+    'tr:nth-child(even) td{background:#f8f8f8;}' +
+    '.footer-row td{border-top:2px solid #111;border-bottom:none;font-weight:700;background:#f0f0f0;}' +
+    '.sig-row{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;}' +
+    '.sig-box{border-top:1px solid #555;padding-top:6px;font-size:10pt;color:#555;text-align:center;}' +
+    '</style></head><body>' +
+    '<div class="hdr">' +
+      '<div class="hdr-logo">' + logoHtml + '</div>' +
+      '<div><div class="hdr-title">บันทึกเงินสด / โอน / เช็ค</div>' +
+        '<div class="hdr-sub">Nice Center Oil — NCO DSR Portal</div></div>' +
+      '<div class="hdr-meta">วันที่: <b>' + esc(dateLabel) + '</b><br>DSR: <b>' + dsrName + '</b><br>พิมพ์: ' + printDate + '</div>' +
+    '</div>' +
+    '<table>' +
+      '<thead><tr>' +
+        '<th style="width:30px">ที่</th>' +
+        '<th style="width:80px">รหัส</th>' +
+        '<th>ชื่อร้าน</th>' +
+        '<th style="width:120px">เลขบิล</th>' +
+        '<th style="width:90px;text-align:right">เงินสด (฿)</th>' +
+        '<th style="width:90px;text-align:right">โอน/เช็ค (฿)</th>' +
+        '<th style="width:100px">หมายเหตุ</th>' +
+      '</tr></thead>' +
+      '<tbody>' + (bodyRows || '<tr><td colspan="7" style="text-align:center;color:#999;">ไม่มีรายการ</td></tr>') + '</tbody>' +
+      '<tfoot><tr class="footer-row">' +
+        '<td colspan="4" style="text-align:right">รวมทั้งหมด</td>' +
+        '<td style="text-align:right">' + fmtNAlways(totCash) + '</td>' +
+        '<td style="text-align:right">' + fmtNAlways(totCheq) + '</td>' +
+        '<td></td>' +
+      '</tr></tfoot>' +
+    '</table>' +
+    '<div style="margin-top:14px;font-size:10pt;color:#555;">' +
+      'รวมเงินสด: <b>' + fmtNAlways(totCash) + ' ฿</b> &nbsp;|&nbsp; ' +
+      'รวมโอน/เช็ค: <b>' + fmtNAlways(totCheq) + ' ฿</b> &nbsp;|&nbsp; ' +
+      'ยอดรวม: <b>' + fmtNAlways(totCash+totCheq) + ' ฿</b>' +
+    '</div>' +
+    '<div class="sig-row">' +
+      '<div class="sig-box">DSR: ___________________________<br>ชื่อ-นามสกุล วันที่</div>' +
+      '<div class="sig-box">ผู้ตรวจสอบ: ___________________________<br>ชื่อ-นามสกุล วันที่</div>' +
+    '</div>' +
+    '</body></html>';
+}
+
 // ─── updateSlipBillMapping ────────────────────────────────────────────
 function updateSlipBillMapping(slipRowIndex, newBillNo, dsrEmail) {
   console.log('[updateSlipBillMapping] row=%s bill=%s dsr=%s', slipRowIndex, newBillNo, dsrEmail);
@@ -3592,40 +3848,51 @@ function ensureSettlementExpensesSheet() {
   var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   if (!ss.getSheetByName(SH.SETTLE_EXP)) {
     var sh = ss.insertSheet(SH.SETTLE_EXP);
-    sh.appendRow(['dsrEmail', 'weekStart', 'date', 'fuel', 'hotel', 'allowance', 'manual_transfer']);
+    // weekNumber (int) เป็น key หลัก — ไม่ใช้ weekStart string เพราะ GAS อาจแปลง Date→locale string
+    sh.appendRow(['dsrEmail', 'weekNumber', 'date', 'fuel', 'hotel', 'allowance', 'manual_transfer', 'created_at']);
     sh.setFrozenRows(1);
     console.log('[ensureSettlementExpensesSheet] created SettlementExpenses sheet');
   }
 }
 
 function getSettlementExpenses(weekStart, dsrEmail) {
-  console.log('[getSettlementExpenses] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  // ROOT CAUSE FIX: filter by weekNumber (int) instead of weekStart string
+  // weekStart string ที่ GAS อ่านกลับจาก sheet อาจถูก serialize เป็น Date object
+  // ทำให้ normDateStr() ล้มเหลว → ใช้ int เปรียบเทียบแทน ปลอดภัยกว่า
+  var weekNumber = weekNum(new Date(weekStart + 'T00:00:00'));
+  console.log('[getSettlementExpenses] LOAD key=dsrEmail:%s weekNumber:%s (from weekStart:%s)', dsrEmail, weekNumber, weekStart);
   ensureSettlementExpensesSheet();
   var rows = sheetToObjects(SH.SETTLE_EXP);
-  console.log('[getSettlementExpenses] total rows=%s', rows.length);
-  if (rows.length > 0) {
-    console.log('[getSettlementExpenses] sample weekStart raw=%s', rows[0].weekStart);
-  }
-  // BUG FIX: rowToObj converts Date→locale string; normDateStr() safely recovers YYYY-MM-DD
+  console.log('[getSettlementExpenses] total rows in sheet=%s', rows.length);
   var result = rows
-    .filter(function(r) { return r.dsrEmail === dsrEmail && normDateStr(r.weekStart) === weekStart; })
+    .filter(function(r) {
+      if (r.dsrEmail !== dsrEmail) return false;
+      // รองรับทั้ง schema ใหม่ (weekNumber int) และเก่า (weekStart string)
+      if (r.weekNumber !== undefined && r.weekNumber !== '') {
+        return parseInt(r.weekNumber) === weekNumber;
+      }
+      // backward compat: old rows used weekStart string
+      return normDateStr(r.weekStart) === weekStart;
+    })
     .map(function(r) {
       return {
-        date:            r.date,
+        date:            normDateStr(r.date) || String(r.date || ''),
         fuel:            parseFloat(r.fuel)            || 0,
         hotel:           parseFloat(r.hotel)           || 0,
         allowance:       parseFloat(r.allowance)       || 0,
         manual_transfer: parseFloat(r.manual_transfer) || 0,
       };
     });
-  console.log('[getSettlementExpenses] matched=%s', result.length);
+  console.log('[getSettlementExpenses] found=%s', result.length);
   return result;
 }
 
 function saveSettlementExpenses(data, user) {
   if (!data || !data.weekStart || !data.expenses) throw new Error('weekStart and expenses required');
   var targetEmail = (user.role === ROLES.DSR) ? user.email : (data.dsrEmail || user.email);
-  console.log('[saveSettlementExpenses] weekStart=%s dsr=%s', data.weekStart, targetEmail);
+  // ROOT CAUSE FIX: ใช้ weekNumber (int) เป็น key — ไม่เก็บ weekStart string ใน sheet
+  var weekNumber = weekNum(new Date(data.weekStart + 'T00:00:00'));
+  console.log('[saveSettlementExpenses] SAVE key=dsrEmail:%s weekNumber:%s expenses:%s', targetEmail, weekNumber, data.expenses ? data.expenses.length : 0);
 
   ensureSettlementExpensesSheet();
 
@@ -3633,19 +3900,27 @@ function saveSettlementExpenses(data, user) {
   var sheet = ss.getSheetByName(SH.SETTLE_EXP);
   var vals  = sheet.getDataRange().getValues();
 
-  console.log('[saveSettlementExpenses] sheet=%s weekStart=%s expenses=%s', SH.SETTLE_EXP, data.weekStart, data.expenses ? data.expenses.length : 0);
-  // Upsert: ลบแถวเดิมของ dsrEmail+weekStart ก่อน (loop จากล่างขึ้นบน)
-  // BUG FIX: vals[i][1] may be a Date object from GAS getValues() → format it before comparing
+  // Upsert: ลบแถวเดิมของ dsrEmail+weekNumber ก่อน (loop จากล่างขึ้นบน)
+  // เปรียบเทียบด้วย int — ไม่มีปัญหา GAS Date serialization
+  var headers = vals[0];
+  var wkNumCol = headers.indexOf('weekNumber');
+  var wkStCol  = headers.indexOf('weekStart'); // backward compat
   if (vals.length > 1) {
     for (var i = vals.length - 1; i >= 1; i--) {
       var rowEmail = String(vals[i][0]);
-      var rawDate  = vals[i][1];
-      var rowDate  = (rawDate instanceof Date)
-        ? Utilities.formatDate(rawDate, 'Asia/Bangkok', 'yyyy-MM-dd')
-        : normDateStr(String(rawDate));
-      if (rowEmail === targetEmail && rowDate === data.weekStart) {
-        sheet.deleteRow(i + 1);
+      if (rowEmail !== targetEmail) continue;
+      var match = false;
+      if (wkNumCol >= 0 && vals[i][wkNumCol] !== '' && vals[i][wkNumCol] !== undefined) {
+        match = parseInt(vals[i][wkNumCol]) === weekNumber;
+      } else if (wkStCol >= 0) {
+        // backward compat: old schema used weekStart string
+        var rawDate = vals[i][wkStCol];
+        var rowWs = (rawDate instanceof Date)
+          ? Utilities.formatDate(rawDate, 'Asia/Bangkok', 'yyyy-MM-dd')
+          : normDateStr(String(rawDate));
+        match = (rowWs === data.weekStart);
       }
+      if (match) sheet.deleteRow(i + 1);
     }
   }
 
@@ -3656,10 +3931,12 @@ function saveSettlementExpenses(data, user) {
     var manual   = parseFloat(ex.manual_transfer) || 0;
     if (fuel === 0 && hotel === 0 && manual === 0) return; // skip empty rows
     var allowance = hotel > 0 ? 200 : 0;
-    sheet.appendRow([targetEmail, data.weekStart, ex.date, fuel, hotel, allowance, manual]);
+    // บันทึก weekNumber (int) แทน weekStart (string)
+    sheet.appendRow([targetEmail, weekNumber, ex.date, fuel, hotel, allowance, manual, ts()]);
     inserted++;
   });
 
+  console.log('[saveSettlementExpenses] inserted=%s', inserted);
   return { saved: inserted };
 }
 
@@ -3673,11 +3950,12 @@ function getSettlementPageData(weekStart, dsrEmail) {
     console.log('[getSettlementPageData] cache hit');
     return JSON.parse(cached);
   }
-  var income   = getSettlementIncome(weekStart, dsrEmail);
-  var expenses = getSettlementExpenses(weekStart, dsrEmail);
-  var mileage  = getMileageSummary(weekStart, dsrEmail);
-  var slipTotal = getWeeklySlipTotal(weekStart, dsrEmail);
-  var result = { income: income, expenses: expenses, mileage: mileage, slipTotal: slipTotal };
+  var income    = getSettlementIncome(weekStart, dsrEmail);
+  var expenses  = getSettlementExpenses(weekStart, dsrEmail);
+  var mileage   = getMileageSummary(weekStart, dsrEmail);
+  var slipTotal  = getWeeklySlipTotal(weekStart, dsrEmail);
+  var slipByDate = getWeeklySlipByDate(weekStart, dsrEmail); // {date → amount} per-day Slip2Go
+  var result = { income: income, expenses: expenses, mileage: mileage, slipTotal: slipTotal, slipByDate: slipByDate };
   try { cache.put(cacheKey, JSON.stringify(result), 180); } catch(_) {}
   return result;
 }
@@ -3689,13 +3967,11 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
   var incRows     = payload.incomeRows   || [];
   var expRows     = payload.expenseRows  || [];
   var mileRows    = payload.mileageRows  || [];
-  var manualRows  = payload.manualRows   || [];   // [{date, dateLabel, amount}]
+  var slipByDate = payload.slipByDate || {};   // {date → amount} — TASK 4A auto Slip2Go
 
   // ── Build lookup maps ──────────────────────────────────────────────
   var incByDate  = {};
   incRows.forEach(function(r) { incByDate[r.date] = r; });
-  var manByDate  = {};
-  manualRows.forEach(function(r) { manByDate[r.date] = parseFloat(r.amount) || 0; });
 
   var thaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   var thaiDayShort = ['อา','จ','อ','พ','พฤ','ศ','ส'];
@@ -3726,10 +4002,11 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
     totCash   += parseFloat(r.cashAmount)   || 0;
     totCheque += parseFloat(r.chequeAmount) || 0;
   });
-  manualRows.forEach(function(r) { totManual += parseFloat(r.amount) || 0; });
+  // TASK 4A: totManual from slipByDate auto (not manualRows)
+  Object.keys(slipByDate).forEach(function(d) { totManual += parseFloat(slipByDate[d]) || 0; });
   var slipTotal  = parseFloat((payload.slipTotal || {}).total) || 0;
   var slipCount  = (payload.slipTotal || {}).count || 0;
-  var totIncome  = totCash + totManual + slipTotal;   // cheque excluded from net calc
+  var totIncome  = totCash + slipTotal;   // cheque excluded from net calc (slip already counted in slipTotal)
 
   var totFuel = 0, totHotel = 0, totAllow = 0, totDepr = 0;
   expRows.forEach(function(r) {
@@ -3741,18 +4018,20 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
   var totExp    = totFuel + totHotel + totAllow + totDepr;
   var netRemit  = totIncome - totExp;
 
-  // ── Build 6-day income rows using allDates (Mon–Sat) ─────────────────
-  // Get all unique dates from both income and manual rows
+  // ── Build 6-day income rows ────────────────────────────────────────
   var allDates = [];
   var seenDates = {};
-  incRows.concat(manualRows).forEach(function(r) {
+  incRows.forEach(function(r) {
     if (r.date && !seenDates[r.date]) { seenDates[r.date] = true; allDates.push(r.date); }
+  });
+  Object.keys(slipByDate).forEach(function(d) {
+    if (!seenDates[d]) { seenDates[d] = true; allDates.push(d); }
   });
   allDates.sort();
 
   var incTableRows = allDates.map(function(dt) {
-    var inc  = incByDate[dt]  || {};
-    var man  = manByDate[dt]  || 0;
+    var inc  = incByDate[dt] || {};
+    var man  = parseFloat(slipByDate[dt]) || 0;
     var cash = parseFloat(inc.cashAmount) || 0;
     return '<tr>' +
       '<td>' + fmtDayShort(dt) + '</td>' +
@@ -3856,7 +4135,7 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
       '<div>' +
         '<div class="sec-title">ก. รายรับ (ยอดเก็บเงิน)</div>' +
         '<table>' +
-          '<thead><tr><th>วันที่</th><th class="r">เงินสด (฿)</th><th class="r">โอน manual (฿)</th></tr></thead>' +
+          '<thead><tr><th>วันที่</th><th class="r">เงินสด (฿)</th><th class="r">โอน Slip2Go (฿)</th></tr></thead>' +
           '<tbody>' + incTableRows + '</tbody>' +
           '<tfoot><tr>' +
             '<td class="b">รวม</td>' +
