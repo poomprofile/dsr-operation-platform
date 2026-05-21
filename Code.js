@@ -3708,3 +3708,191 @@ function generateSettlementPDF(payload) {
     '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});<\/script>' +
     '</body></html>';
 }
+
+// ─── getCoverSheetBatch ────────────────────────────────────────────────
+// Batch: query บิลค้างจ่าย + Pay sheet ทีเดียว แทนที่จะ query per-row
+// payload: { customers:[{custCode,invoiceNo,rowIndex}], weekStart:'YYYY-MM-DD' }
+// return: { billsMap:{ custCode:{bills:[],shopName:'',storeInvSet:[]} }, invoiceMap:{} }
+
+function getCoverSheetBatch(payload) {
+  var t0 = Date.now();
+  payload = payload || {};
+  var customers  = payload.customers  || [];
+  var weekStart  = payload.weekStart  || '';
+
+  // รวบ unique custCodes
+  var custSet = {};
+  customers.forEach(function(c) { if (c.custCode) custSet[c.custCode] = true; });
+  var uniqueCusts = Object.keys(custSet);
+
+  // ── Cache check ──
+  var cache    = CacheService.getScriptCache();
+  var cacheKey = 'coversheet_batch_' + weekStart;
+  var cached   = cache.get(cacheKey);
+  if (cached) {
+    console.log('[getCoverSheetBatch] BATCH hit cache weekStart=' + weekStart);
+    return JSON.parse(cached);
+  }
+  console.log('[getCoverSheetBatch] BATCH query weekStart=' + weekStart + ' custs=' + uniqueCusts.length);
+
+  var STORE_SS_ID = '1ADwKdbF8Eo1ZuTXRRKUdgD-9NXvbphuA49PvB5sWGeY';
+
+  // เตรียม billsMap structure
+  var billsMap = {};
+  uniqueCusts.forEach(function(c) {
+    billsMap[c] = { bills: [], shopName: '', storeInvSet: [] };
+  });
+
+  // Bangkok today (ไม่ใช้ server local time)
+  function bkkToday() {
+    var d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  function bkkDate(raw) {
+    var dt = (raw instanceof Date) ? raw : new Date(raw);
+    if (isNaN(dt.getTime())) return null;
+    var b = new Date(dt.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    b.setHours(0, 0, 0, 0);
+    return b;
+  }
+  function isoFromDate(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  var todayBKK = bkkToday();
+
+  // ── Read บิลค้างจ่าย sheet 1 ครั้ง ──
+  try {
+    var slipSsId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID_SLIP');
+    var ss       = SpreadsheetApp.openById(slipSsId);
+    var sheet    = ss.getSheetByName('บิลค้างจ่าย');
+    if (sheet) {
+      var data = sheet.getDataRange().getValues();
+      var h    = data[0] || [];
+
+      function col(names) {
+        for (var ni = 0; ni < names.length; ni++)
+          for (var hi = 0; hi < h.length; hi++)
+            if (String(h[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi;
+        return -1;
+      }
+      var iKey  = col(['รหัสหลัก','TaxNo','taxno','รหัสลูกค้า']);
+      var iInv  = col(['InvoiceNo','invoiceno','เลขที่บิล','DocNo']);
+      var iAmt  = col(['ยอดคงเหลือ','ยอดบิล','Amount','amount']);
+      var iDue  = col(['DueDate','duedate','วันครบกำหนด','วันที่ครบกำหนด']);
+      var iShop = col(['ชื่อลูกค้าหลัก','ชื่อลูกค้า','Sale','sale','CustomerName']);
+
+      if (iKey >= 0 && iInv >= 0 && data.length > 1) {
+        for (var r = 1; r < data.length; r++) {
+          var cust = String(data[r][iKey] || '').trim();
+          if (!billsMap[cust]) continue;
+          var invoiceNo = String(data[r][iInv] || '').trim();
+          if (!invoiceNo) continue;
+          if (!billsMap[cust].shopName && iShop >= 0)
+            billsMap[cust].shopName = String(data[r][iShop] || '').trim();
+          var amount = parseFloat(String(data[r][iAmt >= 0 ? iAmt : 0] || 0).replace(/[^0-9.\-]/g, '')) || 0;
+          var dueDate = null, overdueDays = null;
+          if (iDue >= 0 && data[r][iDue]) {
+            var dd = bkkDate(data[r][iDue]);
+            if (dd) { dueDate = isoFromDate(dd); overdueDays = Math.floor((todayBKK - dd) / 86400000); }
+          }
+          billsMap[cust].bills.push({ invoiceNo: invoiceNo, amount: amount, dueDate: dueDate, overdueDays: overdueDays, source: 'main' });
+        }
+      }
+
+      // Sort per cust by dueDate
+      uniqueCusts.forEach(function(c) {
+        billsMap[c].bills.sort(function(a, b) {
+          if (!a.dueDate && !b.dueDate) return 0;
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate) - new Date(b.dueDate);
+        });
+      });
+    }
+  } catch(e) {
+    console.log('[getCoverSheetBatch] debt sheet error: ' + e.message);
+  }
+
+  // ── Read Pay sheet 1 ครั้ง ──
+  try {
+    var storeSs = SpreadsheetApp.openById(STORE_SS_ID);
+    var storeSh = storeSs.getSheetByName('Pay');
+    if (storeSh) {
+      var sData = storeSh.getDataRange().getValues();
+      var sh    = sData[0];
+      var sCust=1, sInv=2, sRemain=5, sShop=-1, sDue=9;
+      for (var hi = 0; hi < sh.length; hi++) {
+        var hN = String(sh[hi]).trim();
+        if (hN==='รหัสลูกค้า')                                     sCust=hi;
+        if (hN==='เลขที่บิล'||hN==='DocNo'||hN==='InvoiceNo')      sInv=hi;
+        if (hN==='ยอดคงเหลือ'||hN==='คงเหลือ')                    sRemain=hi;
+        if (hN==='ลูกค้า'||hN==='ชื่อลูกค้า'||hN==='CustomerName') sShop=hi;
+        if (hN==='ถึงกำหนดชำระ'||hN==='DueDate'||hN==='วันครบกำหนด') sDue=hi;
+      }
+
+      for (var sr = 1; sr < sData.length; sr++) {
+        var rowCust = String(sData[sr][sCust] || '').trim();
+        if (!billsMap[rowCust]) continue;
+        var entry  = billsMap[rowCust];
+        if (!entry.shopName && sShop >= 0) entry.shopName = String(sData[sr][sShop] || '').trim();
+
+        var rowInv = String(sData[sr][sInv] || '').trim();
+        if (!rowInv) continue;
+        var rowRemain = parseFloat(String(sData[sr][sRemain] || 0).replace(/[^0-9.\-]/g, '')) || 0;
+
+        // Build storeInvSet (full + suffix)
+        var lower = rowInv.toLowerCase();
+        if (entry.storeInvSet.indexOf(lower) < 0) entry.storeInvSet.push(lower);
+        var parts = rowInv.split('-');
+        if (parts.length > 1) {
+          var suffix = parts[parts.length-1].toLowerCase();
+          if (entry.storeInvSet.indexOf(suffix) < 0) entry.storeInvSet.push(suffix);
+        }
+
+        // Add to bills if remain > 0 and not a duplicate
+        if (rowRemain > 0) {
+          var alreadyIn = false;
+          for (var bi = 0; bi < entry.bills.length; bi++) {
+            var bNorm = entry.bills[bi].invoiceNo.toLowerCase();
+            var bSuf  = bNorm.split('-').pop();
+            var rSuf  = lower.split('-').pop();
+            if (bNorm === lower || (rSuf.length >= 4 && bSuf === rSuf)) { alreadyIn = true; break; }
+          }
+          if (!alreadyIn) {
+            var rowDue = null, rowOd = null;
+            if (sDue >= 0 && sData[sr][sDue]) {
+              var rd = bkkDate(sData[sr][sDue]);
+              if (rd) { rowDue = isoFromDate(rd); rowOd = Math.floor((todayBKK - rd) / 86400000); }
+            }
+            entry.bills.push({ invoiceNo: rowInv, amount: rowRemain, dueDate: rowDue, overdueDays: rowOd, source: 'store' });
+          }
+        }
+      }
+    }
+  } catch(e) {
+    console.log('[getCoverSheetBatch] Pay sheet error: ' + e.message);
+  }
+
+  // Build invoiceMap จาก storeInvSets
+  var invoiceMap = {};
+  customers.forEach(function(c) {
+    if (!c.invoiceNo || !c.custCode || !billsMap[c.custCode]) return;
+    var entry = billsMap[c.custCode];
+    var norm  = c.invoiceNo.toLowerCase();
+    var parts = c.invoiceNo.split('-');
+    var suf   = parts.length > 1 ? parts[parts.length-1].toLowerCase() : norm;
+    invoiceMap[c.invoiceNo] = {
+      isStoreInvoice: (entry.storeInvSet.indexOf(norm) >= 0 || entry.storeInvSet.indexOf(suf) >= 0)
+    };
+  });
+
+  var result = { billsMap: billsMap, invoiceMap: invoiceMap };
+
+  // Cache (ถ้า response ใหญ่เกิน 100KB → skip silently)
+  try { cache.put(cacheKey, JSON.stringify(result), 300); } catch(e) {}
+
+  console.log('[getCoverSheetBatch] BATCH done: ' + (Date.now() - t0) + 'ms custs=' + uniqueCusts.length);
+  return result;
+}

@@ -3351,8 +3351,8 @@ function showToast(msg, type) {
 
 var csRows=[], csEdits={}, csBillCache={}, csDropSt={};
 var csWeekOffset=0, csRangeStart=null, csRangeEnd=null;
-var csBillAmounts={}, csStoreCache={};  // csStoreCache: { custCode: Set<trimmedInv> }
-var _fetchQueue=[], _fetchActive=0, _fetchMaxConcurrent=3;
+var csBillAmounts={}, csStoreCache={};
+var csWeekStart='';
 
 function csTrimInvoice(inv){
   if(!inv)return'';var s=String(inv).trim();
@@ -3450,6 +3450,7 @@ function csInjectCSS(){
     '.cs-d-ov{color:#C62828}.cs-d-sn{color:#F57F17}.cs-d-ok{color:#2E7D32}.cs-d-no{color:#aaa}',
     '.cs-bempty{padding:14px;text-align:center;color:#aaa;font-size:12px}',
     '.cs-stcheck{font-size:11px;margin-top:3px;font-weight:600}',
+    '.skel{background:linear-gradient(90deg,var(--border) 25%,var(--surface) 50%,var(--border) 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:4px;height:14px;display:inline-block;width:80px;}',
   ].join('');
   document.head.appendChild(s);
 }
@@ -3457,12 +3458,12 @@ function csInjectCSS(){
 function csLoad(){
   if(!currentUser)return;
   csInjectCSS();csBillCache={};csDropSt={};csEdits={};csBillAmounts={};csStoreCache={};
-  _fetchQueue=[];_fetchActive=0;
 
   var navWrap=document.getElementById('cs-week-nav');
   if(!navWrap){navWrap=document.createElement('div');navWrap.id='cs-week-nav';navWrap.className='cs-wnav';document.getElementById('cs-app').parentNode.insertBefore(navWrap,document.getElementById('cs-app'));}
 
   var r=csGetRange(),startIso=_localIso(r.mon),endIso=_localIso(r.sun),isCustom=!!(csRangeStart||csRangeEnd);
+  csWeekStart=startIso;
   navWrap.innerHTML=
     '<button class="cs-wbtn" onclick="csChangeWeek(-1)">&#8249;</button>'
     +'<div class="cs-wlabel">'+csFmtRangeLabel()+'</div>'
@@ -3485,7 +3486,7 @@ function csLoad(){
       if(!d||d.error){app.textContent='ERROR: '+(d?d.error:'no data');return;}
       csRows=d.rows||[];
       if(d.pendingRows&&d.pendingRows.length)csRows=csRows.concat(d.pendingRows);
-      csEdits={};csBillAmounts={};csStoreCache={};_fetchQueue=[];_fetchActive=0;
+      csEdits={};csBillAmounts={};csStoreCache={};
       document.getElementById('cs-cnt').textContent=csRows.length;
       document.getElementById('cs-sum').textContent=Number(d.total||0).toLocaleString('th-TH')+' ฿';
       csRender(app);
@@ -3527,11 +3528,36 @@ function csRender(container){
   tbl+='</tbody></table></div>';
   container.style.cssText='background:transparent;border-radius:var(--radius);margin-bottom:12px;overflow:visible;';
   container.innerHTML=tbl;
+
+  // Skeleton: ชื่อร้านที่ยังไม่มีข้อมูล → shimmer ก่อน
   csRows.forEach(function(r){
-    var inv=(r['เลขที่บิล']||'').toString().trim();
     var cust=(r['รหัสลูกค้า']||'').toString().trim();
-    if(cust)csEnqueueLookup(cust,r._row,inv);
+    if(cust&&!(r['ชื่อร้าน']||'').trim()){
+      var shopEl=document.getElementById('cs-shop-'+r._row);
+      if(shopEl)shopEl.innerHTML='<span class="skel"></span>';
+    }
   });
+
+  // Batch call 1 ครั้ง แทน N individual calls
+  var _batchPayload={
+    customers:csRows.filter(function(r){return !!(r['รหัสลูกค้า']||'').toString().trim();}).map(function(r){
+      return{custCode:(r['รหัสลูกค้า']||'').toString().trim(),invoiceNo:(r['เลขที่บิล']||'').toString().trim(),rowIndex:r._row};
+    }),
+    weekStart:csWeekStart
+  };
+  if(_batchPayload.customers.length){
+    google.script.run
+      .withSuccessHandler(csApplyBatchResult)
+      .withFailureHandler(function(){
+        csRows.forEach(function(r){
+          var el=document.getElementById('cs-billamt-'+r._row);
+          if(el){el.className='';el.innerHTML='<span class="cs-muted">—</span>';}
+          var shopEl=document.getElementById('cs-shop-'+r._row);
+          if(shopEl&&shopEl.querySelector('.skel'))shopEl.textContent='';
+        });
+      })
+      .getCoverSheetBatch(_batchPayload);
+  }
 }
 
 function csStaticRow(r,i){
@@ -3558,34 +3584,21 @@ function csStaticRow(r,i){
     +'</tr>';
 }
 
-// ── fetch queue ─────────────────────────────────────────────────
-function csEnqueueLookup(cust,ri,inv){
-  if(csBillCache[cust]){csApplyLookup(cust,ri,inv);return;}
-  _fetchQueue.push({cust:cust,ri:ri,inv:inv});
-  csProcessQueue();
-}
-function csProcessQueue(){
-  while(_fetchActive<_fetchMaxConcurrent&&_fetchQueue.length>0){
-    var job=_fetchQueue.shift();
-    if(csBillCache[job.cust]){csApplyLookup(job.cust,job.ri,job.inv);continue;}
-    _fetchActive++;
-    (function(j){
-      google.script.run
-        .withSuccessHandler(function(res){
-          _fetchActive--;
-          csBillCache[j.cust]={bills:(res&&res.ok)?res.bills:[],shopName:(res&&res.shopName)||''};
-          if(res&&res.storeInvSet)csStoreCache[j.cust]=res.storeInvSet;
-          csApplyLookup(j.cust,j.ri,j.inv);
-          csProcessQueue();
-        })
-        .withFailureHandler(function(){
-          _fetchActive--;
-          var el=document.getElementById('cs-billamt-'+j.ri);if(el){el.className='';el.innerHTML='<span class="cs-muted">—</span>';}
-          csProcessQueue();
-        })
-        .getBillsForCustomerCode(j.cust);
-    })(job);
-  }
+// ── batch result handler ────────────────────────────────────────
+function csApplyBatchResult(res){
+  if(!res||!res.billsMap)return;
+  // โหลด cache จาก batch response
+  Object.keys(res.billsMap).forEach(function(cust){
+    var entry=res.billsMap[cust];
+    csBillCache[cust]={bills:entry.bills||[],shopName:entry.shopName||''};
+    if(entry.storeInvSet)csStoreCache[cust]=entry.storeInvSet;
+  });
+  // Apply ทุก row พร้อมกัน
+  csRows.forEach(function(r){
+    var cust=(r['รหัสลูกค้า']||'').toString().trim();
+    var inv=(r['เลขที่บิล']||'').toString().trim();
+    if(cust)csApplyLookup(cust,r._row,inv);
+  });
 }
 
 // ── apply lookup result ─────────────────────────────────────────
