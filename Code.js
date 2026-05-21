@@ -39,6 +39,9 @@ const SH = {
   COLLECTION:  'COLLECTION_LOG',
   AUDIT:       'AUDIT_LOG',
   SETTINGS:    'SETTINGS',
+  SETTLE_EXP:  'SettlementExpenses',
+  CASH_LOG:    'CASH_LOG',
+  CHEQUE_LOG:  'CHEQUE_LOG',
   // Slip2Go sheets (อยู่ใน SPREADSHEET_ID_SLIP)
   SLIPS:       'Slip2Go',
   PENDING:     'PENDING_SLIPS',
@@ -1928,112 +1931,6 @@ function serveDsrReviewPage(email) {
     .setSandboxMode(HtmlService.SandboxMode.IFRAME);
 }
 
-// API: ดึงข้อมูลสลิปสัปดาห์นี้ของ DSR
-
-
-
-
-// alias สำหรับ DSR Review (ใน LineBot ใช้ชื่อนี้)
-function getUserDisplayName(email) {
-  try {
-    var u = findUserByEmail(email);
-    return u ? (u.display_name || email) : email;
-  } catch(e) { return email; }
-}
-
-// ═══ DSR REVIEW + COVER SHEET (ย้ายมาจาก LineBot project) ══════════════
-// เรียกผ่าน Portal URL: ?page=dsr-review&email=xxx@gmail.com
-
-function getDsrWeekSlips(email) {
-  try {
-    if (!email) return { rows: [], total: 0, count: 0 };
-
-    var ss    = SpreadsheetApp.openById(prop('SPREADSHEET_ID_SLIP'));
-    var sheet = ss.getSheetByName(SH.SLIPS);
-    if (!sheet) return { rows: [], total: 0, count: 0, error: 'ไม่พบ Sheet: ' + SH.SLIPS };
-
-    var data = sheet.getDataRange().getValues();
-    if (data.length < 2) return { rows: [], total: 0, count: 0 };
-
-    var h = data[0];
-
-    function findCol(names) {
-      for (var ni = 0; ni < names.length; ni++)
-        for (var hi = 0; hi < h.length; hi++)
-          if (String(h[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi;
-      return -1;
-    }
-
-    var eIdx  = findCol(['Email','email','DSR Email','dsr_email']);
-    var dIdx  = findCol(['วันที่ส่งสลิป','วันที่ส่ง','created_at']);
-    var stIdx = findCol(['สถานะ','status']);
-
-    if (eIdx < 0) return { rows: [], total: 0, count: 0, error: 'ไม่พบ column Email' };
-
-    // weekStart = วันจันทร์เวลา 00:00:00 Bangkok (ใช้ string เปรียบเทียบ)
-    var weekStart = getMondayOfWeekBKK();
-    var rows = [];
-
-    for (var i = 1; i < data.length; i++) {
-      var rowEmail = String(data[i][eIdx] || '').trim().toLowerCase();
-      if (rowEmail !== email.toLowerCase()) continue;
-
-      var st = stIdx >= 0 ? String(data[i][stIdx] || '') : '';
-      if (st === 'ไม่ใช้') continue;
-
-      // filter ตาม weekStart — แปลง Date object เป็น Bangkok date string
-      if (dIdx >= 0 && data[i][dIdx]) {
-        var rawDate = data[i][dIdx];
-        var dt = rawDate instanceof Date ? rawDate : new Date(rawDate);
-        if (!isNaN(dt.getTime())) {
-          // เทียบ date ใน Bangkok timezone
-          var dtBKK = new Date(dt.toLocaleString('en-US', {timeZone:'Asia/Bangkok'}));
-          dtBKK.setHours(0,0,0,0);
-          if (dtBKK < weekStart) continue;
-        }
-      }
-
-      var obj = { _row: i + 1 };
-      h.forEach(function(k, j) {
-        var v = data[i][j];
-        if (v instanceof Date) {
-          // Date object จาก Sheets — ตรวจว่าเป็น epoch ว่างไหม (1899-12-30)
-          if (isNaN(v.getTime()) || v.getFullYear() < 2000) {
-            obj[k] = '';
-          } else {
-            obj[k] = v.toISOString();
-          }
-        } else if (typeof v === 'number' && k === 'เวลาโอน') {
-          // เวลาใน Sheets เก็บเป็น decimal เช่น 0.8244 = 19:47:07
-          if (v > 0 && v < 1) {
-            var totalSec = Math.round(v * 86400);
-            var hh = Math.floor(totalSec / 3600);
-            var mm = Math.floor((totalSec % 3600) / 60);
-            obj[k] = hh + ':' + (mm < 10 ? '0' : '') + mm;
-          } else {
-            obj[k] = '';
-          }
-        } else {
-          obj[k] = v;
-        }
-      });
-      rows.push(obj);
-    }
-
-    rows.sort(function(a, b) {
-      return new Date(a['วันที่โอน'] || 0) - new Date(b['วันที่โอน'] || 0);
-    });
-
-    var total = rows.reduce(function(s, r) {
-      return s + (parseFloat(r['ยอดเงิน']) || 0);
-    }, 0);
-
-    return { rows: rows, total: total, count: rows.length };
-
-  } catch(err) {
-    return { rows: [], total: 0, count: 0, error: err.message };
-  }
-}
 
 function getDsrWeekSlipsWithRange(email, monISO, sunISO) {
   try {
@@ -2114,80 +2011,7 @@ function formatDateRangeThai(monDate, sunDate) {
 }
  
 
-// getMondayOfWeek ที่ใช้ Bangkok timezone จริงๆ
-function getMondayOfWeekBKK() {
-  var now = new Date();
-  var bkk = new Date(now.toLocaleString('en-US', {timeZone:'Asia/Bangkok'}));
-  var day = bkk.getDay(); // 0=Sun
-  var diff = (day === 0) ? -6 : 1 - day;
-  var mon = new Date(bkk);
-  mon.setDate(bkk.getDate() + diff);
-  mon.setHours(0, 0, 0, 0);
-  return mon;
-}
-
-// API: บันทึกการแก้ไขจาก DSR
-
-function saveDsrEdits(edits) {
-  if (!Array.isArray(edits)) throw new Error('edits must be array');
-
-  var ss    = SpreadsheetApp.openById(prop('SPREADSHEET_ID_SLIP'));
-  var sheet = ss.getSheetByName(SH.SLIPS);
-  var h     = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-
-  var idxMap = {
-    'รหัสลูกค้า':    h.indexOf('รหัสลูกค้า') + 1,
-    'ชื่อร้าน':      h.indexOf('ชื่อร้าน') + 1,
-    'เลขที่บิล':     h.indexOf('เลขที่บิล') + 1,
-    'ยอดเงิน':       h.indexOf('ยอดเงิน') + 1,
-    'note':          h.indexOf('note') > 0 ? h.indexOf('note') + 1 : null,
-  };
-
-  // เพิ่ม column note ถ้ายังไม่มี
-  if (!idxMap['note']) {
-    var col = sheet.getLastColumn() + 1;
-    sheet.getRange(1, col).setValue('note');
-    sheet.getRange(1, col)
-      .setBackground('#E8631A').setFontColor('#fff').setFontWeight('bold');
-    idxMap['note'] = col;
-  }
-
-  var updated = 0;
-  edits.forEach(function(e) {
-    if (!e.row) return;
-    Object.keys(e.fields || {}).forEach(function(col) {
-      if (!idxMap[col]) return;
-      sheet.getRange(e.row, idxMap[col]).setValue(e.fields[col]);
-    });
-    updated++;
-  });
-
-  return { updated: updated };
-}
-
 // HTML: หน้า DSR Review
-
-function generateCoverSheetPdf(email) {
-  if (!email) throw new Error('missing email');
-
-  var data = getDsrWeekSlips(email);
-  var rows = data.rows || [];
-  if (rows.length === 0) throw new Error('ไม่มีสลิปสัปดาห์นี้');
-
-  var dsrName  = getUserDisplayName(email);
-  var today    = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy');
-  var html     = buildCoverSheetHtml(rows, dsrName, today, data.total);
-  var filename = 'ใบสรุปเงิน_' + dsrName + '_' + today.replace(/\//g, '-') + '.pdf';
-  var folder   = ensureCoverSheetFolder();
-
-  var blob    = Utilities.newBlob(html, 'text/html', 'cover.html').getAs('application/pdf');
-  blob.setName(filename);
-  var pdfFile = folder.createFile(blob);
-  pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-  return { url: pdfFile.getUrl(), filename: filename,
-           count: rows.length, total: data.total };
-}
 
 function generateCoverSheetPdfRange(email, monISO, sunISO) {
   if (!email) throw new Error('missing email');
@@ -2297,48 +2121,6 @@ function escapeHtmlSrv(s) {
 }
 
 
-// ═══ HELPERS ═══════════════════════════════════════════════════════
-
-function getLogoBase64Html() {
-  try {
-    // ค้นใน folder NCO_CoverSheets ก่อน แล้วค่อย fallback ทั้ง Drive
-    var logoBlob = null;
-    var logoName = 'Nice Center Oil x Castrol - Business Card ใส.png';
-
-    var folders = DriveApp.getFoldersByName('NCO_CoverSheets');
-    if (folders.hasNext()) {
-      var folder = folders.next();
-      var files  = folder.getFilesByName(logoName);
-      if (files.hasNext()) logoBlob = files.next().getBlob();
-    }
-
-    // fallback: ค้นทั้ง Drive
-    if (!logoBlob) {
-      var allFiles = DriveApp.getFilesByName(logoName);
-      if (allFiles.hasNext()) logoBlob = allFiles.next().getBlob();
-    }
-
-    if (!logoBlob) {
-      return '<span style="font-size:15px;font-weight:700;color:#E8631A">NICE CENTER</span>' +
-             '&nbsp;<span style="font-size:15px;font-weight:700;color:#E8212A">Castrol</span>';
-    }
-
-    var b64  = Utilities.base64Encode(logoBlob.getBytes());
-    var mime = logoBlob.getContentType();
-    return '<img src="data:' + mime + ';base64,' + b64 + '" style="height:44px;">';
-
-  } catch(e) {
-    return '<span style="font-size:15px;font-weight:700;color:#E8212A">Castrol</span>';
-  }
-}
-
-function parseMoneyCell(v) {
-  if (v === null || v === undefined) return 0;
-  if (typeof v === 'number') return v;
-  // เอาเฉพาะตัวเลข จุดทศนิยม และ minus
-  var cleaned = String(v).replace(/[^0-9.\-]/g, '');
-  return parseFloat(cleaned) || 0;
-}
 
 // แปลง Slip2Go response → format ที่โค้ดเราใช้อยู่
 // Slip2Go fields: transRef, dateTime (ISO 8601), amount,
@@ -2869,28 +2651,6 @@ function assignBillToSlipRow(rowIndex, invoiceNo) {
     Logger.log('[assignBillToSlipRow] ' + err.message);
     return { ok: false, error: err.message };
   }
-}
-
-// ═══ PDF COVER SHEET GENERATOR ═════════════════════════════════════
-// สร้าง HTML สวยๆ → convert เป็น PDF ด้วย Google Docs API
-
-function serveDsrReviewPage(email) {
-  if (!email) {
-    return HtmlService.createHtmlOutput(
-      '<div style="padding:40px;font-family:sans-serif;text-align:center">' +
-      '<h2>กรุณาระบุ email ใน URL</h2>' +
-      '<p>ตัวอย่าง: ?page=dsr-review&email=nuch@gmail.com</p></div>'
-    );
-  }
-  var name = getUserDisplayName(email);
-  var html = dsrReviewHtml()
-               .replace(/__DSR_EMAIL__/g, escapeHtmlSrv(email))
-               .replace(/__DSR_NAME__/g,  escapeHtmlSrv(name));
-  return HtmlService.createHtmlOutput(html)
-    .setTitle('DSR Review — NCO')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .setSandboxMode(HtmlService.SandboxMode.IFRAME);
 }
 
 // API: ดึงข้อมูลสลิปสัปดาห์นี้ของ DSR
@@ -3744,8 +3504,8 @@ function getSettlementIncome(weekStart, dsrEmail) {
 
 function ensureSettlementExpensesSheet() {
   var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  if (!ss.getSheetByName('SettlementExpenses')) {
-    var sh = ss.insertSheet('SettlementExpenses');
+  if (!ss.getSheetByName(SH.SETTLE_EXP)) {
+    var sh = ss.insertSheet(SH.SETTLE_EXP);
     sh.appendRow(['dsrEmail', 'weekStart', 'date', 'fuel', 'hotel', 'allowance']);
     sh.setFrozenRows(1);
     console.log('[ensureSettlementExpensesSheet] created SettlementExpenses sheet');
@@ -3755,7 +3515,7 @@ function ensureSettlementExpensesSheet() {
 function getSettlementExpenses(weekStart, dsrEmail) {
   console.log('[getSettlementExpenses] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
   ensureSettlementExpensesSheet();
-  var rows = sheetToObjects('SettlementExpenses');
+  var rows = sheetToObjects(SH.SETTLE_EXP);
   var result = rows
     .filter(function(r) { return r.dsrEmail === dsrEmail && r.weekStart === weekStart; })
     .map(function(r) {
@@ -3777,7 +3537,7 @@ function saveSettlementExpenses(data, user) {
   ensureSettlementExpensesSheet();
 
   var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  var sheet = ss.getSheetByName('SettlementExpenses');
+  var sheet = ss.getSheetByName(SH.SETTLE_EXP);
   var vals  = sheet.getDataRange().getValues();
 
   // Upsert: ลบแถวเดิมของ dsrEmail+weekStart ก่อน (loop จากล่างขึ้นบน)

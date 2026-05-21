@@ -1674,23 +1674,23 @@ img { max-width: 100%; }
           <div class="stat-grid anim-fadeup delay-2">
             <div class="stat-card orange">
               <div class="stat-label">ยอดเก็บเงินสัปดาห์นี้</div>
-              <div class="stat-value">248,500 <span class="stat-unit">฿</span></div>
-              <div class="stat-change up">↑ 12% vs สัปดาห์ที่แล้ว</div>
+              <div class="stat-value" id="sum-cash">— <span class="stat-unit">฿</span></div>
+              <div class="stat-change" id="sum-cash-sub">กำลังโหลด...</div>
             </div>
             <div class="stat-card green">
               <div class="stat-label">บิลที่เก็บแล้ว</div>
-              <div class="stat-value">14 <span class="stat-unit">/22</span></div>
-              <div class="stat-change up">เหลืออีก 8 บิล</div>
+              <div class="stat-value" id="sum-bills">—</div>
+              <div class="stat-change" id="sum-bills-sub">กำลังโหลด...</div>
             </div>
             <div class="stat-card gray">
               <div class="stat-label">ระยะทางวันนี้</div>
-              <div class="stat-value">87 <span class="stat-unit">km</span></div>
-              <div class="stat-change">ไมล์เช้า: 48,231</div>
+              <div class="stat-value" id="sum-distance">— <span class="stat-unit">km</span></div>
+              <div class="stat-change" id="sum-distance-sub">—</div>
             </div>
             <div class="stat-card red">
               <div class="stat-label">ยอดนำส่งสุทธิ</div>
-              <div class="stat-value">241,200 <span class="stat-unit">฿</span></div>
-              <div class="stat-change">หัก expenses แล้ว</div>
+              <div class="stat-value" id="sum-net">— <span class="stat-unit">฿</span></div>
+              <div class="stat-change" id="sum-net-sub">หัก expenses แล้ว</div>
             </div>
           </div>
 
@@ -1711,7 +1711,7 @@ img { max-width: 100%; }
               </div>
               <div class="qa-label">สรุปการเก็บเงิน</div>
             </div>
-            <div class="qa-btn" onclick="navTo('allowance')">
+            <div class="qa-btn" onclick="navTo('settlement')">
               <div class="qa-icon" style="background:#FFF0F0;">
                 <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="6" width="16" height="12" rx="1.5" stroke="var(--r)" stroke-width="1.5"/><path d="M7 6V5a4 4 0 0 1 8 0v1" stroke="var(--r)" stroke-width="1.5"/></svg>
               </div>
@@ -1730,23 +1730,8 @@ img { max-width: 100%; }
             <div class="section-title">แจ้งเตือนรถ</div>
             <div class="section-action" onclick="navTo('mileage')">ดูทั้งหมด</div>
           </div>
-          <div class="card anim-fadeup delay-4" style="padding:12px 14px;">
-            <div class="alert-card urgent">
-              <div class="alert-icon" style="background:#FEE9E9;">🔧</div>
-              <div class="alert-content">
-                <div class="alert-title">เปลี่ยนน้ำมันเครื่อง</div>
-                <div class="alert-subtitle">ครบกำหนด ที่ 50,000 km — ปัจจุบัน 48,231 km</div>
-              </div>
-              <div class="tag tag-red">เร่งด่วน</div>
-            </div>
-            <div class="alert-card warning">
-              <div class="alert-icon" style="background:#FFFDF0;">📋</div>
-              <div class="alert-content">
-                <div class="alert-title">พรบ. หมดอายุ</div>
-                <div class="alert-subtitle">หมดอายุ 31 กรกฎาคม 2568 — เหลือ 24 วัน</div>
-              </div>
-              <div class="tag tag-orange">ใกล้ครบ</div>
-            </div>
+          <div class="card anim-fadeup delay-4" id="alert-card-wrap" style="padding:12px 14px;">
+            <div style="text-align:center;padding:12px 0;color:var(--ink3);font-size:13px;" id="alert-empty-state">กำลังโหลด...</div>
           </div>
         </div>
         
@@ -1785,63 +1770,6 @@ img { max-width: 100%; }
           </div>
         </div>
         
-
-
-        
-        <div class="page" id="page-debt">
-          <!-- Sub-tab bar -->
-          <div class="debt-subtabs">
-            <div class="debt-subtab active" id="dbtab-btn-collect" onclick="switchDebtTab('collect')">เก็บหนี้</div>
-            <div class="debt-subtab" id="dbtab-btn-cash" onclick="switchDebtTab('cash')">สรุปเงินสด / เช็ค</div>
-          </div>
-
-          <!-- Tab 1: เก็บหนี้ (เดิม) -->
-          <div class="debt-tab-pane active" id="dbtab-collect">
-            <div class="week-nav">
-              <div class="week-nav-btn" onclick="changeWeek(-1)">‹</div>
-              <div class="week-label">สัปดาห์ที่ 28 / 2568</div>
-              <div class="week-nav-btn" onclick="changeWeek(1)">›</div>
-            </div>
-
-
-            <div class="card mb-16">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <div style="font-size:13px;font-weight:600;">ความคืบหน้าการเก็บเงิน</div>
-                <div class="tag tag-green">14/22 บิล</div>
-              </div>
-              <div class="progress-bar-wrap">
-                <div class="progress-bar-fill" style="width:64%;"></div>
-              </div>
-              <div style="display:flex;justify-content:space-between;margin-top:6px;">
-                <div style="font-size:11px;color:var(--ink3);">248,500 ฿ เก็บแล้ว</div>
-                <div style="font-size:11px;color:var(--ink3);">รวม 388,000 ฿</div>
-              </div>
-            </div>
-
-
-            <div class="section-header">
-              <div class="section-title">รายการบิล</div>
-              <div style="display:flex;gap:6px;">
-                <div class="tag tag-gray" style="cursor:pointer;" onclick="filterDebt('all')">ทั้งหมด</div>
-                <div class="tag tag-orange" style="cursor:pointer;" onclick="filterDebt('pending')">ค้างอยู่</div>
-              </div>
-            </div>
-            <div class="card" id="debt-list">
-
-            </div>
-
-
-            <div class="btn btn-green mt-16" onclick="generateCoverSheet()">
-              🖨️ สร้าง Cover Sheet สัปดาห์นี้
-            </div>
-          </div>
-
-          <!-- Tab 2: สรุปเงินสด / เช็ค (cash_entry.html ผ่าน iframe) -->
-          <div class="debt-tab-pane" id="dbtab-cash">
-            <!-- iframe จะถูก inject เมื่อเปิด tab ครั้งแรก -->
-          </div>
-        </div>
-
 
 
         <!-- ── page-collection ── สรุปการเก็บเงิน (hub 2 tabs) ── -->
@@ -2016,23 +1944,23 @@ img { max-width: 100%; }
             <div class="admin-stat-row">
               <div class="stat-card orange">
                 <div class="stat-label">ยอดเก็บรวมทีม</div>
-                <div class="stat-value">1.24 <span class="stat-unit">M฿</span></div>
-                <div class="stat-change up">↑ 8.4%</div>
+                <div class="stat-value" id="adm-sum-cash">—</div>
+                <div class="stat-change" id="adm-sum-cash-sub">กำลังโหลด...</div>
               </div>
               <div class="stat-card green">
                 <div class="stat-label">บิลปิดแล้ว</div>
-                <div class="stat-value">68 <span class="stat-unit">/110</span></div>
-                <div class="stat-change">62% complete</div>
+                <div class="stat-value" id="adm-sum-bills">—</div>
+                <div class="stat-change" id="adm-sum-bills-sub">กำลังโหลด...</div>
               </div>
               <div class="stat-card gray">
                 <div class="stat-label">ระยะทางรวม</div>
-                <div class="stat-value">2,847 <span class="stat-unit">km</span></div>
+                <div class="stat-value" id="adm-sum-dist">—</div>
                 <div class="stat-change">สัปดาห์นี้</div>
               </div>
               <div class="stat-card red">
                 <div class="stat-label">ค่าใช้จ่ายรวม</div>
-                <div class="stat-value">38,400 <span class="stat-unit">฿</span></div>
-                <div class="stat-change down">↑ 5.2%</div>
+                <div class="stat-value" id="adm-sum-exp">—</div>
+                <div class="stat-change">น้ำมัน + ที่พัก + เบี้ย</div>
               </div>
             </div>
 
@@ -2522,7 +2450,7 @@ async function loadHomeData() {
 
   // แจ้งเตือนรถ
   const alerts = await apiCall('GET_MAINTENANCE_ALERTS');
-  if (alerts && alerts.length) renderMaintenanceAlerts(alerts);
+  renderMaintenanceAlerts(alerts || []);
 }
 
 function updateSessionCards(s) {
@@ -2534,6 +2462,22 @@ function updateSessionCards(s) {
     morningCard.querySelector('.session-status').style.color = 'var(--g)';
     morningCard.querySelector('.session-status').textContent = '✓ บันทึกแล้ว ' + (s.morning?.start_km ? parseInt(s.morning.start_km).toLocaleString() + ' km' : '');
   }
+
+  // อัปเดต stat-card ระยะทางวันนี้
+  const startKm = parseInt(s.morning?.start_km) || 0;
+  const endKm   = parseInt(s.evening?.end_km)   || 0;
+  const distEl  = document.getElementById('sum-distance');
+  const distSub = document.getElementById('sum-distance-sub');
+  if (distEl) {
+    if (s.evening_done && endKm > startKm) {
+      distEl.textContent = (endKm - startKm).toLocaleString('th-TH') + ' km';
+      if (distSub) distSub.textContent = 'เช้า: ' + startKm.toLocaleString() + ' · เย็น: ' + endKm.toLocaleString();
+    } else if (s.morning_done && startKm) {
+      distEl.textContent = '— km';
+      if (distSub) distSub.textContent = 'เช้า: ' + startKm.toLocaleString() + ' · รอบันทึกเย็น';
+    }
+  }
+
   if (s.evening_done) {
     eveningCard.classList.add('done');
     eveningCard.classList.remove('active-now');
@@ -2545,28 +2489,25 @@ function updateSessionCards(s) {
 }
 
 function updateSettlementUI(settle) {
-  const statCards = document.querySelectorAll('.stat-card');
-  if (!statCards.length) return;
-  // อัปเดต summary stats บน home page
-  const fmt = n => (parseFloat(n)||0).toLocaleString('th-TH');
-  const cashEl = document.getElementById('sum-cash');
-  const billEl = document.getElementById('sum-bills');
-  const expEl  = document.getElementById('sum-exp');
-  const netEl  = document.getElementById('sum-net');
-  if (cashEl) cashEl.textContent = fmt(settle.total_cash) + ' ฿';
-  if (billEl) billEl.textContent = settle.collected_count + '/' + settle.bill_count + ' บิล';
-  if (expEl)  expEl.textContent  = fmt(settle.total_expenses) + ' ฿';
-  if (netEl)  netEl.textContent  = fmt(settle.net_remittance) + ' ฿';
+  if (!settle) return;
+  const fmt = n => Math.round(parseFloat(n)||0).toLocaleString('th-TH');
+  const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
 
-  // Settlement page
-  const amtEl = document.querySelector('.settlement-amount');
-  if (amtEl) amtEl.textContent = '฿' + fmt(settle.net_remittance);
+  setEl('sum-cash',      fmt(settle.total_cash) + ' ฿');
+  setEl('sum-cash-sub',  'เงินสดที่เก็บได้');
+  setEl('sum-bills',     (settle.collected_count || 0) + ' / ' + (settle.bill_count || 0) + ' บิล');
+  setEl('sum-bills-sub', 'เหลือ ' + Math.max(0, (settle.bill_count||0) - (settle.collected_count||0)) + ' บิล');
+  setEl('sum-net',       fmt(settle.net_remittance) + ' ฿');
 }
 
 function renderMaintenanceAlerts(alerts) {
-  const container = document.querySelector('.card .alert-card')?.parentElement;
+  const container = document.getElementById('alert-card-wrap');
   if (!container) return;
-  container.innerHTML = alerts.slice(0,3).map(a => `
+  if (!alerts || !alerts.length) {
+    container.innerHTML = '<div style="text-align:center;padding:12px 0;color:var(--ink3);font-size:13px;">ไม่มีแจ้งเตือนรถในขณะนี้ ✓</div>';
+    return;
+  }
+  container.innerHTML = alerts.slice(0, 3).map(a => `
     <div class="alert-card ${a.severity}">
       <div class="alert-icon" style="background:${a.severity==='urgent'?'#FEE9E9':'#FFFDF0'}">${a.type==='oil'?'🔧':a.type==='tire'?'🛞':a.type==='tax'?'📋':'⚠️'}</div>
       <div class="alert-content">
@@ -2647,9 +2588,10 @@ function renderDSRRoster() {
   const colors    = DSR_COLORS.default;
   const statusColor = { ahead:'var(--g)', 'on-track':'var(--o)', behind:'var(--r)' };
   const statusTh    = { ahead:'เหนือเป้า', 'on-track':'ตามแผน', behind:'ล่าช้า' };
+  const fmt = n => Math.round(parseFloat(n)||0).toLocaleString('th-TH');
+
   container.innerHTML = dsrRosterData.map((d, i) => {
     const s  = d.settlement || {};
-    const fmt= n => Math.round(parseFloat(n)||0).toLocaleString('th-TH');
     const st = s.collected_count >= s.bill_count * 0.8 ? 'ahead' : s.collected_count >= s.bill_count * 0.5 ? 'on-track' : 'behind';
     const col= colors[i % colors.length];
     return `<div class="dsr-card">
@@ -2666,6 +2608,27 @@ function renderDSRRoster() {
       </div>
     </div>`;
   }).join('');
+
+  // อัปเดต admin aggregate stat-cards จาก dsrRosterData
+  var totCash = 0, totBillsClosed = 0, totBillsAll = 0, totExp = 0, totDist = 0;
+  dsrRosterData.forEach(function(d) {
+    const s = d.settlement || {};
+    totCash      += parseFloat(s.total_cash)      || 0;
+    totBillsClosed += parseInt(s.collected_count) || 0;
+    totBillsAll  += parseInt(s.bill_count)         || 0;
+    totExp       += parseFloat(s.total_expenses)   || 0;
+    totDist      += parseFloat(d.total_distance)   || 0;
+  });
+  const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  var cashK = totCash >= 1000000
+    ? (totCash/1000000).toFixed(2) + ' M฿'
+    : fmt(totCash) + ' ฿';
+  setEl('adm-sum-cash',      cashK);
+  setEl('adm-sum-cash-sub',  'ยอดเก็บสัปดาห์นี้');
+  setEl('adm-sum-bills',     totBillsClosed + ' / ' + totBillsAll + ' บิล');
+  setEl('adm-sum-bills-sub', Math.round(totBillsAll ? totBillsClosed/totBillsAll*100 : 0) + '% สำเร็จ');
+  setEl('adm-sum-dist',      fmt(totDist) + ' km');
+  setEl('adm-sum-exp',       fmt(totExp) + ' ฿');
 }
 
 // ─── SAVE ACTIONS ────────────────────────────────────────────
