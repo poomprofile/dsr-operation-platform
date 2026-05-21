@@ -1602,6 +1602,20 @@ img { max-width: 100%; }
 }
 .col-tab-pane { display: none; }
 .col-tab-pane.active { display: block; }
+/* summary grid for collection summary view */
+.col-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 680px) {
+  .col-summary-grid { grid-template-columns: 1fr; }
+}
+/* CE form save/load buttons */
+.ce-action-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.ce-wrap .ce-btn-save { background: #2E7D32; color: #fff; }
+.ce-wrap .ce-btn-load { background: var(--surface); color: var(--ink1); border: 1.5px solid var(--border); }
 </style>
 </head>
 <body>
@@ -1879,36 +1893,65 @@ img { max-width: 100%; }
         
 
 
-        <!-- ── page-collection ── สรุปการเก็บเงิน (hub 2 tabs) ── -->
+        <!-- ── page-collection ── สรุปการเก็บเงิน ── -->
         <div class="page" id="page-collection">
           <div class="section-header" style="margin-bottom:14px;">
             <div class="section-title">สรุปการเก็บเงิน</div>
           </div>
 
-          <!-- Sub-tab bar -->
+          <!-- Sub-tab bar (3 tabs) -->
           <div class="col-subtabs">
-            <div class="col-subtab active" id="coltab-btn-cash" onclick="switchCollectionTab('cash')">สรุปเงินสด / เช็ค</div>
-            <div class="col-subtab" id="coltab-btn-slip" onclick="switchCollectionTab('slip')">สรุปเงินโอน Slip2Go</div>
+            <div class="col-subtab active" id="coltab-btn-summary" onclick="switchCollectionTab('summary')">สรุปประจำอาทิตย์</div>
+            <div class="col-subtab" id="coltab-btn-cash" onclick="switchCollectionTab('cash')">บันทึกเงินสด/เช็ค</div>
+            <div class="col-subtab" id="coltab-btn-slip" onclick="switchCollectionTab('slip')">สรุปใบโอน</div>
+          </div>
+
+          <!-- Tab 0: สรุปประจำอาทิตย์ (default) -->
+          <div class="col-tab-pane active" id="coltab-summary">
+            <div class="stl-week-bar" style="margin-bottom:12px;">
+              <select id="col-week-sel" class="stl-week-sel" onchange="collectionWeekChanged()">
+                <!-- populated by collectionBuildWeekOptions() -->
+              </select>
+            </div>
+            <div class="col-summary-grid">
+              <!-- Left: cash/cheque summary -->
+              <div class="card" style="padding:14px;">
+                <div class="card-title" style="margin-bottom:10px;">💵 เงินสด / เช็ค</div>
+                <div id="col-cash-content">
+                  <div class="stl-empty-msg" style="padding:16px;text-align:center;color:var(--ink3);">⏳ กำลังโหลด...</div>
+                </div>
+              </div>
+              <!-- Right: Slip2Go summary -->
+              <div class="card" style="padding:14px;">
+                <div class="card-title" style="margin-bottom:10px;">📲 Slip2Go</div>
+                <div id="col-slip-content">
+                  <div class="stl-empty-msg" style="padding:16px;text-align:center;color:var(--ink3);">⏳ กำลังโหลด...</div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Tab 1: บันทึกเงินสด / เช็ค (inlined from cash_entry.html) -->
-          <div class="col-tab-pane active" id="coltab-cash">
+          <div class="col-tab-pane" id="coltab-cash">
           <div class="ce-wrap">
             <!-- Header -->
             <div class="hdr">
               <div id="ce-logo-wrap"><span style="font-size:15px;font-weight:700;color:var(--o)">NCO</span></div>
               <div class="hdr-title"><h1 style="font-size:14px;font-weight:700;">NCO DSR Portal</h1><p style="font-size:11px;color:var(--muted);">บันทึกเงินสด / เช็ค</p></div>
               <div class="hdr-meta">
-                <label>วันที่บันทึก:</label>
-                <input type="date" id="inp-date" class="meta-inp">
-                <label>ชื่อ DSR:</label>
+                <label>วันที่:</label>
+                <select id="inp-day" class="meta-inp" style="width:52px;"></select>
+                <select id="inp-month" class="meta-inp" style="width:100px;"></select>
+                <label>DSR:</label>
                 <input type="text" id="inp-dsr" class="meta-inp" readonly placeholder="กำลังโหลด...">
-                <button class="ce-btn ce-btn-print" onclick="printDoc()">พิมพ์</button>
+                <button class="ce-btn ce-btn-save" onclick="ceSaveAndPrint()">💾 บันทึก+พิมพ์</button>
+                <button class="ce-btn ce-btn-load" onclick="ceLoadByDate()">📥 โหลด</button>
+                <button class="ce-btn ce-btn-print" onclick="printDoc()">🖨️</button>
               </div>
             </div>
             <!-- Table -->
             <div class="tbl-wrap" id="tbl-wrap">
-              <table>
+              <table id="ce-table">
                 <thead>
                   <tr>
                     <th style="width:30px">No.</th>
@@ -1989,7 +2032,7 @@ img { max-width: 100%; }
             </select>
           </div>
 
-          <!-- ยอดเก็บเงิน (read-only) -->
+          <!-- ยอดเก็บเงิน (cash read-only, manual transfer editable) -->
           <div class="card mb-16">
             <div class="card-title">💵 ยอดเก็บเงินอาทิตย์นี้</div>
             <div style="overflow-x:auto;">
@@ -1998,15 +2041,21 @@ img { max-width: 100%; }
                   <tr>
                     <th>วันที่</th>
                     <th>สด (฿)</th>
+                    <th style="font-size:11px;">โอน manual (฿)</th>
                     <th>เช็ค (฿)</th>
                     <th>รวม (฿)</th>
                   </tr>
                 </thead>
                 <tbody id="stl-inc-body">
-                  <tr><td colspan="4" class="stl-empty-msg">กำลังโหลด...</td></tr>
+                  <tr><td colspan="5" class="stl-empty-msg">กำลังโหลด...</td></tr>
                 </tbody>
                 <tfoot id="stl-inc-foot"></tfoot>
               </table>
+            </div>
+            <!-- Slip2Go total row -->
+            <div id="stl-slip-row" style="display:none;padding:8px 4px;font-size:13px;color:var(--ink2);border-top:1px solid var(--border);margin-top:4px;">
+              เงินโอนผ่าน Slip2Go: <strong id="stl-slip-count">0</strong> รายการ =
+              <strong id="stl-slip-total" style="color:var(--g-dark);">0 ฿</strong>
             </div>
           </div>
 
@@ -3011,7 +3060,7 @@ async function stlLoadSettlement() {
     _stlDirty = false;
   }
 
-  document.getElementById('stl-inc-body').innerHTML = '<tr><td colspan="4" class="stl-empty-msg">กำลังโหลด...</td></tr>';
+  document.getElementById('stl-inc-body').innerHTML = '<tr><td colspan="5" class="stl-empty-msg">กำลังโหลด...</td></tr>';
   document.getElementById('stl-inc-foot').innerHTML = '';
   document.getElementById('stl-exp-body').innerHTML = '<tr><td colspan="7" class="stl-empty-msg">กำลังโหลด...</td></tr>';
 
@@ -3034,32 +3083,54 @@ async function stlLoadSettlement() {
 }
 
 function stlRenderIncome() {
+  var weekStart = stlWeekStart();
   var tbody = document.getElementById('stl-inc-body');
   var tfoot = document.getElementById('stl-inc-foot');
-  if (!_stlIncomeRows.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="stl-empty-msg">ยังไม่มีข้อมูล cash-entry อาทิตย์นี้</td></tr>';
-    tfoot.innerHTML = '';
-    return;
-  }
+  // build lookup by date
+  var byDate = {};
+  (_stlIncomeRows || []).forEach(function(r) { byDate[r.date] = r; });
+
+  var mon = new Date(weekStart + 'T00:00:00');
   var totC = 0, totQ = 0;
-  tbody.innerHTML = _stlIncomeRows.map(function(r) {
-    var tot = (r.cashAmount || 0) + (r.chequeAmount || 0);
-    totC += r.cashAmount   || 0;
-    totQ += r.chequeAmount || 0;
-    return '<tr>' +
-      '<td>' + (r.dateLabel || r.date) + '</td>' +
-      '<td>' + stlFmt(r.cashAmount)   + '</td>' +
-      '<td>' + stlFmt(r.chequeAmount) + '</td>' +
-      '<td style="font-weight:600">' + stlFmt(tot) + '</td>' +
+  var html = '';
+  for (var i = 0; i < 6; i++) {
+    var d   = new Date(mon); d.setDate(mon.getDate() + i);
+    var iso = stlDateISO(d);
+    var lbl = _THAI_DAYS[d.getDay()] + '. ' + d.getDate();
+    var r   = byDate[iso] || {};
+    var cash = parseFloat(r.cashAmount)   || 0;
+    var cheq = parseFloat(r.chequeAmount) || 0;
+    totC += cash; totQ += cheq;
+    html += '<tr data-date="' + iso + '">' +
+      '<td>' + lbl + '</td>' +
+      '<td>' + stlFmt(cash) + '</td>' +
+      '<td><input type="number" class="stl-input" id="stl-manual-' + iso +
+        '" placeholder="—" min="0" step="1" oninput="_stlDirty=true;stlRecalc()" style="width:80px;"></td>' +
+      '<td>' + stlFmt(cheq) + '</td>' +
+      '<td style="font-weight:600">' + stlFmtAlways(cash + cheq) + '</td>' +
       '</tr>';
-  }).join('');
-  var totAll = totC + totQ;
+  }
+  tbody.innerHTML = html;
+
   tfoot.innerHTML = '<tr>' +
     '<td>รวม</td>' +
-    '<td>' + stlFmtAlways(totC)   + '</td>' +
-    '<td>' + stlFmtAlways(totQ)   + '</td>' +
-    '<td>' + stlFmtAlways(totAll) + '</td>' +
+    '<td>' + stlFmtAlways(totC) + '</td>' +
+    '<td></td>' +
+    '<td>' + stlFmtAlways(totQ) + '</td>' +
+    '<td>' + stlFmtAlways(totC + totQ) + '</td>' +
     '</tr>';
+
+  // show Slip2Go row
+  var slipAmt   = (_stlSlipTotal && _stlSlipTotal.total) ? parseFloat(_stlSlipTotal.total) : 0;
+  var slipCount = (_stlSlipTotal && _stlSlipTotal.count) ? _stlSlipTotal.count : 0;
+  var slipRow = document.getElementById('stl-slip-row');
+  if (slipRow) {
+    slipRow.style.display = slipAmt > 0 ? '' : 'none';
+    var cntEl = document.getElementById('stl-slip-count');
+    var totEl = document.getElementById('stl-slip-total');
+    if (cntEl) cntEl.textContent = slipCount;
+    if (totEl) totEl.textContent = stlFmtAlways(slipAmt) + ' ฿';
+  }
 }
 
 function stlRenderTravel() { /* merged into stlBuildMergedRows */ }
@@ -3103,11 +3174,13 @@ function stlBuildMergedRows(weekStart) {
 
 function stlPreFillExp() {
   Object.keys(_stlSavedExp).forEach(function(iso) {
-    var r = _stlSavedExp[iso];
-    var fEl = document.getElementById('stl-fuel-'  + iso);
-    var hEl = document.getElementById('stl-hotel-' + iso);
-    if (fEl && r.fuel)  fEl.value = r.fuel;
-    if (hEl && r.hotel) hEl.value = r.hotel;
+    var r  = _stlSavedExp[iso];
+    var fEl = document.getElementById('stl-fuel-'   + iso);
+    var hEl = document.getElementById('stl-hotel-'  + iso);
+    var mEl = document.getElementById('stl-manual-' + iso);
+    if (fEl && r.fuel)            fEl.value = r.fuel;
+    if (hEl && r.hotel)           hEl.value = r.hotel;
+    if (mEl && r.manual_transfer) mEl.value = r.manual_transfer;
     stlUpdateAllow(iso);
   });
 }
@@ -3130,6 +3203,13 @@ function stlRecalc() {
   var totCash   = _stlIncomeRows.reduce(function(s, r) { return s + (r.cashAmount   || 0); }, 0);
   var totCheque = _stlIncomeRows.reduce(function(s, r) { return s + (r.chequeAmount || 0); }, 0);
   var slipAmt   = (_stlSlipTotal && _stlSlipTotal.total) ? parseFloat(_stlSlipTotal.total) : 0;
+  // TASK 5: sum manual transfer inputs from income table
+  var totManual = 0;
+  document.querySelectorAll('#stl-inc-body tr[data-date]').forEach(function(tr) {
+    var iso = tr.getAttribute('data-date');
+    var el  = document.getElementById('stl-manual-' + iso);
+    totManual += parseFloat((el || {}).value) || 0;
+  });
   var totFuel = 0, totHotel = 0, totAllow = 0;
 
   document.querySelectorAll('#stl-exp-body tr[data-date]').forEach(function(tr) {
@@ -3142,11 +3222,13 @@ function stlRecalc() {
   });
 
   var totDepr = (_stlMileageRows || []).reduce(function(s, r) { return s + (parseFloat(r.depreciation) || 0); }, 0);
-  var net = totCash + slipAmt - totFuel - totHotel - totAllow - totDepr;
+  // TASK 5: net includes manual transfer
+  var net = totCash + totManual + slipAmt - totFuel - totHotel - totAllow - totDepr;
 
   function setTxt(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
-  setTxt('stl-s-cash',  stlFmtAlways(totCash)   + ' ฿');
-  setTxt('stl-s-slip',  stlFmtAlways(slipAmt)   + ' ฿');
+  // update summary box: show manual if > 0
+  setTxt('stl-s-cash',  stlFmtAlways(totCash + totManual) + ' ฿');
+  setTxt('stl-s-slip',  stlFmtAlways(slipAmt) + ' ฿');
   setTxt('stl-s-fuel',  '− ' + stlFmtAlways(totFuel)  + ' ฿');
   setTxt('stl-s-hotel', '− ' + stlFmtAlways(totHotel) + ' ฿');
   setTxt('stl-s-allow', '− ' + stlFmtAlways(totAllow) + ' ฿');
@@ -3183,10 +3265,11 @@ async function stlSaveExpenses() {
 
   var expenses = [];
   document.querySelectorAll('#stl-exp-body tr[data-date]').forEach(function(tr) {
-    var iso   = tr.getAttribute('data-date');
-    var fuel  = parseFloat((document.getElementById('stl-fuel-'  + iso) || {}).value) || 0;
-    var hotel = parseFloat((document.getElementById('stl-hotel-' + iso) || {}).value) || 0;
-    expenses.push({ date: iso, fuel: fuel, hotel: hotel });
+    var iso    = tr.getAttribute('data-date');
+    var fuel   = parseFloat((document.getElementById('stl-fuel-'   + iso) || {}).value) || 0;
+    var hotel  = parseFloat((document.getElementById('stl-hotel-'  + iso) || {}).value) || 0;
+    var manual = parseFloat((document.getElementById('stl-manual-' + iso) || {}).value) || 0;
+    expenses.push({ date: iso, fuel: fuel, hotel: hotel, manual_transfer: manual });
   });
 
   var btn = document.getElementById('stl-save-btn');
@@ -3232,6 +3315,16 @@ async function stlPrint() {
     });
   });
 
+  // TASK 5: collect manual transfer rows for PDF
+  var manualRows = [];
+  document.querySelectorAll('#stl-inc-body tr[data-date]').forEach(function(tr) {
+    var iso    = tr.getAttribute('data-date');
+    var manual = parseFloat((document.getElementById('stl-manual-' + iso) || {}).value) || 0;
+    if (!manual) return;
+    var d = new Date(iso + 'T00:00:00');
+    manualRows.push({ date: iso, dateLabel: _THAI_DAYS[d.getDay()] + '. ' + d.getDate(), amount: manual });
+  });
+
   showToast('⏳ กำลังสร้าง PDF...', '');
 
   google.script.run
@@ -3254,6 +3347,7 @@ async function stlPrint() {
       expenseRows: expenseRows,
       mileageRows: _stlMileageRows,
       slipTotal:   _stlSlipTotal,
+      manualRows:  manualRows,
     });
 }
 
@@ -3424,7 +3518,7 @@ function navTo(page) {
   // โหลดข้อมูล per page
   if (page === 'debt' && !debtData.length) loadHomeData();
   if (page === 'debt') switchDebtTab('collect');   // reset to tab 1 on nav
-  if (page === 'collection') { switchCollectionTab('cash'); }
+  if (page === 'collection') { collectionBuildWeekOptions(); switchCollectionTab('summary'); }
   if (page === 'mileage')    { mileageBuildWeekOptions(); mileageLoad(); }
   if (page === 'print') {
     var shared = document.getElementById('cs-shared');
@@ -3461,10 +3555,19 @@ function switchDebtTab(tab) {
 // ─── COLLECTION SUB-TABS ───────────────────────────────────────
 var _ceCashInited = false;
 function switchCollectionTab(tab) {
-  document.getElementById('coltab-btn-cash').classList.toggle('active', tab === 'cash');
-  document.getElementById('coltab-btn-slip').classList.toggle('active', tab === 'slip');
-  document.getElementById('coltab-cash').classList.toggle('active', tab === 'cash');
-  document.getElementById('coltab-slip').classList.toggle('active', tab === 'slip');
+  ['summary','cash','slip'].forEach(function(t) {
+    var btn = document.getElementById('coltab-btn-' + t);
+    var pane = document.getElementById('coltab-' + t);
+    if (btn)  btn.classList.toggle('active',  t === tab);
+    if (pane) pane.classList.toggle('active', t === tab);
+  });
+
+  // Tab 0: summary — load data
+  if (tab === 'summary') {
+    collectionBuildWeekOptions();
+    collectionLoadSummary();
+    collectionLoadSlips();
+  }
 
   // Tab 1: initialize CE inline on first visit
   if (tab === 'cash' && !_ceCashInited) {
@@ -3581,6 +3684,14 @@ function onCodeChange(n) {
     panel.innerHTML = ''; billEl.value = ''; return;
   }
   if (_billCache[code]) { populateBillDropdown(n, _billCache[code]); return; }
+  // TASK 3: check preloaded master data first (instant, no backend call)
+  if (ceMasterData && ceMasterData[code]) {
+    var m = ceMasterData[code];
+    var res = { ok: true, shopName: m.name, bills: m.bills || [], storeInvSet: [] };
+    _billCache[code] = res;
+    populateBillDropdown(n, res);
+    return;
+  }
   nmEl.value = 'กำลังค้นหา...';
   ddv.textContent = 'กำลังโหลด...'; ddv.classList.add('muted');
   panel.innerHTML = '<div class="inv-dd-empty">กำลังโหลด...</div>';
@@ -3728,9 +3839,6 @@ function updateFooter() {
   document.getElementById('sum-total').textContent= fmtInt(tCash + tCheq);
 }
 function printDoc() {
-  var dsr  = document.getElementById('inp-dsr').value.trim() || _dsrLabel;
-  var date = document.getElementById('inp-date').value;
-  var now  = new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
   window.print();
 }
 // History panel
@@ -3836,11 +3944,11 @@ function buildRow(n) {
         ' onclick="toggleInvDd('+n+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \')toggleInvDd('+n+')">– เลือกบิล –</div>'+
       '<div class="inv-dd-panel" id="inv-panel-'+n+'"></div></div></td>'+
     '<td><input class="inp num" id="bill-'+n+'" readonly></td>'+
-    '<td class="cash-col"><input class="inp num" id="cash-'+n+'" type="text" inputmode="decimal"'+
-      ' onblur="fmtMoneyBlur(this)" onfocus="fmtMoneyFocus(this)" oninput="updateFooter()"></td>'+
-    '<td class="cheq-col"><input class="inp num" id="cheq-'+n+'" type="text" inputmode="decimal"'+
+    '<td class="cash-col"><input class="inp num" id="cash-'+n+'" data-type="amount" type="text" inputmode="decimal"'+
+      ' onblur="fmtMoneyBlur(this)" onfocus="fmtMoneyFocus(this)"></td>'+
+    '<td class="cheq-col"><input class="inp num" id="cheq-'+n+'" data-type="amount" type="text" inputmode="decimal"'+
       ' onblur="fmtMoneyBlur(this)" onfocus="fmtMoneyFocus(this)"'+
-      ' oninput="updateFooter();toggleCheqFields('+n+')"></td>'+
+      ' oninput="toggleCheqFields('+n+')"></td>'+
     '<td class="cheq-col"><div class="cheq-placeholder">–</div>'+
       '<div class="cheq-field"><input class="inp" id="cd-'+n+'" type="text" placeholder="DD/MM/ปป" maxlength="8" oninput="fmtDateInput(this)"></div></td>'+
     '<td class="cheq-col"><div class="cheq-placeholder">–</div>'+
@@ -3857,10 +3965,43 @@ function buildRow(n) {
     '<td><input class="inp" id="nt-'+n+'" onkeydown="onNoteKey(event,'+n+')"></td>';
   return tr;
 }
+// ─── TASK 3: preloaded master data ──────────────────────────────────────
+var ceMasterData = null; // { custCode: { name, bills:[{invoiceNo,amount,dueDate,overdueDays}] } }
+
 function ceCashInit() {
-  document.getElementById('inp-date').value = todayISO();
+  // TASK 2: Build day/month selects (no input[type=date])
+  (function buildDateSelects() {
+    var today  = new Date();
+    var thaiM  = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                  'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    var dayEl  = document.getElementById('inp-day');
+    var monEl  = document.getElementById('inp-month');
+    if (!dayEl || !monEl) return;
+    for (var d = 1; d <= 31; d++) {
+      var o = document.createElement('option');
+      o.value = d; o.textContent = d;
+      if (d === today.getDate()) o.selected = true;
+      dayEl.appendChild(o);
+    }
+    thaiM.forEach(function(m, i) {
+      var o = document.createElement('option');
+      o.value = i + 1; o.textContent = m;
+      if (i + 1 === today.getMonth() + 1) o.selected = true;
+      monEl.appendChild(o);
+    });
+  })();
+
   document.getElementById('tbl-wrap').addEventListener('scroll', closeAllInvDd);
   document.addEventListener('click', function(e) { if (!e.target.closest('.inv-dd')) closeAllInvDd(); });
+
+  // TASK 1: event delegation — updateFooter when any amount input changes
+  var ceTable = document.getElementById('ce-table');
+  if (ceTable) {
+    ceTable.addEventListener('input', function(e) {
+      if (e.target.matches('input[data-type="amount"]')) updateFooter();
+    });
+  }
+
   google.script.run
     .withSuccessHandler(function(html) {
       if (html) document.getElementById('ce-logo-wrap').innerHTML = html;
@@ -3877,8 +4018,87 @@ function ceCashInit() {
       document.getElementById('inp-dsr').placeholder = 'ไม่สามารถโหลดชื่อได้';
     })
     .getUserProfile();
+
+  // TASK 3: preload customer/bill master data once
+  if (!ceMasterData) {
+    google.script.run
+      .withSuccessHandler(function(data) { ceMasterData = data || {}; })
+      .withFailureHandler(function() { ceMasterData = {}; })
+      .handleApiCall('GET_CASH_ENTRY_MASTER', {});
+  }
+
   initRows();
 }
+// ─── TASK 2: date helper ─────────────────────────────────────────────────
+function getCeSelectedDate() {
+  var d = parseInt(document.getElementById('inp-day').value)   || new Date().getDate();
+  var m = parseInt(document.getElementById('inp-month').value) || (new Date().getMonth() + 1);
+  var y = new Date().getFullYear();
+  return y + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+}
+
+// TASK 2: Save rows + auto-print
+async function ceSaveAndPrint() {
+  var dateStr = getCeSelectedDate();
+  var rows = [];
+  for (var i = 1; i <= TOTAL_ROWS; i++) {
+    var code = ((document.getElementById('cc-'+i)||{}).value||'').trim();
+    var inv  = ((document.getElementById('inv-'+i)||{}).value||'').trim();
+    var cash = getRaw('cash-'+i);
+    var cheq = getRaw('cheq-'+i);
+    if (!cash && !cheq) continue;
+    if (cash > 0) {
+      rows.push({ log_date:dateStr, customer_code:code,
+        customer_name:((document.getElementById('nm-'+i)||{}).value||'').trim(),
+        invoice_no:inv, type:'cash', amount:cash,
+        note:((document.getElementById('nt-'+i)||{}).value||'').trim() });
+    }
+    if (cheq > 0) {
+      rows.push({ log_date:dateStr, customer_code:code,
+        customer_name:((document.getElementById('nm-'+i)||{}).value||'').trim(),
+        invoice_no:inv, type:'cheque', amount:cheq,
+        cheque_date:((document.getElementById('cd-'+i)||{}).value||'').trim(),
+        cheque_no:  ((document.getElementById('cn-'+i)||{}).value||'').trim(),
+        bank_name:  ((document.getElementById('bk-'+i)||{}).value||'').trim(),
+        branch_name:((document.getElementById('br-'+i)||{}).value||'').trim(),
+        note:       ((document.getElementById('nt-'+i)||{}).value||'').trim() });
+    }
+  }
+  if (!rows.length) { ceShowToast('ยังไม่มีรายการที่กรอก', 'error'); return; }
+  ceShowToast('⏳ กำลังบันทึก ' + rows.length + ' รายการ...', '');
+  var result = await apiCall('SAVE_CASH_CHEQUE_BATCH', { rows: rows });
+  if (result != null) {
+    rows.forEach(function(r){ if (r.invoice_no) _savedInvoices[r.invoice_no] = true; });
+    ceShowToast('✅ บันทึกแล้ว ' + (result.saved||0) + ' รายการ', 'success');
+    setTimeout(function(){ window.print(); }, 500);
+  }
+}
+
+// TASK 2: Load rows for selected date
+async function ceLoadByDate() {
+  var dateStr = getCeSelectedDate();
+  ceShowToast('⏳ กำลังโหลดข้อมูล ' + dateStr + '...', '');
+  var rows = await apiCall('GET_CASH_LOG_BY_DATE', { dateStr: dateStr });
+  if (!rows) return;
+  if (!rows.length) { ceShowToast('ไม่มีข้อมูลวันที่ ' + dateStr, ''); return; }
+  initRows(); // reset table
+  rows.forEach(function(r, idx) {
+    var n = idx + 1;
+    if (n > TOTAL_ROWS) return;
+    var ccEl = document.getElementById('cc-'+n);
+    var nmEl = document.getElementById('nm-'+n);
+    var ntEl = document.getElementById('nt-'+n);
+    if (ccEl) { ccEl.value = r.customer_code; document.getElementById('row-'+n).classList.add('has-data'); }
+    if (nmEl) nmEl.value = r.customer_name;
+    if (ntEl) ntEl.value = r.note;
+    // set cash or cheque amount
+    var cashEl = document.getElementById('cash-'+n);
+    if (cashEl && r.amount > 0) cashEl.value = fmtMoney(r.amount);
+  });
+  updateFooter();
+  ceShowToast('โหลด ' + rows.length + ' รายการสำเร็จ', 'success');
+}
+
 // ════════════════════════════════════════════
 //  END CE INLINE
 // ════════════════════════════════════════════

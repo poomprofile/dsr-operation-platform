@@ -264,6 +264,8 @@ function routeAction(action, payload, user) {
     GET_CHEQUE_LOG:         () => normalizeDateFields(getChequeLog(user, payload.filters), ['log_date']),
     GET_SUMMARY_DATA:       () => getSummaryData(user, payload.week_number, payload.dsr_email),
     SAVE_CASH_CHEQUE_BATCH: () => saveCashChequeBatch(payload.rows, user),
+    GET_CASH_LOG_BY_DATE:   () => getCashLogByDate(payload.dateStr, user.email),
+    GET_CASH_ENTRY_MASTER:  () => getCashEntryMasterData(user.email),
     GET_WEEKLY_SLIP_TOTAL:  () => {
       var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
       return getWeeklySlipTotal(payload.weekStart, em);
@@ -286,6 +288,10 @@ function routeAction(action, payload, user) {
       return getSettlementExpenses(payload.weekStart, em);
     },
     SAVE_SETTLEMENT_EXPENSES: () => saveSettlementExpenses(payload.data, user),
+    GET_SETTLEMENT_PAGE_DATA: () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return getSettlementPageData(payload.weekStart, em);
+    },
     // Mileage Summary (Module A extended)
     GET_MILEAGE_SUMMARY: () => {
       var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
@@ -3324,6 +3330,80 @@ function saveCashChequeBatch(rows, user) {
   return { saved: saved, skipped: skipped };
 }
 
+// ─── getCashLogByDate (TASK 2) ────────────────────────────────────────
+// Returns CASH_LOG rows for a specific DSR + date
+function getCashLogByDate(dateStr, dsrEmail) {
+  console.log('[getCashLogByDate] dateStr=%s dsrEmail=%s', dateStr, dsrEmail);
+  ensureCashChequeSheets();
+  var rows = sheetToObjects(SH_CC.CASH);
+  return rows.filter(function(r) {
+    if (r.dsr_email !== dsrEmail) return false;
+    var raw = r.log_date;
+    var d = (raw instanceof Date)
+      ? Utilities.formatDate(raw, 'Asia/Bangkok', 'yyyy-MM-dd')
+      : normDateStr(String(raw));
+    return d === dateStr;
+  }).map(function(r) {
+    return {
+      customer_code: r.customer_code || '',
+      customer_name: r.customer_name || '',
+      invoice_no:    r.invoice_no    || '',
+      amount:        parseFloat(r.amount) || 0,
+      note:          r.note          || '',
+    };
+  });
+}
+
+// ─── getCashEntryMasterData (TASK 3) ─────────────────────────────────
+// Preloads customer/bill data for the CE form — cached 300s
+function getCashEntryMasterData(dsrEmail) {
+  console.log('[getCashEntryMasterData] dsrEmail=%s', dsrEmail);
+  var cache = CacheService.getScriptCache();
+  var key   = 'ce_master_' + dsrEmail;
+  var hit   = cache.get(key);
+  if (hit) { console.log('[getCashEntryMasterData] cache hit'); return JSON.parse(hit); }
+
+  // Read from DEBT_MASTER (has assigned_dsr_id)
+  var rows  = sheetToObjects(SH.DEBT);
+  var map   = {};
+  rows.forEach(function(r) {
+    var assignedDsr = String(r.assigned_dsr_id || '').trim().toLowerCase();
+    // admin/specialist may have dsrEmail set to their own — just return all for non-DSR
+    // for DSR: filter by assigned_dsr_id
+    if (assignedDsr && assignedDsr !== dsrEmail.toLowerCase()) return;
+    var code = String(r.customer_code || '').trim();
+    if (!code) return;
+    if (!map[code]) {
+      map[code] = { name: String(r.customer_name || '').trim(), bills: [] };
+    }
+    var inv = String(r.invoice_no || '').trim();
+    if (inv) {
+      map[code].bills.push({
+        invoiceNo:    inv,
+        amount:       parseFloat(r.amount) || 0,
+        dueDate:      r.due_date ? normDateStr(String(r.due_date)) : null,
+        overdueDays:  null,
+        source:       'debt',
+      });
+    }
+  });
+
+  // Compute overdueDays
+  var today = new Date(); today.setHours(0,0,0,0);
+  Object.keys(map).forEach(function(code) {
+    map[code].bills.forEach(function(b) {
+      if (b.dueDate) {
+        var dd = new Date(b.dueDate + 'T00:00:00');
+        if (!isNaN(dd.getTime())) b.overdueDays = Math.floor((today - dd) / 86400000);
+      }
+    });
+  });
+
+  try { cache.put(key, JSON.stringify(map), 300); } catch(_) {}
+  console.log('[getCashEntryMasterData] built map size=%s', Object.keys(map).length);
+  return map;
+}
+
 // ─── getWeeklySlipTotal ───────────────────────────────────────────────
 function getWeeklySlipTotal(weekStart, dsrEmail) {
   console.log('[getWeeklySlipTotal] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
@@ -3512,7 +3592,7 @@ function ensureSettlementExpensesSheet() {
   var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   if (!ss.getSheetByName(SH.SETTLE_EXP)) {
     var sh = ss.insertSheet(SH.SETTLE_EXP);
-    sh.appendRow(['dsrEmail', 'weekStart', 'date', 'fuel', 'hotel', 'allowance']);
+    sh.appendRow(['dsrEmail', 'weekStart', 'date', 'fuel', 'hotel', 'allowance', 'manual_transfer']);
     sh.setFrozenRows(1);
     console.log('[ensureSettlementExpensesSheet] created SettlementExpenses sheet');
   }
@@ -3522,16 +3602,23 @@ function getSettlementExpenses(weekStart, dsrEmail) {
   console.log('[getSettlementExpenses] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
   ensureSettlementExpensesSheet();
   var rows = sheetToObjects(SH.SETTLE_EXP);
+  console.log('[getSettlementExpenses] total rows=%s', rows.length);
+  if (rows.length > 0) {
+    console.log('[getSettlementExpenses] sample weekStart raw=%s', rows[0].weekStart);
+  }
+  // BUG FIX: rowToObj converts Date→locale string; normDateStr() safely recovers YYYY-MM-DD
   var result = rows
-    .filter(function(r) { return r.dsrEmail === dsrEmail && r.weekStart === weekStart; })
+    .filter(function(r) { return r.dsrEmail === dsrEmail && normDateStr(r.weekStart) === weekStart; })
     .map(function(r) {
       return {
-        date:      r.date,
-        fuel:      parseFloat(r.fuel)      || 0,
-        hotel:     parseFloat(r.hotel)     || 0,
-        allowance: parseFloat(r.allowance) || 0,
+        date:            r.date,
+        fuel:            parseFloat(r.fuel)            || 0,
+        hotel:           parseFloat(r.hotel)           || 0,
+        allowance:       parseFloat(r.allowance)       || 0,
+        manual_transfer: parseFloat(r.manual_transfer) || 0,
       };
     });
+  console.log('[getSettlementExpenses] matched=%s', result.length);
   return result;
 }
 
@@ -3546,10 +3633,17 @@ function saveSettlementExpenses(data, user) {
   var sheet = ss.getSheetByName(SH.SETTLE_EXP);
   var vals  = sheet.getDataRange().getValues();
 
+  console.log('[saveSettlementExpenses] sheet=%s weekStart=%s expenses=%s', SH.SETTLE_EXP, data.weekStart, data.expenses ? data.expenses.length : 0);
   // Upsert: ลบแถวเดิมของ dsrEmail+weekStart ก่อน (loop จากล่างขึ้นบน)
+  // BUG FIX: vals[i][1] may be a Date object from GAS getValues() → format it before comparing
   if (vals.length > 1) {
     for (var i = vals.length - 1; i >= 1; i--) {
-      if (String(vals[i][0]) === targetEmail && String(vals[i][1]) === data.weekStart) {
+      var rowEmail = String(vals[i][0]);
+      var rawDate  = vals[i][1];
+      var rowDate  = (rawDate instanceof Date)
+        ? Utilities.formatDate(rawDate, 'Asia/Bangkok', 'yyyy-MM-dd')
+        : normDateStr(String(rawDate));
+      if (rowEmail === targetEmail && rowDate === data.weekStart) {
         sheet.deleteRow(i + 1);
       }
     }
@@ -3557,164 +3651,186 @@ function saveSettlementExpenses(data, user) {
 
   var inserted = 0;
   data.expenses.forEach(function(ex) {
-    var fuel  = parseFloat(ex.fuel)  || 0;
-    var hotel = parseFloat(ex.hotel) || 0;
-    if (fuel === 0 && hotel === 0) return; // skip empty rows
+    var fuel     = parseFloat(ex.fuel)            || 0;
+    var hotel    = parseFloat(ex.hotel)           || 0;
+    var manual   = parseFloat(ex.manual_transfer) || 0;
+    if (fuel === 0 && hotel === 0 && manual === 0) return; // skip empty rows
     var allowance = hotel > 0 ? 200 : 0;
-    sheet.appendRow([targetEmail, data.weekStart, ex.date, fuel, hotel, allowance]);
+    sheet.appendRow([targetEmail, data.weekStart, ex.date, fuel, hotel, allowance, manual]);
     inserted++;
   });
 
   return { saved: inserted };
 }
 
-function generateSettlementPDF(payload) {
+// ─── getSettlementPageData — batch loader for settlement page ─────────────
+function getSettlementPageData(weekStart, dsrEmail) {
+  console.log('[getSettlementPageData] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  var cache    = CacheService.getScriptCache();
+  var cacheKey = 'stl_' + dsrEmail + '_' + weekStart;
+  var cached   = cache.get(cacheKey);
+  if (cached) {
+    console.log('[getSettlementPageData] cache hit');
+    return JSON.parse(cached);
+  }
+  var income   = getSettlementIncome(weekStart, dsrEmail);
+  var expenses = getSettlementExpenses(weekStart, dsrEmail);
+  var mileage  = getMileageSummary(weekStart, dsrEmail);
+  var slipTotal = getWeeklySlipTotal(weekStart, dsrEmail);
+  var result = { income: income, expenses: expenses, mileage: mileage, slipTotal: slipTotal };
+  try { cache.put(cacheKey, JSON.stringify(result), 180); } catch(_) {}
+  return result;
+}
+
+function generateSettlementPDF(payload) { // TASK 6: accounting style, black/white/gray
   console.log('[generateSettlementPDF] dsr=%s weekStart=%s', payload.dsrEmail, payload.weekStart);
-  var logoHtml  = getLogoBase64Html();
-  var dsrName   = escapeHtmlSrv(payload.dsrName || payload.dsrEmail);
-  var incRows   = payload.incomeRows  || [];
-  var expRows   = payload.expenseRows || [];
-  var mileRows  = payload.mileageRows || [];
+  var logoHtml    = getLogoBase64Html();
+  var dsrName     = escapeHtmlSrv(payload.dsrName || payload.dsrEmail);
+  var incRows     = payload.incomeRows   || [];
+  var expRows     = payload.expenseRows  || [];
+  var mileRows    = payload.mileageRows  || [];
+  var manualRows  = payload.manualRows   || [];   // [{date, dateLabel, amount}]
+
+  // ── Build lookup maps ──────────────────────────────────────────────
+  var incByDate  = {};
+  incRows.forEach(function(r) { incByDate[r.date] = r; });
+  var manByDate  = {};
+  manualRows.forEach(function(r) { manByDate[r.date] = parseFloat(r.amount) || 0; });
 
   var thaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  var thaiDayShort = ['อา','จ','อ','พ','พฤ','ศ','ส'];
   function fmtDateTh(iso) {
     if (!iso) return '';
     var d = new Date(iso + 'T00:00:00');
     return d.getDate() + ' ' + thaiMonths[d.getMonth()] + ' ' + (d.getFullYear() + 543);
   }
-  function fmtMon(n) {
-    var v = parseFloat(n) || 0;
-    return v ? v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '—';
+  function fmtDayShort(iso) {
+    if (!iso) return '';
+    var d = new Date(iso + 'T00:00:00');
+    return thaiDayShort[d.getDay()] + '. ' + d.getDate();
   }
-  function fmtMonAlways(n) {
+  function fmtN(n) {
     var v = parseFloat(n) || 0;
-    return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return v ? v.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '—';
+  }
+  function fmtNAlways(n) {
+    return (parseFloat(n)||0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   }
 
   var printDate = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
   var weekRange = fmtDateTh(payload.weekStart) + ' – ' + fmtDateTh(payload.weekEnd);
 
-  // Income table
-  var totalCash = 0, totalCheque = 0;
-  var incHtml = incRows.map(function(r) {
-    var tot = (parseFloat(r.cashAmount)||0) + (parseFloat(r.chequeAmount)||0);
-    totalCash   += parseFloat(r.cashAmount)   || 0;
-    totalCheque += parseFloat(r.chequeAmount) || 0;
+  // ── Accumulate totals ────────────────────────────────────────────────
+  var totCash = 0, totCheque = 0, totManual = 0;
+  incRows.forEach(function(r) {
+    totCash   += parseFloat(r.cashAmount)   || 0;
+    totCheque += parseFloat(r.chequeAmount) || 0;
+  });
+  manualRows.forEach(function(r) { totManual += parseFloat(r.amount) || 0; });
+  var slipTotal  = parseFloat((payload.slipTotal || {}).total) || 0;
+  var slipCount  = (payload.slipTotal || {}).count || 0;
+  var totIncome  = totCash + totManual + slipTotal;   // cheque excluded from net calc
+
+  var totFuel = 0, totHotel = 0, totAllow = 0, totDepr = 0;
+  expRows.forEach(function(r) {
+    totFuel  += parseFloat(r.fuel)      || 0;
+    totHotel += parseFloat(r.hotel)     || 0;
+    totAllow += parseFloat(r.allowance) || 0;
+  });
+  mileRows.forEach(function(r) { totDepr += parseFloat(r.depreciation) || 0; });
+  var totExp    = totFuel + totHotel + totAllow + totDepr;
+  var netRemit  = totIncome - totExp;
+
+  // ── Build 6-day income rows using allDates (Mon–Sat) ─────────────────
+  // Get all unique dates from both income and manual rows
+  var allDates = [];
+  var seenDates = {};
+  incRows.concat(manualRows).forEach(function(r) {
+    if (r.date && !seenDates[r.date]) { seenDates[r.date] = true; allDates.push(r.date); }
+  });
+  allDates.sort();
+
+  var incTableRows = allDates.map(function(dt) {
+    var inc  = incByDate[dt]  || {};
+    var man  = manByDate[dt]  || 0;
+    var cash = parseFloat(inc.cashAmount) || 0;
     return '<tr>' +
-      '<td>' + escapeHtmlSrv(r.dateLabel || r.date) + '</td>' +
-      '<td class="r">' + fmtMon(r.cashAmount)   + '</td>' +
-      '<td class="r">' + fmtMon(r.chequeAmount)  + '</td>' +
-      '<td class="r b">' + fmtMonAlways(tot)     + '</td>' +
+      '<td>' + fmtDayShort(dt) + '</td>' +
+      '<td class="r">' + (cash   ? fmtNAlways(cash)  : '—') + '</td>' +
+      '<td class="r">' + (man    ? fmtNAlways(man)   : '—') + '</td>' +
       '</tr>';
-  }).join('') || '<tr><td colspan="4" class="empty">ไม่มีข้อมูล</td></tr>';
-  var totalInc = totalCash + totalCheque;
+  }).join('') || '<tr><td colspan="3" class="empty">ไม่มีข้อมูล</td></tr>';
 
-  var incFoot = '<tr><td class="b">รวม</td>' +
-    '<td class="r b">' + fmtMonAlways(totalCash)   + '</td>' +
-    '<td class="r b">' + fmtMonAlways(totalCheque) + '</td>' +
-    '<td class="r b">' + fmtMonAlways(totalInc)    + '</td></tr>';
-
-  // Expense table
-  var totFuel = 0, totHotel = 0, totAllow = 0;
-  var expHtml = expRows.map(function(r) {
-    var hotel = parseFloat(r.hotel)     || 0;
+  // ── Build expense rows ───────────────────────────────────────────────
+  var expTableRows = expRows.map(function(r) {
     var fuel  = parseFloat(r.fuel)      || 0;
+    var hotel = parseFloat(r.hotel)     || 0;
     var allow = parseFloat(r.allowance) || 0;
-    totFuel  += fuel;
-    totHotel += hotel;
-    totAllow += allow;
-    var hotelStyle = hotel > 500 ? ' style="background:#FFF3E0"' : '';
     return '<tr>' +
-      '<td>' + escapeHtmlSrv(r.dateLabel || r.date) + '</td>' +
-      '<td class="r">' + fmtMon(fuel) + '</td>' +
-      '<td class="r"' + hotelStyle + '>' + fmtMon(hotel) + '</td>' +
-      '<td class="r">' + fmtMon(allow) + '</td>' +
+      '<td>' + escapeHtmlSrv(r.dateLabel || fmtDayShort(r.date) || r.date) + '</td>' +
+      '<td class="r">' + fmtN(fuel)  + '</td>' +
+      '<td class="r">' + fmtN(hotel) + '</td>' +
+      '<td class="r">' + fmtN(allow) + '</td>' +
       '</tr>';
   }).join('') || '<tr><td colspan="4" class="empty">ไม่มีค่าใช้จ่าย</td></tr>';
 
-  var expFoot = '<tr><td class="b">รวม</td>' +
-    '<td class="r b">' + fmtMonAlways(totFuel)  + '</td>' +
-    '<td class="r b">' + fmtMonAlways(totHotel) + '</td>' +
-    '<td class="r b">' + fmtMonAlways(totAllow) + '</td></tr>';
-
-  // Travel / Mileage table
-  var totDist = 0, totDepr = 0;
-  var mileHtml = mileRows.map(function(r) {
-    var dist = parseFloat(r.distance)    || 0;
-    var depr = parseFloat(r.depreciation)|| 0;
-    totDist += dist;
-    totDepr += depr;
-    return '<tr>' +
-      '<td>' + escapeHtmlSrv(r.dateLabel || r.date) + '</td>' +
-      '<td>' + escapeHtmlSrv(r.zone || '—') + '</td>' +
-      '<td class="r">' + fmtMonAlways(dist) + '</td>' +
-      '<td>' + (r.vehicleType === 'personal' ? 'รถส่วนตัว' : 'รถบริษัท') + '</td>' +
-      '<td class="r">' + fmtMon(depr) + '</td>' +
-      '</tr>';
-  }).join('') || '<tr><td colspan="5" class="empty">ไม่มีข้อมูลไมล์</td></tr>';
-  var mileFoot = '<tr><td colspan="2" class="b">รวม</td>' +
-    '<td class="r b">' + fmtMonAlways(totDist) + ' กม.</td>' +
-    '<td></td>' +
-    '<td class="r b">' + fmtMonAlways(totDepr) + '</td></tr>';
-
-  var slipTotal = parseFloat((payload.slipTotal || {}).total) || 0;
-  var chequeTotal = 0;
-  incRows.forEach(function(r){ chequeTotal += parseFloat(r.chequeAmount)||0; });
-  var cashOnlyTotal = totalInc - chequeTotal;
-  var netRemit  = cashOnlyTotal + slipTotal - totFuel - totHotel - totAllow - totDepr;
-  var netClass  = netRemit >= 0 ? 'pos' : 'neg';
-
-  var css = [
-    '* { box-sizing: border-box; margin: 0; padding: 0; }',
-    '@page { size: A4 landscape; margin: 12mm 15mm; }',
-    'body { font-family: "Sarabun", Tahoma, sans-serif; font-size: 12px; color: #1A1A1A; }',
-    '@media screen {',
-    '  body { background: #f0f0f0; display: flex; flex-direction: column; align-items: center; padding: 24px; }',
-    '  .page-wrap { background: #fff; padding: 12mm 15mm; width: 297mm; min-height: 210mm; box-shadow: 0 4px 24px rgba(0,0,0,.15); }',
-    '  .print-btn { position: fixed; top: 16px; right: 16px; background: #007B40; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: 0 2px 8px rgba(0,0,0,.2); }',
-    '  .print-btn:active { transform: scale(.97); }',
-    '}',
-    '@media print {',
-    '  body { background: none; padding: 0; }',
-    '  .page-wrap { box-shadow: none; padding: 0; width: 100%; }',
-    '  .print-btn { display: none; }',
-    '}',
-    '.hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1A1A1A; padding-bottom: 8px; margin-bottom: 12px; gap: 12px; }',
-    '.hdr-left { display: flex; align-items: center; gap: 10px; min-width: 140px; }',
-    '.hdr-title { font-size: 15px; font-weight: 700; }',
-    '.hdr-sub { font-size: 11px; color: #666; }',
-    '.hdr-center { text-align: center; flex: 1; }',
-    '.hdr-dsr { font-size: 15px; font-weight: 600; }',
-    '.hdr-range { font-size: 12px; color: #555; margin-top: 2px; }',
-    '.hdr-right { text-align: right; font-size: 11px; color: #666; min-width: 120px; }',
-    /* ── landscape: 3 tables side-by-side ── */
-    '.tables-row { display: grid; grid-template-columns: 2fr 2fr 1.5fr; gap: 12px; margin-bottom: 12px; }',
-    '.table-col h3 { font-size: 12px; font-weight: 700; margin: 0 0 5px; border-left: 4px solid #E8631A; padding-left: 7px; }',
-    'table { width: 100%; border-collapse: collapse; }',
-    'th { font-size: 10px; font-weight: 700; border: 1px solid #555; padding: 3px 5px; text-align: center; background: #f0f0f0; }',
-    'th:first-child { text-align: left; }',
-    'td { border: 1px solid #ccc; padding: 3px 6px; font-size: 11px; }',
-    'tfoot td { font-weight: 700; background: #f8f8f8; border: 1px solid #555; }',
-    '.r { text-align: right; }',
-    '.b { font-weight: 700; }',
-    '.empty { text-align: center; color: #999; font-style: italic; padding: 10px; }',
-    /* ── 2-column summary box ── */
-    '.summary-box { border: 2px solid #1A1A1A; border-radius: 8px; padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }',
-    '.sum-col-label { font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }',
-    '.sum-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 12px; }',
-    '.sum-row.deduct { color: #444; }',
-    '.sum-divider { border-top: 2px solid #1A1A1A; margin: 6px 0; }',
-    '.net-row { display: flex; justify-content: space-between; align-items: baseline; padding-top: 4px; }',
-    '.net-label { font-size: 13px; font-weight: 700; }',
-    '.net-amount { font-size: 28px; font-weight: 700; line-height: 1; }',
-    '.pos { color: #007B40; }',
-    '.neg { color: #C8102E; }',
-    '.net-col { display: flex; flex-direction: column; justify-content: space-between; }',
-    /* ── signatures bottom-right ── */
-    '.sig-row { display: flex; justify-content: flex-end; gap: 40px; margin-top: 16px; }',
-    '.sig-box { text-align: center; min-width: 160px; }',
-    '.sig-line { border-top: 1px solid #555; margin-top: 40px; padding-top: 5px; font-size: 11px; font-weight: 600; }',
-  ].join('\n');
+  // ── CSS: black/white/gray only ─────────────────────────────────────
+  var css =
+    '* { box-sizing: border-box; margin: 0; padding: 0; }\n' +
+    '@page { size: A4 landscape; margin: 15mm 20mm; }\n' +
+    'body { font-family: "Sarabun", Tahoma, sans-serif; font-size: 11px; color: #111; background: #fff; }\n' +
+    '@media screen {\n' +
+    '  body { background: #eee; display: flex; flex-direction: column; align-items: center; padding: 24px; }\n' +
+    '  .page-wrap { background: #fff; padding: 15mm 20mm; width: 297mm; min-height: 210mm; box-shadow: 0 4px 24px rgba(0,0,0,.2); }\n' +
+    '  .print-btn { position: fixed; top: 16px; right: 16px; background: #333; color: #fff; border: none;\n' +
+    '    border-radius: 6px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer;\n' +
+    '    font-family: inherit; }\n' +
+    '}\n' +
+    '@media print { .print-btn { display: none; } body { background: #fff; } .page-wrap { box-shadow: none; padding: 0; width: 100%; } }\n' +
+    /* header */
+    '.hdr { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center;\n' +
+    '  border-top: 2px solid #111; border-bottom: 1px solid #555;\n' +
+    '  padding: 6px 0 8px; margin-bottom: 14px; background: #f5f5f5; }\n' +
+    '.hdr-left { display: flex; align-items: center; gap: 8px; padding-left: 4px; }\n' +
+    '.hdr-title { font-size: 13px; font-weight: 700; }\n' +
+    '.hdr-sub { font-size: 10px; color: #555; }\n' +
+    '.hdr-center { text-align: center; }\n' +
+    '.hdr-dsr { font-size: 15px; font-weight: 700; }\n' +
+    '.hdr-range { font-size: 11px; color: #444; margin-top: 3px; }\n' +
+    '.hdr-right { text-align: right; font-size: 10px; color: #555; padding-right: 4px; }\n' +
+    /* AB grid */
+    '.ab-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 12px; }\n' +
+    '.sec-title { font-size: 11px; font-weight: 700; margin-bottom: 5px; padding-bottom: 3px;\n' +
+    '  border-bottom: 1.5px solid #111; text-transform: uppercase; letter-spacing: .4px; }\n' +
+    'table { width: 100%; border-collapse: collapse; }\n' +
+    'th { font-size: 10px; font-weight: 700; border: 0.5px solid #ccc; padding: 3px 5px;\n' +
+    '  text-align: center; background: #f5f5f5; }\n' +
+    'th:first-child { text-align: left; }\n' +
+    'td { border: 0.5px solid #ccc; padding: 3px 6px; font-size: 11px; }\n' +
+    'tfoot td { font-weight: 700; background: #f0f0f0; border: 0.5px solid #aaa; }\n' +
+    '.r { text-align: right; }\n' +
+    '.b { font-weight: 700; }\n' +
+    '.empty { text-align: center; color: #888; font-style: italic; padding: 8px; }\n' +
+    /* info rows below Section A */
+    '.a-info { margin-top: 7px; font-size: 11px; color: #333; }\n' +
+    '.a-info-row { display: flex; justify-content: space-between; padding: 2px 2px; }\n' +
+    '.a-info-row.bold { font-weight: 700; border-top: 1px solid #bbb; margin-top: 3px; padding-top: 4px; }\n' +
+    /* Section C summary */
+    '.sec-c { border: 1.5px solid #111; padding: 10px 16px; margin-bottom: 12px; }\n' +
+    '.sum-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }\n' +
+    '.sum-row.deduct { padding-left: 12px; color: #333; }\n' +
+    '.sum-divider { border-top: 1px solid #555; margin: 6px 0; }\n' +
+    '.sum-net { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0 4px;\n' +
+    '  border-top: 1.5px solid #111; }\n' +
+    '.sum-net-lbl { font-size: 13px; font-weight: 700; }\n' +
+    '.sum-net-amt { font-size: 20px; font-weight: 700; }\n' +
+    '.sum-cheque { display: flex; justify-content: space-between; padding: 4px 0;\n' +
+    '  font-size: 11px; color: #555; border-top: 1px dashed #bbb; margin-top: 5px; }\n' +
+    /* signatures */
+    '.sig-row { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 16px; }\n' +
+    '.sig-box { text-align: center; }\n' +
+    '.sig-line { border-top: 1px solid #555; margin-top: 36px; padding-top: 5px;\n' +
+    '  font-size: 11px; }\n';
 
   return '<!DOCTYPE html><html lang="th"><head>' +
     '<meta charset="UTF-8">' +
@@ -3723,73 +3839,76 @@ function generateSettlementPDF(payload) {
     '<title>ใบสรุปยอดนำส่ง — ' + dsrName + '</title>' +
     '<style>' + css + '</style>' +
     '</head><body>' +
-    '<button class="print-btn" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>' +
+    '<button class="print-btn" onclick="window.print()">พิมพ์ / บันทึก PDF</button>' +
     '<div class="page-wrap">' +
 
+    /* Header */
     '<div class="hdr">' +
       '<div class="hdr-left">' + logoHtml + '<div><div class="hdr-title">ใบสรุปยอดนำส่ง</div><div class="hdr-sub">Nice Center Oil</div></div></div>' +
       '<div class="hdr-center"><div class="hdr-dsr">' + dsrName + '</div><div class="hdr-range">' + escapeHtmlSrv(weekRange) + '</div></div>' +
-      '<div class="hdr-right">วันที่พิมพ์<br><b>' + printDate + '</b></div>' +
+      '<div class="hdr-right">วันที่พิมพ์<br>' + printDate + '</div>' +
     '</div>' +
 
-    /* ── 3 tables in one row (landscape) ── */
-    '<div class="tables-row">' +
+    /* Section A + B side by side */
+    '<div class="ab-row">' +
 
-      '<div class="table-col">' +
-        '<h3>A. ยอดเก็บเงิน</h3>' +
-        '<table><thead><tr><th>วันที่</th><th>เงินสด (฿)</th><th>เช็ค (฿)</th><th>รวม (฿)</th></tr></thead>' +
-        '<tbody>' + incHtml + '</tbody><tfoot>' + incFoot + '</tfoot></table>' +
-      '</div>' +
-
-      '<div class="table-col">' +
-        '<h3>B. ค่าใช้จ่าย</h3>' +
-        '<table><thead><tr><th>วันที่</th><th>น้ำมัน (฿)</th><th>ที่พัก (฿)</th><th>เบี้ยเลี้ยง (฿)</th></tr></thead>' +
-        '<tbody>' + expHtml + '</tbody><tfoot>' + expFoot + '</tfoot></table>' +
-      '</div>' +
-
-      '<div class="table-col">' +
-        '<h3>C. การเดินทาง</h3>' +
-        '<table><thead><tr><th>วันที่</th><th>เขต</th><th class="r">กม.</th><th class="r">เสื่อม (฿)</th></tr></thead>' +
-        '<tbody>' + mileRows.map(function(r){
-          var dist = parseFloat(r.distance)||0;
-          var depr = parseFloat(r.depreciation)||0;
-          return '<tr>' +
-            '<td>' + escapeHtmlSrv(r.dateLabel||r.date) + '</td>' +
-            '<td>' + escapeHtmlSrv(r.zone||'—') + '</td>' +
-            '<td class="r">' + fmtMonAlways(dist) + '</td>' +
-            '<td class="r">' + fmtMon(depr) + '</td>' +
-            '</tr>';
-        }).join('') || '<tr><td colspan="4" class="empty">ไม่มีข้อมูล</td></tr>' + '</tbody>' +
-        '<tfoot><tr><td colspan="2" class="b">รวม</td><td class="r b">' + fmtMonAlways(totDist) + '</td><td class="r b">' + fmtMonAlways(totDepr) + '</td></tr></tfoot></table>' +
-      '</div>' +
-
-    '</div>' +
-
-    /* ── 2-column summary box ── */
-    '<div class="summary-box">' +
-      /* left col: breakdown */
+      /* Section A: รายรับ */
       '<div>' +
-        '<div class="sum-col-label">รายละเอียด</div>' +
-        '<div class="sum-row"><span>รวมเงินสด</span><span>' + fmtMonAlways(cashOnlyTotal) + ' ฿</span></div>' +
-        (slipTotal ? '<div class="sum-row"><span>รวมเงินโอน Slip2Go</span><span>' + fmtMonAlways(slipTotal) + ' ฿</span></div>' : '') +
-        '<div class="sum-divider"></div>' +
-        '<div class="sum-row deduct"><span>หัก น้ำมัน/แก๊ส</span><span>− ' + fmtMonAlways(totFuel) + ' ฿</span></div>' +
-        '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtMonAlways(totHotel) + ' ฿</span></div>' +
-        '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtMonAlways(totAllow) + ' ฿</span></div>' +
-        '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtMonAlways(totDepr) + ' ฿</span></div>' +
-        (chequeTotal ? '<div class="sum-row" style="margin-top:6px;color:#666;font-size:11px;"><span>รวมเช็ค (ส่งแยก)</span><span>' + fmtMonAlways(chequeTotal) + ' ฿</span></div>' : '') +
-      '</div>' +
-      /* right col: net + signatures */
-      '<div class="net-col">' +
-        '<div>' +
-          '<div class="sum-col-label">ยอดนำส่งสุทธิ</div>' +
-          '<div class="net-row"><span class="net-amount ' + netClass + '">' + fmtMonAlways(netRemit) + ' ฿</span></div>' +
-        '</div>' +
-        '<div class="sig-row">' +
-          '<div class="sig-box"><div class="sig-line">ผู้ส่ง (DSR) · ' + dsrName + '</div></div>' +
-          '<div class="sig-box"><div class="sig-line">ผู้รับ (ออฟฟิศ)</div></div>' +
+        '<div class="sec-title">ก. รายรับ (ยอดเก็บเงิน)</div>' +
+        '<table>' +
+          '<thead><tr><th>วันที่</th><th class="r">เงินสด (฿)</th><th class="r">โอน manual (฿)</th></tr></thead>' +
+          '<tbody>' + incTableRows + '</tbody>' +
+          '<tfoot><tr>' +
+            '<td class="b">รวม</td>' +
+            '<td class="r b">' + fmtNAlways(totCash)   + '</td>' +
+            '<td class="r b">' + fmtNAlways(totManual) + '</td>' +
+          '</tr></tfoot>' +
+        '</table>' +
+        '<div class="a-info">' +
+          '<div class="a-info-row"><span>เงินโอน Slip2Go (' + slipCount + ' รายการ)</span><span>' + fmtNAlways(slipTotal) + ' ฿</span></div>' +
+          (totCheque > 0 ? '<div class="a-info-row"><span>เช็ค (ส่งแยก)</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' : '') +
+          '<div class="a-info-row bold"><span>รวมรายรับทั้งสิ้น</span><span>' + fmtNAlways(totIncome) + ' ฿</span></div>' +
         '</div>' +
       '</div>' +
+
+      /* Section B: ค่าใช้จ่าย */
+      '<div>' +
+        '<div class="sec-title">ข. ค่าใช้จ่าย</div>' +
+        '<table>' +
+          '<thead><tr><th>วันที่</th><th class="r">น้ำมัน (฿)</th><th class="r">ที่พัก (฿)</th><th class="r">เบี้ยเลี้ยง (฿)</th></tr></thead>' +
+          '<tbody>' + expTableRows + '</tbody>' +
+          '<tfoot><tr>' +
+            '<td class="b">รวม</td>' +
+            '<td class="r b">' + fmtNAlways(totFuel)  + '</td>' +
+            '<td class="r b">' + fmtNAlways(totHotel) + '</td>' +
+            '<td class="r b">' + fmtNAlways(totAllow) + '</td>' +
+          '</tr></tfoot>' +
+        '</table>' +
+        (totDepr > 0 ? '<div class="a-info"><div class="a-info-row"><span>ค่าเสื่อมราคารถ</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div></div>' : '') +
+      '</div>' +
+
+    '</div>' +
+
+    /* Section C: สรุปยอด full-width */
+    '<div class="sec-c">' +
+      '<div class="sum-row"><span>รายรับรวม (สด + โอน + Slip2Go)</span><span class="b">' + fmtNAlways(totIncome) + ' ฿</span></div>' +
+      '<div class="sum-row deduct"><span>หัก ค่าน้ำมัน/แก๊ส</span><span>− ' + fmtNAlways(totFuel) + ' ฿</span></div>' +
+      '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtNAlways(totHotel) + ' ฿</span></div>' +
+      '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtNAlways(totAllow) + ' ฿</span></div>' +
+      (totDepr > 0 ? '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div>' : '') +
+      '<div class="sum-divider"></div>' +
+      '<div class="sum-row"><span class="b">หักค่าใช้จ่ายรวม</span><span class="b">− ' + fmtNAlways(totExp) + ' ฿</span></div>' +
+      '<div class="sum-net">' +
+        '<span class="sum-net-lbl">ยอดนำส่งสุทธิ</span>' +
+        '<span class="sum-net-amt">' + fmtNAlways(netRemit) + ' ฿</span>' +
+      '</div>' +
+      (totCheque > 0 ? '<div class="sum-cheque"><span>เช็ค (ส่งต่างหาก)</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' : '') +
+    '</div>' +
+
+    /* Signatures */
+    '<div class="sig-row">' +
+      '<div class="sig-box"><div class="sig-line">ผู้ส่ง (DSR) · ' + dsrName + '</div></div>' +
+      '<div class="sig-box"><div class="sig-line">ผู้รับ · Nice Center Oil</div></div>' +
     '</div>' +
 
     '</div>' +
