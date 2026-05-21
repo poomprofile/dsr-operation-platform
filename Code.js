@@ -257,9 +257,22 @@ function routeAction(action, payload, user) {
     // Cash / Cheque (Module E)
     SAVE_CASH:              () => saveCash(d, user),
     SAVE_CHEQUE:            () => saveCheque(d, user),
-    GET_CASH_LOG:           () => getCashLog(user, payload.filters),
-    GET_CHEQUE_LOG:         () => getChequeLog(user, payload.filters),
+    GET_CASH_LOG:           () => normalizeDateFields(getCashLog(user, payload.filters), ['log_date']),
+    GET_CHEQUE_LOG:         () => normalizeDateFields(getChequeLog(user, payload.filters), ['log_date']),
     GET_SUMMARY_DATA:       () => getSummaryData(user, payload.week_number, payload.dsr_email),
+    SAVE_CASH_CHEQUE_BATCH: () => saveCashChequeBatch(payload.rows, user),
+    GET_WEEKLY_SLIP_TOTAL:  () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return getWeeklySlipTotal(payload.weekStart, em);
+    },
+    GET_DSR_SLIPS_WEEK:     () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return getDsrWeekSlipsForWeek(payload.weekStart, em);
+    },
+    UPDATE_SLIP_BILL:       () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return updateSlipBillMapping(payload.slipRowIndex, payload.newBillNo, em);
+    },
     // Settlement Income / Expenses (Module F)
     GET_SETTLEMENT_INCOME:    () => {
       var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
@@ -3513,6 +3526,174 @@ function getMileageSummary(weekStart, dsrEmail) {
   return result;
 }
 
+// ─── Date normalization helper ────────────────────────────────────────
+function normDateStr(val) {
+  if (!val && val !== 0) return '';
+  var s = String(val);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.split('T')[0];
+  try {
+    var d = new Date(s);
+    if (!isNaN(d.getTime())) return Utilities.formatDate(d, 'Asia/Bangkok', 'yyyy-MM-dd');
+  } catch(_) {}
+  return s;
+}
+function normalizeDateFields(rows, fields) {
+  if (!rows || !rows.length) return rows;
+  return rows.map(function(r) {
+    var out = {};
+    Object.keys(r).forEach(function(k) { out[k] = r[k]; });
+    fields.forEach(function(f) { if (f in out) out[f] = normDateStr(out[f]); });
+    return out;
+  });
+}
+
+// ─── saveCashChequeBatch ──────────────────────────────────────────────
+function saveCashChequeBatch(rows, user) {
+  console.log('[saveCashChequeBatch] count=%s user=%s', (rows||[]).length, user.email);
+  rows = rows || [];
+  var saved = 0, skipped = 0;
+  rows.forEach(function(r) {
+    if (!r.amount || parseFloat(r.amount) <= 0) { skipped++; return; }
+    if (!r.invoice_no && !r.customer_code)       { skipped++; return; }
+    try {
+      if (r.type === 'cheque') { saveCheque(r, user); }
+      else                     { saveCash(r, user); }
+      saved++;
+    } catch(e) { skipped++; console.error('[saveCashChequeBatch] skip: ' + e.message); }
+  });
+  return { saved: saved, skipped: skipped };
+}
+
+// ─── getWeeklySlipTotal ───────────────────────────────────────────────
+function getWeeklySlipTotal(weekStart, dsrEmail) {
+  console.log('[getWeeklySlipTotal] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  try {
+    var ss    = SpreadsheetApp.openById(prop('SPREADSHEET_ID_SLIP'));
+    var sheet = ss.getSheetByName(SH.SLIPS);
+    if (!sheet) return { total: 0, count: 0 };
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return { total: 0, count: 0 };
+    var h = data[0];
+    function col(names) {
+      for (var ni = 0; ni < names.length; ni++)
+        for (var hi = 0; hi < h.length; hi++)
+          if (String(h[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi;
+      return -1;
+    }
+    var eIdx   = col(['email','dsr_email','dsr email']);
+    var dIdx   = col(['วันที่โอน','วันที่ส่งสลิป','created_at']);
+    var stIdx  = col(['สถานะ','status']);
+    var amtIdx = col(['ยอดเงิน','amount']);
+    if (eIdx < 0 || amtIdx < 0) return { total: 0, count: 0 };
+    var start = new Date(weekStart + 'T00:00:00');
+    var end   = new Date(weekStart + 'T00:00:00');
+    end.setDate(end.getDate() + 5);
+    var total = 0, count = 0;
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][eIdx]||'').trim().toLowerCase() !== dsrEmail.toLowerCase()) continue;
+      var st = stIdx >= 0 ? String(data[i][stIdx]||'').toLowerCase() : '';
+      if (st !== 'matched' && st !== 'confirmed' && st !== 'จับคู่แล้ว') continue;
+      if (dIdx >= 0 && data[i][dIdx]) {
+        var dt = data[i][dIdx] instanceof Date ? data[i][dIdx] : new Date(data[i][dIdx]);
+        if (!isNaN(dt.getTime())) {
+          var dtBKK = new Date(dt.toLocaleString('en-US',{timeZone:'Asia/Bangkok'}));
+          dtBKK.setHours(0,0,0,0);
+          if (dtBKK < start || dtBKK > end) continue;
+        }
+      }
+      total += parseFloat(data[i][amtIdx]) || 0;
+      count++;
+    }
+    return { total: r2(total), count: count };
+  } catch(err) {
+    console.error('[getWeeklySlipTotal] err: ' + err.message);
+    return { total: 0, count: 0 };
+  }
+}
+
+// ─── getDsrWeekSlipsForWeek ───────────────────────────────────────────
+function getDsrWeekSlipsForWeek(weekStart, dsrEmail) {
+  console.log('[getDsrWeekSlipsForWeek] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  try {
+    var ss    = SpreadsheetApp.openById(prop('SPREADSHEET_ID_SLIP'));
+    var sheet = ss.getSheetByName(SH.SLIPS);
+    if (!sheet) return { rows: [], total: 0, count: 0 };
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return { rows: [], total: 0, count: 0 };
+    var h = data[0];
+    function col(names) {
+      for (var ni = 0; ni < names.length; ni++)
+        for (var hi = 0; hi < h.length; hi++)
+          if (String(h[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi;
+      return -1;
+    }
+    var eIdx   = col(['email','dsr_email','dsr email']);
+    var dIdx   = col(['วันที่โอน','วันที่ส่งสลิป','created_at']);
+    var stIdx  = col(['สถานะ','status']);
+    var amtIdx = col(['ยอดเงิน','amount']);
+    var billIdx = col(['เลขบิล','invoice_no','bill_no']);
+    var senderIdx = col(['ชื่อผู้โอน','sender','ผู้โอน']);
+    if (eIdx < 0) return { rows: [], total: 0, count: 0 };
+    var start = new Date(weekStart + 'T00:00:00');
+    var end   = new Date(weekStart + 'T00:00:00');
+    end.setDate(end.getDate() + 5);
+    var rows = [], total = 0;
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][eIdx]||'').trim().toLowerCase() !== dsrEmail.toLowerCase()) continue;
+      var dateVal = dIdx >= 0 ? data[i][dIdx] : null;
+      var dateStr = '';
+      if (dateVal) {
+        var dt = dateVal instanceof Date ? dateVal : new Date(dateVal);
+        if (!isNaN(dt.getTime())) {
+          var dtBKK = new Date(dt.toLocaleString('en-US',{timeZone:'Asia/Bangkok'}));
+          dtBKK.setHours(0,0,0,0);
+          if (dtBKK < start || dtBKK > end) continue;
+          dateStr = Utilities.formatDate(dtBKK, 'Asia/Bangkok', 'yyyy-MM-dd');
+        }
+      }
+      var amt = amtIdx >= 0 ? parseFloat(data[i][amtIdx]) || 0 : 0;
+      total += amt;
+      rows.push({
+        _row:     i + 1,
+        date:     dateStr,
+        amount:   r2(amt),
+        status:   stIdx  >= 0 ? String(data[i][stIdx]  || '') : '',
+        bill_no:  billIdx >= 0 ? String(data[i][billIdx] || '') : '',
+        sender:   senderIdx >= 0 ? String(data[i][senderIdx] || '') : '',
+      });
+    }
+    rows.sort(function(a, b) { return (a.date || '').localeCompare(b.date || ''); });
+    return { rows: rows, total: r2(total), count: rows.length };
+  } catch(err) {
+    console.error('[getDsrWeekSlipsForWeek] err: ' + err.message);
+    return { rows: [], total: 0, count: 0 };
+  }
+}
+
+// ─── updateSlipBillMapping ────────────────────────────────────────────
+function updateSlipBillMapping(slipRowIndex, newBillNo, dsrEmail) {
+  console.log('[updateSlipBillMapping] row=%s bill=%s dsr=%s', slipRowIndex, newBillNo, dsrEmail);
+  var ss    = SpreadsheetApp.openById(prop('SPREADSHEET_ID_SLIP'));
+  var sheet = ss.getSheetByName(SH.SLIPS);
+  if (!sheet) throw new Error('ไม่พบ Sheet: ' + SH.SLIPS);
+  var h = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  function col1(names) {
+    for (var ni = 0; ni < names.length; ni++)
+      for (var hi = 0; hi < h.length; hi++)
+        if (String(h[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi + 1;
+    return -1;
+  }
+  var billCol  = col1(['เลขบิล','invoice_no','bill_no']);
+  var stCol    = col1(['สถานะ','status']);
+  var updByCol = col1(['updated_by','updatedby']);
+  var updAtCol = col1(['updated_at','updatedat']);
+  if (billCol  > 0) sheet.getRange(slipRowIndex, billCol).setValue(newBillNo);
+  if (stCol    > 0) sheet.getRange(slipRowIndex, stCol).setValue('matched');
+  if (updByCol > 0) sheet.getRange(slipRowIndex, updByCol).setValue(dsrEmail);
+  if (updAtCol > 0) sheet.getRange(slipRowIndex, updAtCol).setValue(new Date());
+  return { ok: true };
+}
+
 function getSettlementIncome(weekStart, dsrEmail) {
   console.log('[getSettlementIncome] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
   var start = new Date(weekStart + 'T00:00:00');
@@ -3710,7 +3891,11 @@ function generateSettlementPDF(payload) {
     '<td></td>' +
     '<td class="r b">' + fmtMonAlways(totDepr) + '</td></tr>';
 
-  var netRemit  = totalInc - totFuel - totHotel - totAllow - totDepr;
+  var slipTotal = parseFloat((payload.slipTotal || {}).total) || 0;
+  var chequeTotal = 0;
+  incRows.forEach(function(r){ chequeTotal += parseFloat(r.chequeAmount)||0; });
+  var cashOnlyTotal = totalInc - chequeTotal;
+  var netRemit  = cashOnlyTotal + slipTotal - totFuel - totHotel - totAllow - totDepr;
   var netClass  = netRemit >= 0 ? 'pos' : 'neg';
 
   var css = [
@@ -3791,13 +3976,15 @@ function generateSettlementPDF(payload) {
     '<tfoot>' + expFoot + '</tfoot></table>' +
 
     '<div class="summary-box">' +
-      '<div class="sum-row"><span>รวมยอดเก็บ</span><span>' + fmtMonAlways(totalInc) + ' ฿</span></div>' +
-      '<div class="sum-row deduct"><span>หัก น้ำมันสด</span><span>− ' + fmtMonAlways(totFuel) + ' ฿</span></div>' +
+      '<div class="sum-row"><span>รวมเงินสด</span><span>' + fmtMonAlways(cashOnlyTotal) + ' ฿</span></div>' +
+      (slipTotal ? '<div class="sum-row"><span>รวมเงินโอน Slip2Go</span><span>' + fmtMonAlways(slipTotal) + ' ฿</span></div>' : '') +
+      '<div class="sum-row deduct"><span>หัก จ่ายเงินน้ำมัน/แก๊ส</span><span>− ' + fmtMonAlways(totFuel) + ' ฿</span></div>' +
       '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtMonAlways(totHotel) + ' ฿</span></div>' +
       '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtMonAlways(totAllow) + ' ฿</span></div>' +
       '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtMonAlways(totDepr) + ' ฿</span></div>' +
       '<div class="sum-divider"></div>' +
       '<div class="net-row"><span class="net-label">ยอดนำส่งสุทธิ</span><span class="net-amount ' + netClass + '">' + fmtMonAlways(netRemit) + ' ฿</span></div>' +
+      (chequeTotal ? '<div class="sum-row" style="margin-top:8px;color:#666;font-size:12px;"><span>รวมเช็ค (ส่งแยก)</span><span>' + fmtMonAlways(chequeTotal) + ' ฿</span></div>' : '') +
     '</div>' +
 
     '<div class="sig-row">' +
