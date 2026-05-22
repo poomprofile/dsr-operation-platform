@@ -1912,7 +1912,7 @@ img { max-width: 100%; }
           <div class="col-subtabs" id="col-subtabs-bar">
             <div class="col-subtab active" id="coltab-btn-summary" onclick="switchCollectionTab('summary')">สรุปประจำอาทิตย์</div>
             <div class="col-subtab" id="coltab-btn-cash" onclick="switchCollectionTab('cash')">บันทึกเงินสด/โอน/เช็ค</div>
-            <div class="col-subtab" id="coltab-btn-slip" onclick="switchCollectionTab('slip')">สรุปใบโอน</div>
+            <div class="col-subtab" id="coltab-btn-slip" onclick="switchCollectionTab('slip')">สรุปใบโอน Slip2Go</div>
             <div class="tab-indicator" id="col-tab-indicator"></div>
           </div>
 
@@ -2077,7 +2077,7 @@ img { max-width: 100%; }
                     <th class="r" style="font-size:11px;">ค่าเสื่อม<br>(฿)</th>
                     <th style="font-size:11px;">น้ำมัน/<br>แก๊ส (฿)</th>
                     <th style="font-size:11px;">ที่พัก<br>(฿)</th>
-                    <th style="font-size:11px;">เบี้ย<br>เลี้ยง</th>
+                    <th style="font-size:11px;text-align:center;">เบี้ย<br>เลี้ยง</th>
                   </tr>
                 </thead>
                 <tbody id="stl-exp-body"></tbody>
@@ -2130,7 +2130,7 @@ img { max-width: 100%; }
           <!-- Print buttons -->
           <div style="display:flex;gap:8px;margin-top:14px;">
             <div class="btn btn-secondary" style="flex:1;" onclick="stlPrint()">🖨️ พิมพ์ยอดนำส่ง</div>
-            <div class="btn btn-green" style="flex:1;" onclick="stlPrintAll()">🖨️ พิมพ์ทุกใบครั้งเดียว</div>
+            <div class="btn btn-green" style="flex:1;" onclick="stlPrintAll()">🖨️ พิมพ์สรุปทุกใบพร้อมใบปะหน้า</div>
           </div>
 
         </div>
@@ -3344,7 +3344,7 @@ async function printCoverSheet() {
   await generateCoverSheet();
 }
 
-// TASK 6: พิมพ์ทุกใบครั้งเดียว (Cover Sheet + Cash Entry + Settlement)
+// พิมพ์สรุปทุกใบพร้อมใบปะหน้า
 async function stlPrintAll() {
   var weekStart = stlWeekStart();
   if (!weekStart || !currentUser) return;
@@ -3352,9 +3352,9 @@ async function stlPrintAll() {
   var monD = new Date(weekStart + 'T00:00:00');
   var sunD = new Date(monD);
   sunD.setDate(monD.getDate() + 6);
-  var weekEnd  = stlDateISO(sunD);
-  var monISO   = stlDateISO(monD);
-  var sunISO   = stlDateISO(sunD);
+  var weekEnd = stlDateISO(sunD);
+  var monISO  = stlDateISO(monD);
+  var sunISO  = stlDateISO(sunD);
 
   // Build expense rows from current form
   var expenseRows = [];
@@ -3367,23 +3367,52 @@ async function stlPrintAll() {
     expenseRows.push({ date: iso, dateLabel: _THAI_DAYS[d.getDay()] + '. ' + d.getDate(), fuel: fuel, hotel: hotel, allowance: hotel > 0 ? 200 : 0 });
   });
 
-  // Build cash rows from ce-table inputs (for cash entry page)
-  var cashRows = [];
-  for (var i = 1; i <= TOTAL_ROWS; i++) {
-    var code = ((document.getElementById('cc-'+i)||{}).value||'').trim();
-    var inv  = ((document.getElementById('inv-'+i)||{}).value||'').trim();
-    var cash = parseFloat(((document.getElementById('cash-'+i)||{}).value||'').replace(/,/g,''))||0;
-    var cheq = parseFloat(((document.getElementById('cheq-'+i)||{}).value||'').replace(/,/g,''))||0;
-    if (!cash && !cheq) continue;
-    cashRows.push({
-      customer_code: code,
-      customer_name: ((document.getElementById('nm-'+i)||{}).value||'').trim(),
-      invoice_no:    inv,
-      cash_amount:   cash,
-      cheq_amount:   cheq,
-      note:          ((document.getElementById('nt-'+i)||{}).value||'').trim(),
+  showToast('⏳ กำลังโหลดข้อมูลเงินสด...', '');
+
+  // Fetch week's cash + cheque data and group by date
+  var wkNum = weekNumFE(new Date(weekStart + 'T00:00:00'));
+  var [cashRaw, chequeRaw] = await Promise.all([
+    apiCall('GET_CASH_LOG',   { filters: { week_number: String(wkNum) } }),
+    apiCall('GET_CHEQUE_LOG', { filters: { week_number: String(wkNum) } }),
+  ]);
+  cashRaw   = cashRaw   || [];
+  chequeRaw = chequeRaw || [];
+
+  var cashRowsByDate = {};
+  var cashDatesSet   = {};
+  cashRaw.forEach(function(r) {
+    var dt = String(r.log_date || '').split('T')[0];
+    if (!dt) return;
+    if (!cashRowsByDate[dt]) { cashRowsByDate[dt] = []; cashDatesSet[dt] = true; }
+    cashRowsByDate[dt].push({
+      customer_code: r.customer_code || '',
+      customer_name: r.customer_name || '',
+      invoice_no:    r.invoice_no    || '',
+      cash_amount:   parseFloat(r.amount) || 0,
+      cheq_amount:   0,
+      bill_amount:   0,
+      note:          r.note || '',
     });
-  }
+  });
+  chequeRaw.forEach(function(r) {
+    var dt = String(r.log_date || '').split('T')[0];
+    if (!dt) return;
+    if (!cashRowsByDate[dt]) { cashRowsByDate[dt] = []; cashDatesSet[dt] = true; }
+    cashRowsByDate[dt].push({
+      customer_code: r.customer_code || '',
+      customer_name: r.customer_name || '',
+      invoice_no:    r.invoice_no    || '',
+      cash_amount:   0,
+      cheq_amount:   parseFloat(r.amount) || 0,
+      cheque_date:   r.cheque_date   || '',
+      cheque_no:     r.cheque_no     || '',
+      bank_name:     r.bank_name     || '',
+      branch_name:   r.branch_name   || '',
+      bill_amount:   0,
+      note:          r.note || '',
+    });
+  });
+  var cashDates = Object.keys(cashDatesSet).sort();
 
   showToast('⏳ กำลังสร้าง PDF รวม...', '');
   google.script.run
@@ -3393,26 +3422,26 @@ async function stlPrintAll() {
       if (!w) { showToast('กรุณา allow popup แล้วลองใหม่', 'error'); return; }
       w.document.write(html);
       w.document.close();
-      setTimeout(function(){ w.print(); }, 800);
     })
     .withFailureHandler(function(err) {
       showToast('⚠️ ' + ((err && err.message) || 'เกิดข้อผิดพลาด'), 'error');
     })
     .handleApiCall('GENERATE_ALL_REPORTS_PDF', {
-      dsrName:     currentUser.display_name || currentUser.email,
-      dsrEmail:    currentUser.email,
-      weekStart:   weekStart,
-      weekEnd:     weekEnd,
-      monISO:      monISO,
-      sunISO:      sunISO,
-      cashRows:    cashRows,
-      incomeRows:  _stlIncomeRows  || [],
-      expenseRows: expenseRows,
-      mileageRows: _stlMileageRows || [],
-      slipTotal:   _stlSlipTotal   || { total: 0, count: 0 },
-      slipByDate:  _stlSlipByDate  || {},
-      billAmounts: csBillAmounts   || {},
-      rowOrder:    [],
+      dsrName:        currentUser.display_name || currentUser.email,
+      dsrEmail:       currentUser.email,
+      weekStart:      weekStart,
+      weekEnd:        weekEnd,
+      monISO:         monISO,
+      sunISO:         sunISO,
+      cashDates:      cashDates,
+      cashRowsByDate: cashRowsByDate,
+      incomeRows:     _stlIncomeRows  || [],
+      expenseRows:    expenseRows,
+      mileageRows:    _stlMileageRows || [],
+      slipTotal:      _stlSlipTotal   || { total: 0, count: 0 },
+      slipByDate:     _stlSlipByDate  || {},
+      billAmounts:    csBillAmounts   || {},
+      rowOrder:       [],
     });
 }
 

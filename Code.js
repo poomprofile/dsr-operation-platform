@@ -1959,7 +1959,6 @@ function getPrintHeaderHtml(config) {
     '<div class="header-logo">' + logoHtml + '</div>' +
     '<div class="header-title">' +
       '<div class="doc-title">' + title + '</div>' +
-      '<div class="doc-sub">Nice Center Oil</div>' +
     '</div>' +
     '<div class="header-meta">' +
       '<div>' + dsrName + '</div>' +
@@ -1970,9 +1969,10 @@ function getPrintHeaderHtml(config) {
 }
 
 function getPrintFooterHtml() {
+  var line = '<span style="display:inline-block;min-width:120px;border-bottom:0.5px solid #333">&nbsp;</span>';
   return '<div class="print-footer">' +
-    '<span>DSR: _______________________________</span>' +
-    '<span>ผู้รับออฟฟิศ: _______________________________</span>' +
+    '<span style="font-weight:400">DSR: ' + line + '</span>' +
+    '<span style="font-weight:400">ผู้รับออฟฟิศ: ' + line + '</span>' +
   '</div>';
 }
 
@@ -3650,20 +3650,32 @@ function getWeeklySlipByDate(weekStart, dsrEmail) {
     var eIdx   = col(['email','dsr_email','dsr email']);
     var dIdx   = col(['วันที่โอน','วันที่ส่งสลิป','created_at']);
     var amtIdx = col(['ยอดเงิน','amount']);
+    var wkIdx  = col(['week_number','weeknumber','week']);
+    var targetWeekNum = weekNum(new Date(weekStart + 'T00:00:00'));
     if (eIdx < 0 || amtIdx < 0) return byDate;
     var start = new Date(weekStart + 'T00:00:00');
     var end   = new Date(weekStart + 'T00:00:00');
     end.setDate(end.getDate() + 5);
+    console.log('[getWeeklySlipByDate] slip query weekNum=%s (%s) email=%s rows=%s wkIdx=%s',
+      targetWeekNum, typeof targetWeekNum, dsrEmail, data.length - 1, wkIdx);
     for (var i = 1; i < data.length; i++) {
-      if (String(data[i][eIdx]||'').trim().toLowerCase() !== dsrEmail.toLowerCase()) continue;
-      var dateStr = '';
-      if (dIdx >= 0 && data[i][dIdx]) {
+      if (String(data[i][eIdx]||'').trim().toLowerCase() !== dsrEmail.trim().toLowerCase()) continue;
+      // use week_number column if available, else fall back to date range
+      if (wkIdx >= 0 && data[i][wkIdx] !== '' && data[i][wkIdx] !== undefined && data[i][wkIdx] !== null) {
+        if (Number(data[i][wkIdx]) !== Number(targetWeekNum)) continue;
+      } else if (dIdx >= 0 && data[i][dIdx]) {
         var dt = data[i][dIdx] instanceof Date ? data[i][dIdx] : new Date(data[i][dIdx]);
         if (!isNaN(dt.getTime())) {
           var dtBKK = new Date(dt.toLocaleString('en-US',{timeZone:'Asia/Bangkok'}));
           dtBKK.setHours(0,0,0,0);
           if (dtBKK < start || dtBKK > end) continue;
-          dateStr = Utilities.formatDate(dtBKK, 'Asia/Bangkok', 'yyyy-MM-dd');
+        } else { continue; }
+      } else { continue; }
+      var dateStr = '';
+      if (dIdx >= 0 && data[i][dIdx]) {
+        var dt2 = data[i][dIdx] instanceof Date ? data[i][dIdx] : new Date(data[i][dIdx]);
+        if (!isNaN(dt2.getTime())) {
+          dateStr = Utilities.formatDate(new Date(dt2.toLocaleString('en-US',{timeZone:'Asia/Bangkok'})), 'Asia/Bangkok', 'yyyy-MM-dd');
         }
       }
       if (!dateStr) continue;
@@ -3673,7 +3685,8 @@ function getWeeklySlipByDate(weekStart, dsrEmail) {
   } catch(err) {
     console.error('[getWeeklySlipByDate] err: ' + err.message);
   }
-  console.log('[getWeeklySlipByDate] found dates=%s', Object.keys(byDate).length);
+  console.log('[getWeeklySlipByDate] found dates=%s total=%s', Object.keys(byDate).length,
+    Object.keys(byDate).reduce(function(s,k){return s+(byDate[k]||0);},0));
   return byDate;
 }
 
@@ -4148,27 +4161,29 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
     weekDates.push(wdt.getFullYear() + '-' + String(wdt.getMonth()+1).padStart(2,'0') + '-' + String(wdt.getDate()).padStart(2,'0'));
   }
 
-  var totMergedCash = 0, totMergedCheq = 0, totMergedFuel = 0, totMergedHotel = 0, totMergedAllow = 0;
+  var totMergedCash = 0, totMergedCheq = 0, totMergedSlip = 0, totMergedFuel = 0, totMergedHotel = 0, totMergedAllow = 0;
   var mergedRows = weekDates.map(function(dt) {
     var inc  = incByDate[dt]  || {};
     var exp  = expByDate[dt]  || {};
     var mile = mileByDate[dt] || {};
     var cash  = parseFloat(inc.cashAmount)   || 0;
     var cheq  = parseFloat(inc.chequeAmount) || 0;
+    var slip  = parseFloat(slipByDate[dt])   || 0;
     var fuel  = parseFloat(exp.fuel)         || 0;
     var hotel = parseFloat(exp.hotel)        || 0;
     var allow = parseFloat(exp.allowance)    || 0;
     var dist  = parseFloat(mile.distance)    || 0;
-    totMergedCash  += cash;  totMergedCheq  += cheq;
+    totMergedCash  += cash;  totMergedCheq  += cheq;  totMergedSlip  += slip;
     totMergedFuel  += fuel;  totMergedHotel += hotel; totMergedAllow += allow;
     return '<tr>' +
-      '<td>' + fmtDayShort(dt) + '</td>' +
-      '<td class="r">' + fmtBlank(dist)  + '</td>' +
-      '<td class="r">' + fmtBlank(cash)  + '</td>' +
-      '<td class="r">' + fmtBlank(cheq)  + '</td>' +
-      '<td class="r">' + fmtBlank(fuel)  + '</td>' +
-      '<td class="r">' + fmtBlank(hotel) + '</td>' +
-      '<td class="r">' + fmtBlank(allow) + '</td>' +
+      '<td style="width:8%">'  + fmtDayShort(dt)  + '</td>' +
+      '<td class="r" style="width:10%">' + fmtBlank(dist)  + '</td>' +
+      '<td class="r" style="width:12%">' + fmtBlank(cash)  + '</td>' +
+      '<td class="r" style="width:11%">' + fmtBlank(cheq)  + '</td>' +
+      '<td class="r" style="width:11%">' + fmtBlank(slip)  + '</td>' +
+      '<td class="r" style="width:9%">'  + fmtBlank(fuel)  + '</td>' +
+      '<td class="r" style="width:9%">'  + fmtBlank(hotel) + '</td>' +
+      '<td class="r" style="width:8%">'  + fmtBlank(allow) + '</td>' +
       '</tr>';
   }).join('');
 
@@ -4217,16 +4232,17 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
 
     getPrintHeaderHtml({title:'ใบสรุปยอดนำส่ง', dsrName:dsrName, dateRange:weekRange, printedAt:printDate}) +
 
-    /* Merged 7-column Mon-Sat table */
+    /* Merged 8-column Mon-Sat table */
     '<table>' +
       '<thead><tr>' +
-        '<th>วันที่</th>' +
-        '<th class="r">เลขไมล์</th>' +
-        '<th class="r">เงินสด</th>' +
-        '<th class="r">โอน/เช็ค</th>' +
-        '<th class="r">น้ำมัน/แก๊ส</th>' +
-        '<th class="r">ค่าที่พัก</th>' +
-        '<th class="r">เบี้ยเลี้ยง</th>' +
+        '<th style="width:8%">วันที่</th>' +
+        '<th class="r" style="width:10%">เลขไมล์</th>' +
+        '<th class="r" style="width:12%">เงินสด</th>' +
+        '<th class="r" style="width:11%">โอน/เช็ค</th>' +
+        '<th class="r" style="width:11%">ใบโอน Slip2Go</th>' +
+        '<th class="r" style="width:9%">น้ำมัน/แก๊ส</th>' +
+        '<th class="r" style="width:9%">ค่าที่พัก</th>' +
+        '<th class="r" style="width:8%">เบี้ยเลี้ยง</th>' +
       '</tr></thead>' +
       '<tbody>' + mergedRows + '</tbody>' +
       '<tfoot><tr>' +
@@ -4234,6 +4250,7 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
         '<td class="r">—</td>' +
         '<td class="r b">' + fmtNAlways(totMergedCash)  + '</td>' +
         '<td class="r b">' + fmtNAlways(totMergedCheq)  + '</td>' +
+        '<td class="r b">' + fmtNAlways(totMergedSlip)  + '</td>' +
         '<td class="r b">' + fmtNAlways(totMergedFuel)  + '</td>' +
         '<td class="r b">' + fmtNAlways(totMergedHotel) + '</td>' +
         '<td class="r b">' + fmtNAlways(totMergedAllow) + '</td>' +
@@ -4245,23 +4262,18 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
     '<div class="below-tbl">' +
       '<div class="income-info">' +
         '<div class="income-info-row"><span>เงินสดรับ</span><span>' + fmtNAlways(totMergedCash) + ' ฿</span></div>' +
-        '<div class="income-info-row"><span>Slip2Go (' + slipCount + ' รายการ)</span><span>' + fmtNAlways(slipTotal) + ' ฿</span></div>' +
-        (totCheque > 0 ? '<div class="income-info-row"><span>เช็ค (ส่งแยก)</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' : '') +
+        '<div class="income-info-row"><span>ใบโอน Slip2Go (' + slipCount + ' รายการ)</span><span>' + fmtNAlways(slipTotal) + ' ฿</span></div>' +
+        (totCheque > 0 ? '<div class="income-info-row"><span>โอน/เช็ค</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' : '') +
         '<div class="income-info-row bold"><span>รวมรายรับทั้งสิ้น</span><span>' + fmtNAlways(totMergedCash + slipTotal + totCheque) + ' ฿</span></div>' +
       '</div>' +
       '<div class="summary-box">' +
-        '<div class="sum-row"><span>รวมเงินสด</span><span class="b">' + fmtNAlways(totMergedCash) + ' ฿</span></div>' +
-        '<div class="sum-row deduct"><span>หัก ค่าน้ำมัน/แก๊ส</span><span>− ' + fmtNAlways(totMergedFuel) + ' ฿</span></div>' +
-        '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtNAlways(totMergedHotel) + ' ฿</span></div>' +
-        '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtNAlways(totMergedAllow) + ' ฿</span></div>' +
-        (totDepr > 0 ? '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div>' : '') +
+        '<div class="sum-row"><span>รวมรายรับ</span><span class="b">' + fmtNAlways(totMergedCash + slipTotal + totCheque) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก ค่าใช้จ่าย</span><span>− ' + fmtNAlways(totMergedFuel + totMergedHotel + totMergedAllow + totDepr) + ' ฿</span></div>' +
         '<div class="sum-divider"></div>' +
         '<div class="sum-net">' +
           '<span class="sum-net-lbl">ยอดนำส่งสุทธิ</span>' +
-          '<span class="sum-net-amt">' + fmtNAlways(totMergedCash - totMergedFuel - totMergedHotel - totMergedAllow - totDepr) + ' ฿</span>' +
+          '<span class="sum-net-amt">' + fmtNAlways(totMergedCash + slipTotal + totCheque - totMergedFuel - totMergedHotel - totMergedAllow - totDepr) + ' ฿</span>' +
         '</div>' +
-        '<div class="sum-extra"><span>โอน/เช็ค (ส่งแยก)</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' +
-        '<div class="sum-extra"><span>Slip2Go (ส่งแยก)</span><span>' + fmtNAlways(slipTotal) + ' ฿</span></div>' +
       '</div>' +
     '</div>' +
 
@@ -4272,75 +4284,79 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
     '</body></html>';
 }
 
-// ─── generateAllReportsPDF — พิมพ์ทุกใบครั้งเดียว (TASK 6) ────────────
+// ─── generateAllReportsPDF — พิมพ์สรุปทุกใบพร้อมใบปะหน้า ────────────
 // payload: { dsrEmail, dsrName, weekStart, weekEnd,
-//            cashRows, slipTotal, slipByDate,
+//            cashDates, cashRowsByDate,
+//            slipTotal, slipByDate,
 //            incomeRows, expenseRows, mileageRows,
 //            monISO, sunISO, billAmounts, rowOrder }
 function generateAllReportsPDF(payload) {
-  console.log('[generateAllReportsPDF] dsr=%s weekStart=%s', payload.dsrEmail, payload.weekStart);
+  console.log('[generateAllReportsPDF] dsr=%s weekStart=%s cashDates=%s',
+    payload.dsrEmail, payload.weekStart, (payload.cashDates||[]).length);
 
-  // ── 1. Cover Sheet (สรุปใบโอน Slip2Go) ───────────────────────────────
-  var html1 = '';
+  var PAGE_BREAK = '<div style="page-break-before:always"></div>';
+  var htmlParts  = [];
+
+  function stripClose(h) {
+    return (h || '').replace(/<\/body>[\s\S]*?<\/html>/i, '');
+  }
+
+  // [1] สรุปใบโอน Slip2Go
   try {
-    html1 = getCoverSheetHtml(
+    htmlParts.push(getCoverSheetHtml(
       payload.dsrEmail,
       payload.monISO || payload.weekStart,
       payload.sunISO || payload.weekEnd,
       payload.billAmounts || {},
       payload.rowOrder    || []
-    );
+    ));
   } catch(e) {
     console.error('[generateAllReportsPDF] coversheet err: ' + e.message);
-    html1 = '<p style="font-family:sans-serif;padding:20px;">Cover Sheet: ' + escapeHtmlSrv(e.message) + '</p>';
+    htmlParts.push('<p style="font-family:sans-serif;padding:20px;">Cover Sheet: ' + escapeHtmlSrv(e.message) + '</p>');
   }
 
-  // ── 2. Cash/Cheque entry sheet ────────────────────────────────────────
-  var html2 = '';
-  try {
-    html2 = generateCashEntryPDF({
-      dsrName:      payload.dsrName      || payload.dsrEmail,
-      dsrEmail:     payload.dsrEmail,
-      selectedDate: payload.weekStart    || '',
-      rows:         payload.cashRows     || [],
-    });
-  } catch(e) {
-    console.error('[generateAllReportsPDF] cashentry err: ' + e.message);
-    html2 = '<p style="font-family:sans-serif;padding:20px;">Cash Entry: ' + escapeHtmlSrv(e.message) + '</p>';
-  }
+  // [2] บันทึกเงินสด/โอน/เช็ค ทุกวันที่มีข้อมูล เรียง ascending
+  var cashDates = (payload.cashDates || []).slice().sort();
+  var cashRowsByDate = payload.cashRowsByDate || {};
+  cashDates.forEach(function(date) {
+    var dayRows = cashRowsByDate[date] || [];
+    if (!dayRows.length) return;
+    try {
+      htmlParts.push(generateCashEntryPDF({
+        dsrEmail:     payload.dsrEmail,
+        dsrName:      payload.dsrName || payload.dsrEmail,
+        selectedDate: date,
+        rows:         dayRows,
+      }));
+    } catch(e) {
+      console.error('[generateAllReportsPDF] cashentry err date=%s: %s', date, e.message);
+    }
+  });
 
-  // ── 3. Settlement summary ─────────────────────────────────────────────
-  var html3 = '';
+  // [3] ใบสรุปยอดนำส่ง (last — keeps auto-print script)
+  var settlementHtml = '';
   try {
-    html3 = generateSettlementPDF({
-      dsrName:     payload.dsrName      || payload.dsrEmail,
+    settlementHtml = generateSettlementPDF({
+      dsrName:     payload.dsrName     || payload.dsrEmail,
       dsrEmail:    payload.dsrEmail,
-      weekStart:   payload.weekStart    || '',
-      weekEnd:     payload.weekEnd      || '',
-      incomeRows:  payload.incomeRows   || [],
-      expenseRows: payload.expenseRows  || [],
-      mileageRows: payload.mileageRows  || [],
-      slipTotal:   payload.slipTotal    || { total: 0, count: 0 },
-      slipByDate:  payload.slipByDate   || {},
+      weekStart:   payload.weekStart   || '',
+      weekEnd:     payload.weekEnd     || '',
+      incomeRows:  payload.incomeRows  || [],
+      expenseRows: payload.expenseRows || [],
+      mileageRows: payload.mileageRows || [],
+      slipTotal:   payload.slipTotal   || { total: 0, count: 0 },
+      slipByDate:  payload.slipByDate  || {},
     });
   } catch(e) {
     console.error('[generateAllReportsPDF] settlement err: ' + e.message);
-    html3 = '<p style="font-family:sans-serif;padding:20px;">Settlement: ' + escapeHtmlSrv(e.message) + '</p>';
+    settlementHtml = '<p style="font-family:sans-serif;padding:20px;">Settlement: ' + escapeHtmlSrv(e.message) + '</p>';
   }
+  htmlParts.push(settlementHtml);
 
-  // ── Strip </body></html> from html1, html2 so we can concat cleanly ──
-  function stripClose(h) {
-    return (h || '').replace(/<\/body>[\s\S]*?<\/html>/i, '');
-  }
-
-  var combined =
-    stripClose(html1) +
-    '<div style="page-break-before:always"></div>' +
-    stripClose(html2) +
-    '<div style="page-break-before:always"></div>' +
-    html3;   // html3 has its own </body></html> + auto-print script
-
-  return combined;
+  // concat: strip </body></html> from all but last so auto-print fires once
+  return htmlParts.map(function(h, i) {
+    return i < htmlParts.length - 1 ? stripClose(h) : h;
+  }).join(PAGE_BREAK);
 }
 
 // ─── getCoverSheetBatch ────────────────────────────────────────────────
