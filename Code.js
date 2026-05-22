@@ -264,7 +264,8 @@ function routeAction(action, payload, user) {
     GET_CHEQUE_LOG:         () => normalizeDateFields(getChequeLog(user, payload.filters), ['log_date']),
     GET_SUMMARY_DATA:       () => getSummaryData(user, payload.week_number, payload.dsr_email),
     SAVE_CASH_CHEQUE_BATCH: () => saveCashChequeBatch(payload.rows, user),
-    GET_CASH_LOG_BY_DATE:   () => getCashLogByDate(payload.dateStr, user.email),
+    GET_CASH_LOG_BY_DATE:     () => getCashLogByDate(payload.dateStr, user.email),
+    GET_CASH_CHEQUE_BY_DATE:  () => getCashChequeByDate(payload.dateStr, user.email),
     GET_CASH_ENTRY_MASTER:  () => getCashEntryMasterData(user.email),
     GET_WEEKLY_SLIP_TOTAL:  () => {
       var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
@@ -308,7 +309,9 @@ function routeAction(action, payload, user) {
       return saveCashEntryForDate(payload.date, em, payload.rows);
     },
     // Cash entry A4 PDF (TASK 2C)
-    GENERATE_CASH_ENTRY_PDF: () => generateCashEntryPDF(payload),
+    GENERATE_CASH_ENTRY_PDF:  () => generateCashEntryPDF(payload),
+    // All-in-one print (TASK 6)
+    GENERATE_ALL_REPORTS_PDF: () => generateAllReportsPDF(payload),
   };
 
   if (!routes[action]) throw new Error('Unknown action: ' + action);
@@ -1912,6 +1915,67 @@ function getLogoBase64Html() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+//  SHARED PRINT STANDARD — ใช้ทุกใบ (generateCashEntryPDF, generateSettlementPDF)
+// ─────────────────────────────────────────────────────────────────────
+
+function getPrintCssStandard() {
+  return [
+    '* { box-sizing: border-box; margin: 0; padding: 0; }',
+    'body { font-family: "Sarabun", sans-serif; font-size: 11px; color: #000; background: #fff; }',
+    /* shared header */
+    '.print-header { display: flex; align-items: center; justify-content: space-between;',
+    '  border-bottom: 1.5px solid #333; padding-bottom: 8px; margin-bottom: 12px; gap: 12px; }',
+    '.header-logo img { height: 40px; width: auto; object-fit: contain; }',
+    '.header-title { flex: 1; text-align: center; }',
+    '.doc-title { font-size: 15px; font-weight: 700; white-space: nowrap; }',
+    '.doc-sub { font-size: 11px; color: #555; }',
+    '.header-meta { text-align: right; font-size: 11px; color: #333; line-height: 1.7; }',
+    /* tables */
+    'table { width: 100%; border-collapse: collapse; }',
+    'th { background: #f0f0f0; font-weight: 600; padding: 5px 8px;',
+    '     border: 0.5px solid #bbb; text-align: left; }',
+    'td { padding: 4px 8px; border: 0.5px solid #ddd; }',
+    '.total-row td { font-weight: 600; background: #f8f8f8; }',
+    '.r { text-align: right; }',
+    '.c { text-align: center; }',
+    '.b { font-weight: 700; }',
+    '.note-row { font-size: 10px; color: #555; margin-top: 6px; }',
+    /* shared footer (print-only fixed position) */
+    '@media print { .print-footer { position: fixed; bottom: 12mm; left: 15mm; right: 15mm;',
+    '  display: flex; justify-content: space-between;',
+    '  font-size: 11px; border-top: 0.5px solid #999; padding-top: 6px; } }',
+    '@media screen { .print-footer { display: none; } }',
+  ].join('\n');
+}
+
+function getPrintHeaderHtml(config) {
+  var logoHtml  = getLogoBase64Html();
+  var title     = escapeHtmlSrv(config.title     || '');
+  var dsrName   = escapeHtmlSrv(config.dsrName   || '');
+  var dateRange = escapeHtmlSrv(config.dateRange  || '');
+  var printedAt = escapeHtmlSrv(config.printedAt  || '');
+  return '<div class="print-header">' +
+    '<div class="header-logo">' + logoHtml + '</div>' +
+    '<div class="header-title">' +
+      '<div class="doc-title">' + title + '</div>' +
+      '<div class="doc-sub">Nice Center Oil</div>' +
+    '</div>' +
+    '<div class="header-meta">' +
+      '<div>' + dsrName + '</div>' +
+      '<div>' + dateRange + '</div>' +
+      '<div>พิมพ์เมื่อ ' + printedAt + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function getPrintFooterHtml() {
+  return '<div class="print-footer">' +
+    '<span>DSR: _______________________________</span>' +
+    '<span>ผู้รับออฟฟิศ: _______________________________</span>' +
+  '</div>';
+}
+
 function parseMoneyCell(v) {
   if (v === null || v === undefined) return 0;
   if (typeof v === 'number') return v;
@@ -2852,41 +2916,39 @@ function buildCoverSheetHtmlV15(rows, dsrName, today, total, weekLabel, billAmou
   var empty='';
   for(var i=rows.length;i<15;i++) empty+='<tr><td class="c">'+(i+1)+'</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
 
-  var metaLine='วันที่พิมพ์ '+today+(weekLabel?' &nbsp;|&nbsp; สัปดาห์ '+escapeHtmlSrv(weekLabel):'')+' &nbsp;|&nbsp; DSR: '+escapeHtmlSrv(dsrName);
-
   var css=[
-    '* { box-sizing:border-box; margin:0; padding:0; }',
+    getPrintCssStandard(),
     '@page { size:A4 landscape; margin:12mm 10mm; }',
-    'body { font-family:"Sarabun",Tahoma,Arial,sans-serif; font-weight:400; font-size:13px; color:#111; }',
+    'body { font-size:13px; }',
     '@media screen { body{background:#ddd;display:flex;justify-content:center;padding:24px 16px} .page-wrap{background:#fff;padding:15mm 13mm;width:297mm;min-height:210mm;box-shadow:0 4px 28px rgba(0,0,0,.18)} .print-btn{position:fixed;top:14px;right:14px;background:#007B40;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;cursor:pointer;font-family:inherit;z-index:99} }',
     '@media print { body{background:none;padding:0;display:block} .page-wrap{box-shadow:none;padding:0;width:100%} .print-btn{display:none} }',
-    '.top{display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #111;padding-bottom:6px;margin-bottom:7px}',
-    '.title{font-size:17px} .meta-line{font-size:12px;text-align:center}',
     'table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:3px}',
     'th{font-size:12px;font-weight:400;border:0.5px solid #aaa;padding:5px 4px;text-align:center;background:#fff;white-space:nowrap}',
     'td{border:0.5px solid #aaa;padding:5px 5px;font-size:13px;vertical-align:middle;overflow:hidden}',
     'tr:nth-child(even) td{background:#fafafa}',
     'col.no{width:4%} col.code{width:9%} col.shop{width:20%} col.bi{width:10%} col.am{width:10%} col.dt{width:9%} col.nt{width:20%}',
     '.c{text-align:center} .r{text-align:right} .code{font-size:12px;white-space:nowrap} .shop{font-size:12px}',
-    '.sub{display:flex;justify-content:flex-end;margin-top:5px}',
-    '.box{border:0.5px solid #aaa;padding:4px 12px;font-size:13px;min-width:150px;text-align:right;background:#fff}',
-    '.foot{margin-top:16px;display:flex;align-items:flex-end;gap:24px}',
-    '.note-area{width:46%} .note-label{font-size:12px;color:#555} .note-line{border-bottom:1px dotted #555;height:22px;margin-top:4px}',
-    '.sig{min-width:210px;padding-left:16px;text-align:center} .sig-line{border-top:0.5px solid #555;margin-top:38px;padding-top:5px;font-size:13px}',
+    '.summary-tbl{margin-top:8px;margin-left:auto;border-collapse:collapse;width:260px}',
+    '.summary-tbl td{padding:4px 10px;border:0.5px solid #bbb}',
+    '.summary-tbl .lbl{color:#555;font-size:11px}',
+    '.summary-tbl .val{text-align:right;font-weight:700}',
   ].join('\n');
 
   return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">'
     +'<link rel="preconnect" href="https://fonts.googleapis.com">'
-    +'<link href="https://fonts.googleapis.com/css2?family=Sarabun&display=swap" rel="stylesheet">'
+    +'<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">'
     +'<title>สรุปใบโอน Slip2Go</title><style>'+css+'</style></head><body>'
     +'<button class="print-btn" onclick="window.print()">พิมพ์ / บันทึก PDF</button>'
     +'<div class="page-wrap">'
-    +'<div class="top"><div class="title">สรุปใบโอน Slip2Go</div><div class="meta-line">'+metaLine+'</div><div>'+logoHtml+'</div></div>'
+    +getPrintHeaderHtml({title:'สรุปใบโอน Slip2Go', dsrName:dsrName, dateRange:weekLabel, printedAt:today})
     +'<table><colgroup><col class="no"><col class="code"><col class="shop"><col class="bi"><col class="am"><col class="am"><col class="dt"><col class="nt"></colgroup>'
-    +'<thead><tr><th>No.</th><th>รหัสลูกค้า</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th>ยอดบิล</th><th>ยอดโอน</th><th>วันที่โอน</th><th>หมายเหตุ</th></tr></thead>'
+    +'<thead><tr><th>No.</th><th>รหัสลูกค้า</th><th>ชื่อร้าน</th><th>เลขที่บิล</th><th>ยอดบิล</th><th>ยอดโอน</th><th>วันที่โอน</th><th>หมายเหตุ</th></tr></thead>'
     +'<tbody>'+tableRows+empty+'</tbody></table>'
-    +'<div class="sub"><div class="box">ยอดเก็บเงินรวม: '+formatMoney(total)+' ฿</div></div>'
-    +'<div class="foot"><div class="note-area"><div class="note-label">Note :</div><div class="note-line"></div></div><div class="sig"><div class="sig-line">ลงชื่อผู้ส่งเงิน</div></div></div>'
+    +'<table class="summary-tbl">'
+      +'<tr><td class="lbl">จำนวนสลิป</td><td class="val">'+rows.length+'</td></tr>'
+      +'<tr><td class="lbl">ยอดโอนเงินรวม</td><td class="val">'+formatMoney(total)+' ฿</td></tr>'
+    +'</table>'
+    +getPrintFooterHtml()
     +'</div>'
     +'<script>(function(){var p=false;function go(){if(p)return;p=true;window.print();}if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){setTimeout(go,150);});}else{window.addEventListener("load",function(){setTimeout(go,400);});}setTimeout(go,3000);})();<\/script>'
     +'</body></html>';
@@ -3366,6 +3428,51 @@ function getCashLogByDate(dateStr, dsrEmail) {
   });
 }
 
+// ─── getCashChequeByDate — returns CASH + CHEQUE rows for a specific date ─
+function getCashChequeByDate(dateStr, dsrEmail) {
+  console.log('[getCashChequeByDate] dateStr=%s dsrEmail=%s', dateStr, dsrEmail);
+  ensureCashChequeSheets();
+
+  function filterByDate(rows) {
+    return rows.filter(function(r) {
+      if (r.dsr_email !== dsrEmail) return false;
+      var raw = r.log_date;
+      var d = (raw instanceof Date)
+        ? Utilities.formatDate(raw, 'Asia/Bangkok', 'yyyy-MM-dd')
+        : normDateStr(String(raw));
+      return d === dateStr;
+    });
+  }
+
+  var cashRows = filterByDate(sheetToObjects(SH_CC.CASH)).map(function(r) {
+    return {
+      type:          'cash',
+      customer_code: r.customer_code || '',
+      customer_name: r.customer_name || '',
+      invoice_no:    r.invoice_no    || '',
+      amount:        parseFloat(r.amount) || 0,
+      note:          r.note          || '',
+    };
+  });
+
+  var cheqRows = filterByDate(sheetToObjects(SH_CC.CHEQUE)).map(function(r) {
+    return {
+      type:          'cheque',
+      customer_code: r.customer_code || '',
+      customer_name: r.customer_name || '',
+      invoice_no:    r.invoice_no    || '',
+      amount:        parseFloat(r.amount) || 0,
+      cheque_date:   r.cheque_date   || '',
+      cheque_no:     r.cheque_no     || '',
+      bank_name:     r.bank_name     || '',
+      branch_name:   r.branch_name   || '',
+      note:          r.note          || '',
+    };
+  });
+
+  return cashRows.concat(cheqRows);
+}
+
 // ─── getCashEntryMasterData (TASK 3) ─────────────────────────────────
 // Preloads customer/bill data for the CE form — cached 300s
 function getCashEntryMasterData(dsrEmail) {
@@ -3697,14 +3804,20 @@ function generateCashEntryPDF(payload) {
   var bodyRows = rows.map(function(r, idx) {
     var cash = parseFloat(r.cash_amount) || 0;
     var cheq = parseFloat(r.cheq_amount) || 0;
+    var bill = parseFloat(r.bill_amount) || 0;
     totCash += cash; totCheq += cheq;
     return '<tr>' +
-      '<td style="text-align:center">' + (idx+1) + '</td>' +
-      '<td>' + esc(r.customer_code) + '</td>' +
+      '<td style="text-align:center;width:22px">' + (idx+1) + '</td>' +
+      '<td style="width:60px">' + esc(r.customer_code) + '</td>' +
       '<td>' + esc(r.customer_name) + '</td>' +
-      '<td>' + esc(r.invoice_no)    + '</td>' +
-      '<td style="text-align:right">' + fmtN(cash) + '</td>' +
-      '<td style="text-align:right">' + fmtN(cheq) + '</td>' +
+      '<td style="width:90px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">' + esc(r.invoice_no) + '</td>' +
+      '<td style="text-align:right;width:70px">' + fmtN(bill) + '</td>' +
+      '<td style="text-align:right;width:70px">' + fmtN(cash) + '</td>' +
+      '<td style="text-align:right;width:70px">' + fmtN(cheq) + '</td>' +
+      '<td style="width:62px">' + esc(r.cheque_date  || '') + '</td>' +
+      '<td style="width:70px">' + esc(r.cheque_no    || '') + '</td>' +
+      '<td style="width:80px;font-size:9px">' + esc(r.bank_name   || '') + '</td>' +
+      '<td style="width:80px;font-size:9px">' + esc(r.branch_name || '') + '</td>' +
       '<td>' + esc(r.note) + '</td>' +
       '</tr>';
   }).join('');
@@ -3714,56 +3827,56 @@ function generateCashEntryPDF(payload) {
   return '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
     '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">' +
     '<style>' +
-    '@page{size:A4;margin:12mm 14mm}' +
-    '*{box-sizing:border-box;margin:0;padding:0}' +
-    'body{font-family:"Sarabun",sans-serif;font-size:12pt;color:#111;}' +
-    '.hdr{display:grid;grid-template-columns:80px 1fr auto;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #111;}' +
-    '.hdr-logo img{width:70px;}' +
-    '.hdr-title{font-size:15pt;font-weight:700;}' +
-    '.hdr-sub{font-size:10pt;color:#555;}' +
-    '.hdr-meta{font-size:10pt;text-align:right;line-height:1.7;}' +
-    'table{width:100%;border-collapse:collapse;font-size:10pt;margin-top:12px;}' +
-    'th{background:#111;color:#fff;padding:6px 8px;text-align:left;font-weight:600;}' +
-    'td{padding:5px 8px;border-bottom:1px solid #ddd;}' +
-    'tr:nth-child(even) td{background:#f8f8f8;}' +
-    '.footer-row td{border-top:2px solid #111;border-bottom:none;font-weight:700;background:#f0f0f0;}' +
-    '.sig-row{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;}' +
-    '.sig-box{border-top:1px solid #555;padding-top:6px;font-size:10pt;color:#555;text-align:center;}' +
+    '@page{size:A4 landscape;margin:12mm 15mm}' +
+    getPrintCssStandard() +
+    'body{font-size:9pt;}' +
+    '@media screen{body{background:#eee;display:flex;flex-direction:column;align-items:center;padding:20px;}}' +
+    '@media screen{.pw{background:#fff;padding:12mm 15mm;width:297mm;min-height:210mm;box-shadow:0 4px 20px rgba(0,0,0,.18);}}' +
+    '@media print{.pw{padding:0;width:100%;}}' +
+    'table{font-size:8.5pt;}' +
+    'th,td{padding:3px 5px;}' +
+    '.summary-tbl{margin-top:10px;margin-left:auto;border-collapse:collapse;width:300px;}' +
+    '.summary-tbl td{padding:4px 10px;border:0.5px solid #bbb;}' +
+    '.summary-tbl .lbl{color:#555;font-size:9pt;}' +
+    '.summary-tbl .val{text-align:right;font-weight:700;font-size:10pt;}' +
+    '.note-row{font-size:10px;color:#555;margin-top:6px;}' +
+    '@media screen{.print-btn{position:fixed;top:14px;right:14px;background:#333;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}}' +
+    '@media print{.print-btn{display:none}}' +
     '</style></head><body>' +
-    '<div class="hdr">' +
-      '<div class="hdr-logo">' + logoHtml + '</div>' +
-      '<div><div class="hdr-title">บันทึกเงินสด / โอน / เช็ค</div>' +
-        '<div class="hdr-sub">Nice Center Oil — NCO DSR Portal</div></div>' +
-      '<div class="hdr-meta">วันที่: <b>' + esc(dateLabel) + '</b><br>DSR: <b>' + dsrName + '</b><br>พิมพ์: ' + printDate + '</div>' +
-    '</div>' +
+    '<button class="print-btn" onclick="window.print()">พิมพ์ / บันทึก PDF</button>' +
+    '<div class="pw">' +
+    getPrintHeaderHtml({title:'บันทึกเงินสด / โอน / เช็ค', dsrName:dsrName, dateRange:dateLabel, printedAt:printDate}) +
     '<table>' +
       '<thead><tr>' +
-        '<th style="width:30px">ที่</th>' +
-        '<th style="width:80px">รหัส</th>' +
+        '<th style="width:22px">No.</th>' +
+        '<th style="width:60px">รหัสลูกค้า</th>' +
         '<th>ชื่อร้าน</th>' +
-        '<th style="width:120px">เลขบิล</th>' +
-        '<th style="width:90px;text-align:right">เงินสด (฿)</th>' +
-        '<th style="width:90px;text-align:right">โอน/เช็ค (฿)</th>' +
-        '<th style="width:100px">หมายเหตุ</th>' +
+        '<th style="width:90px">เลขที่บิล</th>' +
+        '<th style="width:70px;text-align:right">ยอดบิล</th>' +
+        '<th style="width:70px;text-align:right">เงินสด</th>' +
+        '<th style="width:70px;text-align:right">ยอดโอน/เช็ค</th>' +
+        '<th style="width:62px">วันที่โอน/เช็ค</th>' +
+        '<th style="width:70px">เลขที่เช็ค</th>' +
+        '<th style="width:80px">ธนาคาร</th>' +
+        '<th style="width:80px">สาขา</th>' +
+        '<th>หมายเหตุ</th>' +
       '</tr></thead>' +
-      '<tbody>' + (bodyRows || '<tr><td colspan="7" style="text-align:center;color:#999;">ไม่มีรายการ</td></tr>') + '</tbody>' +
-      '<tfoot><tr class="footer-row">' +
-        '<td colspan="4" style="text-align:right">รวมทั้งหมด</td>' +
+      '<tbody>' + (bodyRows || '<tr><td colspan="12" style="text-align:center;color:#999;">ไม่มีรายการ</td></tr>') + '</tbody>' +
+      '<tfoot><tr class="total-row">' +
+        '<td colspan="5" style="text-align:right">รวมทั้งหมด</td>' +
         '<td style="text-align:right">' + fmtNAlways(totCash) + '</td>' +
         '<td style="text-align:right">' + fmtNAlways(totCheq) + '</td>' +
-        '<td></td>' +
+        '<td colspan="5"></td>' +
       '</tr></tfoot>' +
     '</table>' +
-    '<div style="margin-top:14px;font-size:10pt;color:#555;">' +
-      'รวมเงินสด: <b>' + fmtNAlways(totCash) + ' ฿</b> &nbsp;|&nbsp; ' +
-      'รวมโอน/เช็ค: <b>' + fmtNAlways(totCheq) + ' ฿</b> &nbsp;|&nbsp; ' +
-      'ยอดรวม: <b>' + fmtNAlways(totCash+totCheq) + ' ฿</b>' +
-    '</div>' +
-    '<div class="sig-row">' +
-      '<div class="sig-box">DSR: ___________________________<br>ชื่อ-นามสกุล วันที่</div>' +
-      '<div class="sig-box">ผู้ตรวจสอบ: ___________________________<br>ชื่อ-นามสกุล วันที่</div>' +
-    '</div>' +
-    '</body></html>';
+    '<div class="note-row">(หน่วย: บาท)</div>' +
+    '<table class="summary-tbl">' +
+      '<tr><td class="lbl">รวมเงินสด</td><td class="val">' + fmtNAlways(totCash) + '</td></tr>' +
+      '<tr><td class="lbl">รวมโอน/เช็ค</td><td class="val">' + fmtNAlways(totCheq) + '</td></tr>' +
+      '<tr><td class="lbl">ยอดเก็บรวม</td><td class="val">' + fmtNAlways(totCash+totCheq) + '</td></tr>' +
+    '</table>' +
+    getPrintFooterHtml() +
+    '</div></body></html>';
 }
 
 // ─── updateSlipBillMapping ────────────────────────────────────────────
@@ -3972,6 +4085,10 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
   // ── Build lookup maps ──────────────────────────────────────────────
   var incByDate  = {};
   incRows.forEach(function(r) { incByDate[r.date] = r; });
+  var expByDate  = {};
+  expRows.forEach(function(r) { expByDate[r.date] = r; });
+  var mileByDate = {};
+  mileRows.forEach(function(r) { mileByDate[r.date] = r; });
 
   var thaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   var thaiDayShort = ['อา','จ','อ','พ','พฤ','ศ','ส'];
@@ -3991,6 +4108,10 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
   }
   function fmtNAlways(n) {
     return (parseFloat(n)||0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+  function fmtBlank(n) {
+    var v = parseFloat(n) || 0;
+    return v ? v.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '';
   }
 
   var printDate = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
@@ -4016,183 +4137,210 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
   });
   mileRows.forEach(function(r) { totDepr += parseFloat(r.depreciation) || 0; });
   var totExp    = totFuel + totHotel + totAllow + totDepr;
-  var netRemit  = totIncome - totExp;
+  // TASK 5B: net = เงินสด ONLY − ค่าใช้จ่าย (โอน/เช็ค และ Slip2Go แสดงแยก ไม่หัก)
+  var netRemit  = totCash - totExp;
 
-  // ── Build 6-day income rows ────────────────────────────────────────
-  var allDates = [];
-  var seenDates = {};
-  incRows.forEach(function(r) {
-    if (r.date && !seenDates[r.date]) { seenDates[r.date] = true; allDates.push(r.date); }
-  });
-  Object.keys(slipByDate).forEach(function(d) {
-    if (!seenDates[d]) { seenDates[d] = true; allDates.push(d); }
-  });
-  allDates.sort();
+  // ── Build Mon-Sat date list (6 rows always) ─────────────────────────
+  var weekDates = [];
+  for (var wd = 0; wd < 6; wd++) {
+    var wdt = new Date(payload.weekStart + 'T00:00:00');
+    wdt.setDate(wdt.getDate() + wd);
+    weekDates.push(wdt.getFullYear() + '-' + String(wdt.getMonth()+1).padStart(2,'0') + '-' + String(wdt.getDate()).padStart(2,'0'));
+  }
 
-  var incTableRows = allDates.map(function(dt) {
-    var inc  = incByDate[dt] || {};
-    var man  = parseFloat(slipByDate[dt]) || 0;
-    var cash = parseFloat(inc.cashAmount) || 0;
+  var totMergedCash = 0, totMergedCheq = 0, totMergedFuel = 0, totMergedHotel = 0, totMergedAllow = 0;
+  var mergedRows = weekDates.map(function(dt) {
+    var inc  = incByDate[dt]  || {};
+    var exp  = expByDate[dt]  || {};
+    var mile = mileByDate[dt] || {};
+    var cash  = parseFloat(inc.cashAmount)   || 0;
+    var cheq  = parseFloat(inc.chequeAmount) || 0;
+    var fuel  = parseFloat(exp.fuel)         || 0;
+    var hotel = parseFloat(exp.hotel)        || 0;
+    var allow = parseFloat(exp.allowance)    || 0;
+    var dist  = parseFloat(mile.distance)    || 0;
+    totMergedCash  += cash;  totMergedCheq  += cheq;
+    totMergedFuel  += fuel;  totMergedHotel += hotel; totMergedAllow += allow;
     return '<tr>' +
       '<td>' + fmtDayShort(dt) + '</td>' +
-      '<td class="r">' + (cash   ? fmtNAlways(cash)  : '—') + '</td>' +
-      '<td class="r">' + (man    ? fmtNAlways(man)   : '—') + '</td>' +
+      '<td class="r">' + fmtBlank(dist)  + '</td>' +
+      '<td class="r">' + fmtBlank(cash)  + '</td>' +
+      '<td class="r">' + fmtBlank(cheq)  + '</td>' +
+      '<td class="r">' + fmtBlank(fuel)  + '</td>' +
+      '<td class="r">' + fmtBlank(hotel) + '</td>' +
+      '<td class="r">' + fmtBlank(allow) + '</td>' +
       '</tr>';
-  }).join('') || '<tr><td colspan="3" class="empty">ไม่มีข้อมูล</td></tr>';
+  }).join('');
 
-  // ── Build expense rows ───────────────────────────────────────────────
-  var expTableRows = expRows.map(function(r) {
-    var fuel  = parseFloat(r.fuel)      || 0;
-    var hotel = parseFloat(r.hotel)     || 0;
-    var allow = parseFloat(r.allowance) || 0;
-    return '<tr>' +
-      '<td>' + escapeHtmlSrv(r.dateLabel || fmtDayShort(r.date) || r.date) + '</td>' +
-      '<td class="r">' + fmtN(fuel)  + '</td>' +
-      '<td class="r">' + fmtN(hotel) + '</td>' +
-      '<td class="r">' + fmtN(allow) + '</td>' +
-      '</tr>';
-  }).join('') || '<tr><td colspan="4" class="empty">ไม่มีค่าใช้จ่าย</td></tr>';
-
-  // ── CSS: black/white/gray only ─────────────────────────────────────
+  // ── CSS ─────────────────────────────────────────────────────────────
   var css =
-    '* { box-sizing: border-box; margin: 0; padding: 0; }\n' +
-    '@page { size: A4 landscape; margin: 15mm 20mm; }\n' +
-    'body { font-family: "Sarabun", Tahoma, sans-serif; font-size: 11px; color: #111; background: #fff; }\n' +
+    getPrintCssStandard() + '\n' +
+    '@page { size: A4 landscape; margin: 12mm 15mm; }\n' +
+    'body { font-size: 11px; }\n' +
     '@media screen {\n' +
     '  body { background: #eee; display: flex; flex-direction: column; align-items: center; padding: 24px; }\n' +
-    '  .page-wrap { background: #fff; padding: 15mm 20mm; width: 297mm; min-height: 210mm; box-shadow: 0 4px 24px rgba(0,0,0,.2); }\n' +
+    '  .page-wrap { background: #fff; padding: 12mm 15mm; width: 297mm; min-height: 210mm; box-shadow: 0 4px 24px rgba(0,0,0,.2); }\n' +
     '  .print-btn { position: fixed; top: 16px; right: 16px; background: #333; color: #fff; border: none;\n' +
-    '    border-radius: 6px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer;\n' +
-    '    font-family: inherit; }\n' +
+    '    border-radius: 6px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }\n' +
     '}\n' +
-    '@media print { .print-btn { display: none; } body { background: #fff; } .page-wrap { box-shadow: none; padding: 0; width: 100%; } }\n' +
-    /* header */
-    '.hdr { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center;\n' +
-    '  border-top: 2px solid #111; border-bottom: 1px solid #555;\n' +
-    '  padding: 6px 0 8px; margin-bottom: 14px; background: #f5f5f5; }\n' +
-    '.hdr-left { display: flex; align-items: center; gap: 8px; padding-left: 4px; }\n' +
-    '.hdr-title { font-size: 13px; font-weight: 700; }\n' +
-    '.hdr-sub { font-size: 10px; color: #555; }\n' +
-    '.hdr-center { text-align: center; }\n' +
-    '.hdr-dsr { font-size: 15px; font-weight: 700; }\n' +
-    '.hdr-range { font-size: 11px; color: #444; margin-top: 3px; }\n' +
-    '.hdr-right { text-align: right; font-size: 10px; color: #555; padding-right: 4px; }\n' +
-    /* AB grid */
-    '.ab-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 12px; }\n' +
-    '.sec-title { font-size: 11px; font-weight: 700; margin-bottom: 5px; padding-bottom: 3px;\n' +
-    '  border-bottom: 1.5px solid #111; text-transform: uppercase; letter-spacing: .4px; }\n' +
+    '@media print { .print-btn { display: none; } .page-wrap { box-shadow: none; padding: 0; width: 100%; } }\n' +
     'table { width: 100%; border-collapse: collapse; }\n' +
-    'th { font-size: 10px; font-weight: 700; border: 0.5px solid #ccc; padding: 3px 5px;\n' +
-    '  text-align: center; background: #f5f5f5; }\n' +
+    'th { font-size: 10px; font-weight: 700; border: 0.5px solid #ccc; padding: 3px 6px; text-align: center; background: #f5f5f5; }\n' +
     'th:first-child { text-align: left; }\n' +
     'td { border: 0.5px solid #ccc; padding: 3px 6px; font-size: 11px; }\n' +
     'tfoot td { font-weight: 700; background: #f0f0f0; border: 0.5px solid #aaa; }\n' +
     '.r { text-align: right; }\n' +
     '.b { font-weight: 700; }\n' +
-    '.empty { text-align: center; color: #888; font-style: italic; padding: 8px; }\n' +
-    /* info rows below Section A */
-    '.a-info { margin-top: 7px; font-size: 11px; color: #333; }\n' +
-    '.a-info-row { display: flex; justify-content: space-between; padding: 2px 2px; }\n' +
-    '.a-info-row.bold { font-weight: 700; border-top: 1px solid #bbb; margin-top: 3px; padding-top: 4px; }\n' +
-    /* Section C summary */
-    '.sec-c { border: 1.5px solid #111; padding: 10px 16px; margin-bottom: 12px; }\n' +
-    '.sum-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }\n' +
-    '.sum-row.deduct { padding-left: 12px; color: #333; }\n' +
+    '.note-row { font-size: 10px; color: #555; margin-top: 6px; }\n' +
+    '.below-tbl { display: flex; gap: 16px; margin-top: 12px; align-items: flex-start; }\n' +
+    '.income-info { flex: 1; font-size: 11px; color: #333; }\n' +
+    '.income-info-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 0.5px solid #eee; }\n' +
+    '.income-info-row.bold { font-weight: 700; border-top: 1px solid #bbb; border-bottom: none; margin-top: 3px; padding-top: 5px; }\n' +
+    '.summary-box { width: 45%; border: 1.5px solid #111; padding: 10px 14px; }\n' +
+    '.sum-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11px; }\n' +
+    '.sum-row.deduct { padding-left: 12px; color: #444; }\n' +
     '.sum-divider { border-top: 1px solid #555; margin: 6px 0; }\n' +
-    '.sum-net { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0 4px;\n' +
-    '  border-top: 1.5px solid #111; }\n' +
-    '.sum-net-lbl { font-size: 13px; font-weight: 700; }\n' +
-    '.sum-net-amt { font-size: 20px; font-weight: 700; }\n' +
-    '.sum-cheque { display: flex; justify-content: space-between; padding: 4px 0;\n' +
-    '  font-size: 11px; color: #555; border-top: 1px dashed #bbb; margin-top: 5px; }\n' +
-    /* signatures */
-    '.sig-row { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 16px; }\n' +
-    '.sig-box { text-align: center; }\n' +
-    '.sig-line { border-top: 1px solid #555; margin-top: 36px; padding-top: 5px;\n' +
-    '  font-size: 11px; }\n';
+    '.sum-net { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0 4px; border-top: 1.5px solid #111; }\n' +
+    '.sum-net-lbl { font-size: 12px; font-weight: 700; }\n' +
+    '.sum-net-amt { font-size: 18px; font-weight: 700; }\n' +
+    '.sum-extra { display: flex; justify-content: space-between; padding: 3px 0; font-size: 10px; color: #555; border-top: 1px dashed #bbb; margin-top: 4px; }\n';
 
   return '<!DOCTYPE html><html lang="th"><head>' +
     '<meta charset="UTF-8">' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">' +
-    '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">' +
+    '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">' +
     '<title>ใบสรุปยอดนำส่ง — ' + dsrName + '</title>' +
     '<style>' + css + '</style>' +
     '</head><body>' +
     '<button class="print-btn" onclick="window.print()">พิมพ์ / บันทึก PDF</button>' +
     '<div class="page-wrap">' +
 
-    /* Header */
-    '<div class="hdr">' +
-      '<div class="hdr-left">' + logoHtml + '<div><div class="hdr-title">ใบสรุปยอดนำส่ง</div><div class="hdr-sub">Nice Center Oil</div></div></div>' +
-      '<div class="hdr-center"><div class="hdr-dsr">' + dsrName + '</div><div class="hdr-range">' + escapeHtmlSrv(weekRange) + '</div></div>' +
-      '<div class="hdr-right">วันที่พิมพ์<br>' + printDate + '</div>' +
-    '</div>' +
+    getPrintHeaderHtml({title:'ใบสรุปยอดนำส่ง', dsrName:dsrName, dateRange:weekRange, printedAt:printDate}) +
 
-    /* Section A + B side by side */
-    '<div class="ab-row">' +
+    /* Merged 7-column Mon-Sat table */
+    '<table>' +
+      '<thead><tr>' +
+        '<th>วันที่</th>' +
+        '<th class="r">เลขไมล์</th>' +
+        '<th class="r">เงินสด</th>' +
+        '<th class="r">โอน/เช็ค</th>' +
+        '<th class="r">น้ำมัน/แก๊ส</th>' +
+        '<th class="r">ค่าที่พัก</th>' +
+        '<th class="r">เบี้ยเลี้ยง</th>' +
+      '</tr></thead>' +
+      '<tbody>' + mergedRows + '</tbody>' +
+      '<tfoot><tr>' +
+        '<td class="b">รวม</td>' +
+        '<td class="r">—</td>' +
+        '<td class="r b">' + fmtNAlways(totMergedCash)  + '</td>' +
+        '<td class="r b">' + fmtNAlways(totMergedCheq)  + '</td>' +
+        '<td class="r b">' + fmtNAlways(totMergedFuel)  + '</td>' +
+        '<td class="r b">' + fmtNAlways(totMergedHotel) + '</td>' +
+        '<td class="r b">' + fmtNAlways(totMergedAllow) + '</td>' +
+      '</tr></tfoot>' +
+    '</table>' +
+    '<div class="note-row">(หน่วย: บาท)</div>' +
 
-      /* Section A: รายรับ */
-      '<div>' +
-        '<div class="sec-title">ก. รายรับ (ยอดเก็บเงิน)</div>' +
-        '<table>' +
-          '<thead><tr><th>วันที่</th><th class="r">เงินสด (฿)</th><th class="r">โอน Slip2Go (฿)</th></tr></thead>' +
-          '<tbody>' + incTableRows + '</tbody>' +
-          '<tfoot><tr>' +
-            '<td class="b">รวม</td>' +
-            '<td class="r b">' + fmtNAlways(totCash)   + '</td>' +
-            '<td class="r b">' + fmtNAlways(totManual) + '</td>' +
-          '</tr></tfoot>' +
-        '</table>' +
-        '<div class="a-info">' +
-          '<div class="a-info-row"><span>เงินโอน Slip2Go (' + slipCount + ' รายการ)</span><span>' + fmtNAlways(slipTotal) + ' ฿</span></div>' +
-          (totCheque > 0 ? '<div class="a-info-row"><span>เช็ค (ส่งแยก)</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' : '') +
-          '<div class="a-info-row bold"><span>รวมรายรับทั้งสิ้น</span><span>' + fmtNAlways(totIncome) + ' ฿</span></div>' +
+    /* Below-table: income info left + summary box right */
+    '<div class="below-tbl">' +
+      '<div class="income-info">' +
+        '<div class="income-info-row"><span>เงินสดรับ</span><span>' + fmtNAlways(totMergedCash) + ' ฿</span></div>' +
+        '<div class="income-info-row"><span>Slip2Go (' + slipCount + ' รายการ)</span><span>' + fmtNAlways(slipTotal) + ' ฿</span></div>' +
+        (totCheque > 0 ? '<div class="income-info-row"><span>เช็ค (ส่งแยก)</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' : '') +
+        '<div class="income-info-row bold"><span>รวมรายรับทั้งสิ้น</span><span>' + fmtNAlways(totMergedCash + slipTotal + totCheque) + ' ฿</span></div>' +
+      '</div>' +
+      '<div class="summary-box">' +
+        '<div class="sum-row"><span>รวมเงินสด</span><span class="b">' + fmtNAlways(totMergedCash) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก ค่าน้ำมัน/แก๊ส</span><span>− ' + fmtNAlways(totMergedFuel) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtNAlways(totMergedHotel) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtNAlways(totMergedAllow) + ' ฿</span></div>' +
+        (totDepr > 0 ? '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div>' : '') +
+        '<div class="sum-divider"></div>' +
+        '<div class="sum-net">' +
+          '<span class="sum-net-lbl">ยอดนำส่งสุทธิ</span>' +
+          '<span class="sum-net-amt">' + fmtNAlways(totMergedCash - totMergedFuel - totMergedHotel - totMergedAllow - totDepr) + ' ฿</span>' +
         '</div>' +
+        '<div class="sum-extra"><span>โอน/เช็ค (ส่งแยก)</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' +
+        '<div class="sum-extra"><span>Slip2Go (ส่งแยก)</span><span>' + fmtNAlways(slipTotal) + ' ฿</span></div>' +
       '</div>' +
-
-      /* Section B: ค่าใช้จ่าย */
-      '<div>' +
-        '<div class="sec-title">ข. ค่าใช้จ่าย</div>' +
-        '<table>' +
-          '<thead><tr><th>วันที่</th><th class="r">น้ำมัน (฿)</th><th class="r">ที่พัก (฿)</th><th class="r">เบี้ยเลี้ยง (฿)</th></tr></thead>' +
-          '<tbody>' + expTableRows + '</tbody>' +
-          '<tfoot><tr>' +
-            '<td class="b">รวม</td>' +
-            '<td class="r b">' + fmtNAlways(totFuel)  + '</td>' +
-            '<td class="r b">' + fmtNAlways(totHotel) + '</td>' +
-            '<td class="r b">' + fmtNAlways(totAllow) + '</td>' +
-          '</tr></tfoot>' +
-        '</table>' +
-        (totDepr > 0 ? '<div class="a-info"><div class="a-info-row"><span>ค่าเสื่อมราคารถ</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div></div>' : '') +
-      '</div>' +
-
     '</div>' +
 
-    /* Section C: สรุปยอด full-width */
-    '<div class="sec-c">' +
-      '<div class="sum-row"><span>รายรับรวม (สด + โอน + Slip2Go)</span><span class="b">' + fmtNAlways(totIncome) + ' ฿</span></div>' +
-      '<div class="sum-row deduct"><span>หัก ค่าน้ำมัน/แก๊ส</span><span>− ' + fmtNAlways(totFuel) + ' ฿</span></div>' +
-      '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtNAlways(totHotel) + ' ฿</span></div>' +
-      '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtNAlways(totAllow) + ' ฿</span></div>' +
-      (totDepr > 0 ? '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div>' : '') +
-      '<div class="sum-divider"></div>' +
-      '<div class="sum-row"><span class="b">หักค่าใช้จ่ายรวม</span><span class="b">− ' + fmtNAlways(totExp) + ' ฿</span></div>' +
-      '<div class="sum-net">' +
-        '<span class="sum-net-lbl">ยอดนำส่งสุทธิ</span>' +
-        '<span class="sum-net-amt">' + fmtNAlways(netRemit) + ' ฿</span>' +
-      '</div>' +
-      (totCheque > 0 ? '<div class="sum-cheque"><span>เช็ค (ส่งต่างหาก)</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' : '') +
-    '</div>' +
-
-    /* Signatures */
-    '<div class="sig-row">' +
-      '<div class="sig-box"><div class="sig-line">ผู้ส่ง (DSR) · ' + dsrName + '</div></div>' +
-      '<div class="sig-box"><div class="sig-line">ผู้รับ · Nice Center Oil</div></div>' +
-    '</div>' +
+    getPrintFooterHtml() +
 
     '</div>' +
-    '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});<\/script>' +
+    '<script>setTimeout(function(){window.print();},400);<\/script>' +
     '</body></html>';
+}
+
+// ─── generateAllReportsPDF — พิมพ์ทุกใบครั้งเดียว (TASK 6) ────────────
+// payload: { dsrEmail, dsrName, weekStart, weekEnd,
+//            cashRows, slipTotal, slipByDate,
+//            incomeRows, expenseRows, mileageRows,
+//            monISO, sunISO, billAmounts, rowOrder }
+function generateAllReportsPDF(payload) {
+  console.log('[generateAllReportsPDF] dsr=%s weekStart=%s', payload.dsrEmail, payload.weekStart);
+
+  // ── 1. Cover Sheet (สรุปใบโอน Slip2Go) ───────────────────────────────
+  var html1 = '';
+  try {
+    html1 = getCoverSheetHtml(
+      payload.dsrEmail,
+      payload.monISO || payload.weekStart,
+      payload.sunISO || payload.weekEnd,
+      payload.billAmounts || {},
+      payload.rowOrder    || []
+    );
+  } catch(e) {
+    console.error('[generateAllReportsPDF] coversheet err: ' + e.message);
+    html1 = '<p style="font-family:sans-serif;padding:20px;">Cover Sheet: ' + escapeHtmlSrv(e.message) + '</p>';
+  }
+
+  // ── 2. Cash/Cheque entry sheet ────────────────────────────────────────
+  var html2 = '';
+  try {
+    html2 = generateCashEntryPDF({
+      dsrName:      payload.dsrName      || payload.dsrEmail,
+      dsrEmail:     payload.dsrEmail,
+      selectedDate: payload.weekStart    || '',
+      rows:         payload.cashRows     || [],
+    });
+  } catch(e) {
+    console.error('[generateAllReportsPDF] cashentry err: ' + e.message);
+    html2 = '<p style="font-family:sans-serif;padding:20px;">Cash Entry: ' + escapeHtmlSrv(e.message) + '</p>';
+  }
+
+  // ── 3. Settlement summary ─────────────────────────────────────────────
+  var html3 = '';
+  try {
+    html3 = generateSettlementPDF({
+      dsrName:     payload.dsrName      || payload.dsrEmail,
+      dsrEmail:    payload.dsrEmail,
+      weekStart:   payload.weekStart    || '',
+      weekEnd:     payload.weekEnd      || '',
+      incomeRows:  payload.incomeRows   || [],
+      expenseRows: payload.expenseRows  || [],
+      mileageRows: payload.mileageRows  || [],
+      slipTotal:   payload.slipTotal    || { total: 0, count: 0 },
+      slipByDate:  payload.slipByDate   || {},
+    });
+  } catch(e) {
+    console.error('[generateAllReportsPDF] settlement err: ' + e.message);
+    html3 = '<p style="font-family:sans-serif;padding:20px;">Settlement: ' + escapeHtmlSrv(e.message) + '</p>';
+  }
+
+  // ── Strip </body></html> from html1, html2 so we can concat cleanly ──
+  function stripClose(h) {
+    return (h || '').replace(/<\/body>[\s\S]*?<\/html>/i, '');
+  }
+
+  var combined =
+    stripClose(html1) +
+    '<div style="page-break-before:always"></div>' +
+    stripClose(html2) +
+    '<div style="page-break-before:always"></div>' +
+    html3;   // html3 has its own </body></html> + auto-print script
+
+  return combined;
 }
 
 // ─── getCoverSheetBatch ────────────────────────────────────────────────

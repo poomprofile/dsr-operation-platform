@@ -61,8 +61,15 @@ img { max-width: 100%; }
   to   { opacity:1; transform:translateY(0); }
 }
 @keyframes fadeIn {
-  from { opacity:0; } to { opacity:1; }
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
 }
+.fade-in { animation: fadeIn 200ms ease forwards; }
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: fadeInUp 300ms ease forwards; }
 @keyframes slideInRight {
   from { opacity:0; transform:translateX(24px); }
   to   { opacity:1; transform:translateX(0); }
@@ -1575,30 +1582,32 @@ img { max-width: 100%; }
 
 /* ── Collection page sub-tabs ── */
 .col-subtabs {
+  position: relative;
   display: flex;
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  padding: 3px;
+  border-bottom: 1px solid var(--border2);
   margin-bottom: 14px;
-  gap: 2px;
 }
 .col-subtab {
-  flex: 1;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink3);
-  text-align: center;
+  padding: 10px 20px;
   cursor: pointer;
-  transition: background .15s, color .15s;
+  font-size: 13px;
+  color: var(--ink3);
+  transition: color 150ms ease;
   -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
 }
 .col-subtab.active {
-  background: var(--card);
-  color: var(--o-dark);
-  font-weight: 600;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  color: var(--ink);
+  font-weight: 500;
+}
+.tab-indicator {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  background: var(--ink);
+  transition: left 250ms cubic-bezier(0.4,0,0.2,1),
+              width 250ms cubic-bezier(0.4,0,0.2,1);
+  pointer-events: none;
 }
 .col-tab-pane { display: none; }
 .col-tab-pane.active { display: block; }
@@ -1900,10 +1909,11 @@ img { max-width: 100%; }
           </div>
 
           <!-- Sub-tab bar (3 tabs) -->
-          <div class="col-subtabs">
+          <div class="col-subtabs" id="col-subtabs-bar">
             <div class="col-subtab active" id="coltab-btn-summary" onclick="switchCollectionTab('summary')">สรุปประจำอาทิตย์</div>
-            <div class="col-subtab" id="coltab-btn-cash" onclick="switchCollectionTab('cash')">บันทึกเงินสด/เช็ค</div>
+            <div class="col-subtab" id="coltab-btn-cash" onclick="switchCollectionTab('cash')">บันทึกเงินสด/โอน/เช็ค</div>
             <div class="col-subtab" id="coltab-btn-slip" onclick="switchCollectionTab('slip')">สรุปใบโอน</div>
+            <div class="tab-indicator" id="col-tab-indicator"></div>
           </div>
 
           <!-- Tab 0: สรุปประจำอาทิตย์ (default) -->
@@ -1937,7 +1947,7 @@ img { max-width: 100%; }
             <!-- Header -->
             <div class="hdr">
               <div id="ce-logo-wrap"><span style="font-size:15px;font-weight:700;color:var(--o)">NCO</span></div>
-              <div class="hdr-title"><h1 style="font-size:14px;font-weight:700;">NCO DSR Portal</h1><p style="font-size:11px;color:var(--muted);">บันทึกเงินสด / เช็ค</p></div>
+              <div class="hdr-title"><h1 style="font-size:14px;font-weight:700;">NCO DSR Portal</h1><p style="font-size:11px;color:var(--muted);">บันทึกเงินสด / โอน / เช็ค</p></div>
               <div class="hdr-meta">
                 <label>วันที่:</label>
                 <select id="inp-day" class="meta-inp" style="width:52px;"></select>
@@ -1946,7 +1956,7 @@ img { max-width: 100%; }
                 <input type="text" id="inp-dsr" class="meta-inp" readonly placeholder="กำลังโหลด...">
                 <button class="ce-btn ce-btn-save" onclick="ceSaveAndPrint()">💾 บันทึก+พิมพ์</button>
                 <button class="ce-btn ce-btn-load" onclick="ceLoadByDate()">📥 โหลด</button>
-                <button class="ce-btn ce-btn-print" onclick="printDoc()">🖨️</button>
+                <button class="ce-btn" style="background:var(--surface);color:var(--ink2);border:1.5px solid var(--border);" onclick="ceClearTable()">🗑 ล้างข้อมูล</button>
               </div>
             </div>
             <!-- Table -->
@@ -1989,9 +1999,9 @@ img { max-width: 100%; }
             </div>
             <!-- Summary Bar -->
             <div class="sum-bar">
-              <div class="sum-item"><label>รวมเงินสด</label><div class="sum-val g" id="sum-cash">0</div></div>
-              <div class="sum-item"><label>รวมยอดโอน/เช็ค</label><div class="sum-val b" id="sum-cheq">0</div></div>
-              <div class="sum-item"><label>ยอดเก็บรวม</label><div class="sum-val o" id="sum-total">0</div></div>
+              <div class="sum-item"><label>รวมเงินสด</label><div class="sum-val g" id="ce-sum-cash">0</div></div>
+              <div class="sum-item"><label>รวมยอดโอน/เช็ค</label><div class="sum-val b" id="ce-sum-cheq">0</div></div>
+              <div class="sum-item"><label>ยอดเก็บรวม</label><div class="sum-val o" id="ce-sum-total">0</div></div>
             </div>
             <!-- History Drawer -->
             <div class="hist-overlay" id="hist-overlay" onclick="ceCloseHistory()"></div>
@@ -2013,10 +2023,6 @@ img { max-width: 100%; }
 
           <!-- Tab 2: ตรวจสอบสลิป / Cover Sheet (reuses cs-shared from page-print) -->
           <div class="col-tab-pane" id="coltab-slip">
-            <div class="section-header" style="margin-bottom:12px;">
-              <div class="section-title">📋 สรุปใบโอนสัปดาห์นี้</div>
-              <div class="section-action" onclick="csLoad()">รีเฟรช</div>
-            </div>
             <div id="cs-slot-col"></div>
           </div>
         </div>
@@ -2040,8 +2046,8 @@ img { max-width: 100%; }
                 <thead>
                   <tr>
                     <th>วันที่</th>
-                    <th class="r">สด (฿)</th>
-                    <th class="r">เช็ค (฿)</th>
+                    <th class="r">เงินสด (฿)</th>
+                    <th class="r">โอน/เช็ค (฿)</th>
                     <th class="r" style="font-size:11px;">โอน Slip2Go (฿)</th>
                     <th class="r">รวม (฿)</th>
                   </tr>
@@ -2052,10 +2058,9 @@ img { max-width: 100%; }
                 <tfoot id="stl-inc-foot"></tfoot>
               </table>
             </div>
-            <!-- Slip2Go total row -->
-            <div id="stl-slip-row" style="display:none;padding:8px 4px;font-size:13px;color:var(--ink2);border-top:1px solid var(--border);margin-top:4px;">
-              เงินโอนผ่าน Slip2Go: <strong id="stl-slip-count">0</strong> รายการ =
-              <strong id="stl-slip-total" style="color:var(--g-dark);">0 ฿</strong>
+            <!-- Note below income table -->
+            <div style="font-size:11px;color:var(--ink3);margin-top:6px;padding:0 4px;">
+              * โอน/เช็ค และ Slip2Go ส่งแยก — ไม่นำมาคำนวณยอดสุทธิ
             </div>
           </div>
 
@@ -2090,10 +2095,6 @@ img { max-width: 100%; }
               <span>รวมเงินสด</span>
               <span class="stl-sum-val" id="stl-s-cash">—</span>
             </div>
-            <div class="stl-sum-row" id="stl-s-slip-row">
-              <span>รวมเงินโอน Slip2Go</span>
-              <span class="stl-sum-val" id="stl-s-slip">—</span>
-            </div>
             <div class="stl-sum-row deduct">
               <span>หัก จ่ายเงินน้ำมัน/แก๊ส</span>
               <span class="stl-sum-val" id="stl-s-fuel">—</span>
@@ -2112,18 +2113,25 @@ img { max-width: 100%; }
             </div>
             <div class="stl-sum-divider"></div>
             <div class="stl-net-row">
-              <span class="stl-net-label">ยอดนำส่งสุทธิ</span>
+              <span class="stl-net-label">ยอดนำส่งสุทธิ (เงินสด)</span>
               <span class="stl-net-amount pos" id="stl-s-net">—</span>
             </div>
             <div class="stl-sum-divider" style="border-color:var(--border);margin-top:10px;"></div>
             <div class="stl-sum-row" style="color:var(--ink3);font-size:12px;margin-top:4px;" id="stl-s-cheque-row">
-              <span>รวมเช็ค <span style="font-size:11px;">(เช็คส่งแยก ไม่หักค่าใช้จ่าย)</span></span>
+              <span>โอน/เช็ค <span style="font-size:11px;">(ส่งแยก)</span></span>
               <span class="stl-sum-val" id="stl-s-cheque">—</span>
+            </div>
+            <div class="stl-sum-row" style="color:var(--ink3);font-size:12px;" id="stl-s-slip-row">
+              <span>Slip2Go <span style="font-size:11px;">(ส่งแยก)</span></span>
+              <span class="stl-sum-val" id="stl-s-slip">—</span>
             </div>
           </div>
 
-          <!-- Print -->
-          <div class="btn btn-green" style="margin-top:14px;" onclick="stlPrint()">🖨️ พิมพ์ A4</div>
+          <!-- Print buttons -->
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <div class="btn btn-secondary" style="flex:1;" onclick="stlPrint()">🖨️ พิมพ์ยอดนำส่ง</div>
+            <div class="btn btn-green" style="flex:1;" onclick="stlPrintAll()">🖨️ พิมพ์ทุกใบครั้งเดียว</div>
+          </div>
 
         </div>
         
@@ -2199,35 +2207,35 @@ img { max-width: 100%; }
         
         <div class="page" id="page-print">
           <!-- DSR Review + Cover Sheet — ทำงานผ่าน google.script.run โดยตรง -->
-          <div class="section-header" style="margin-bottom:12px;">
-            <div class="section-title">📋 สรุปใบโอนสัปดาห์นี้</div>
-            <div class="section-action" onclick="csReload()">รีเฟรช</div>
-          </div>
 
           <div id="cs-slot-print">
           <div id="cs-shared">
-          <!-- Stats -->
-          <div style="display:flex;gap:12px;margin-bottom:12px;">
-            <div class="stat-card orange" style="flex:1;padding:12px;">
-              <div class="stat-label">จำนวน</div>
-              <div class="stat-value" id="cs-cnt" style="font-size:22px;">—</div>
-            </div>
-            <div class="stat-card green" style="flex:1;padding:12px;">
-              <div class="stat-label">ยอดรวม</div>
-              <div class="stat-value" id="cs-sum" style="font-size:18px;">—</div>
-            </div>
+          <!-- 4A: header bar with week selector (left) + buttons (right) -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+            <select id="cs-week-sel-dropdown" class="stl-week-sel" style="flex:1;min-width:180px;" onchange="csWeekDropdownChanged()">
+              <!-- populated by csLoad() -->
+            </select>
+            <div style="cursor:pointer;font-size:18px;color:var(--ink3);padding:4px;" onclick="csReload()" title="รีเฟรช">🔄</div>
+            <div class="btn btn-green" id="cs-btn" style="padding:8px 14px;font-size:13px;" onclick="csSave()">บันทึก + สร้าง Cover Sheet</div>
           </div>
 
           <!-- Table -->
-          <div id="cs-app" style="background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:auto;margin-bottom:12px;min-height:80px;display:flex;align-items:center;justify-content:center;color:var(--ink3);font-size:13px;">
+          <div id="cs-app" style="background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:auto;margin-bottom:10px;min-height:80px;display:flex;align-items:center;justify-content:center;color:var(--ink3);font-size:13px;">
             กำลังโหลด...
           </div>
 
-          <!-- Actions -->
-          <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;">
-            <div class="btn btn-secondary" style="padding:12px;" onclick="csReload()">รีเฟรช</div>
-            <div class="btn btn-green" id="cs-btn" style="padding:12px;" onclick="csSave()">บันทึก + สร้าง Cover Sheet</div>
+          <!-- 4B: Stats summary box BELOW table -->
+          <div style="display:flex;gap:10px;margin-bottom:10px;">
+            <div class="stat-card orange" style="flex:1;padding:10px;">
+              <div class="stat-label">จำนวนสลิป</div>
+              <div class="stat-value" id="cs-cnt" style="font-size:20px;">—</div>
+            </div>
+            <div class="stat-card green" style="flex:1;padding:10px;">
+              <div class="stat-label">ยอดรวมเงินโอน</div>
+              <div class="stat-value" id="cs-sum" style="font-size:16px;">—</div>
+            </div>
           </div>
+
           </div><!-- /cs-shared -->
           </div><!-- /cs-slot-print -->
         </div>
@@ -3085,7 +3093,7 @@ async function stlLoadSettlement() {
   stlRecalc();
 }
 
-// TASK 4A: income table — เงินสด | เช็ค | โอน Slip2Go (auto) | รวม
+// TASK 5A: income table — เงินสด | โอน/เช็ค | โอน Slip2Go | รวม
 function stlRenderIncome() {
   var weekStart = stlWeekStart();
   var tbody = document.getElementById('stl-inc-body');
@@ -3114,7 +3122,11 @@ function stlRenderIncome() {
       '<td class="r" style="font-weight:600">' + stlFmtAlways(rowTotal) + '</td>' +
       '</tr>';
   }
+  // TASK 1: fade-in
+  tbody.classList.remove('fade-in');
   tbody.innerHTML = html;
+  void tbody.offsetWidth;
+  tbody.classList.add('fade-in');
 
   tfoot.innerHTML = '<tr>' +
     '<td>รวม</td>' +
@@ -3123,18 +3135,6 @@ function stlRenderIncome() {
     '<td class="r" style="color:var(--g-dark);">' + stlFmtAlways(totSlip) + '</td>' +
     '<td class="r" style="font-weight:600">' + stlFmtAlways(totC+totQ+totSlip) + '</td>' +
     '</tr>';
-
-  // slip total summary row (below table)
-  var slipAmt   = (_stlSlipTotal && _stlSlipTotal.total) ? parseFloat(_stlSlipTotal.total) : 0;
-  var slipCount = (_stlSlipTotal && _stlSlipTotal.count) ? _stlSlipTotal.count : 0;
-  var slipRow = document.getElementById('stl-slip-row');
-  if (slipRow) {
-    slipRow.style.display = slipAmt > 0 ? '' : 'none';
-    var cntEl = document.getElementById('stl-slip-count');
-    var totEl = document.getElementById('stl-slip-total');
-    if (cntEl) cntEl.textContent = slipCount;
-    if (totEl) totEl.textContent = stlFmtAlways(slipAmt) + ' ฿';
-  }
 }
 
 function stlRenderTravel() { /* merged into stlBuildMergedRows */ }
@@ -3172,7 +3172,11 @@ function stlBuildMergedRows(weekStart) {
       '<td id="stl-allow-' + iso + '" style="text-align:center;font-size:11px;">—</td>' +
       '</tr>';
   }
+  // TASK 1: fade-in
+  tbody.classList.remove('fade-in');
   tbody.innerHTML = html;
+  void tbody.offsetWidth;
+  tbody.classList.add('fade-in');
   document.getElementById('stl-exp-foot').innerHTML = '';
 }
 
@@ -3217,8 +3221,8 @@ function stlRecalc() {
   });
 
   var totDepr = (_stlMileageRows || []).reduce(function(s, r) { return s + (parseFloat(r.depreciation) || 0); }, 0);
-  // TASK 4A: net = เงินสด + Slip2Go − ค่าใช้จ่าย (เช็คแสดงแยก ไม่หัก)
-  var net = totCash + slipAmt - totFuel - totHotel - totAllow - totDepr;
+  // TASK 5B: net = เงินสด ONLY − ค่าใช้จ่าย (โอน/เช็ค และ Slip2Go แสดงแยก ไม่หัก)
+  var net = totCash - totFuel - totHotel - totAllow - totDepr;
 
   function setTxt(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
   setTxt('stl-s-cash',  stlFmtAlways(totCash) + ' ฿');
@@ -3229,7 +3233,7 @@ function stlRecalc() {
   setTxt('stl-s-depr',  '− ' + stlFmtAlways(totDepr)  + ' ฿');
   setTxt('stl-s-cheque', stlFmtAlways(totCheque) + ' ฿');
 
-  // stl-s-slip-row always visible (TASK 4A)
+  // slip and cheque rows always visible
 
   var netEl = document.getElementById('stl-s-net');
   if (netEl) {
@@ -3338,6 +3342,78 @@ async function stlPrint() {
 
 async function printCoverSheet() {
   await generateCoverSheet();
+}
+
+// TASK 6: พิมพ์ทุกใบครั้งเดียว (Cover Sheet + Cash Entry + Settlement)
+async function stlPrintAll() {
+  var weekStart = stlWeekStart();
+  if (!weekStart || !currentUser) return;
+
+  var monD = new Date(weekStart + 'T00:00:00');
+  var sunD = new Date(monD);
+  sunD.setDate(monD.getDate() + 6);
+  var weekEnd  = stlDateISO(sunD);
+  var monISO   = stlDateISO(monD);
+  var sunISO   = stlDateISO(sunD);
+
+  // Build expense rows from current form
+  var expenseRows = [];
+  document.querySelectorAll('#stl-exp-body tr[data-date]').forEach(function(tr) {
+    var iso   = tr.getAttribute('data-date');
+    var fuel  = parseFloat((document.getElementById('stl-fuel-'  + iso) || {}).value) || 0;
+    var hotel = parseFloat((document.getElementById('stl-hotel-' + iso) || {}).value) || 0;
+    if (fuel === 0 && hotel === 0) return;
+    var d = new Date(iso + 'T00:00:00');
+    expenseRows.push({ date: iso, dateLabel: _THAI_DAYS[d.getDay()] + '. ' + d.getDate(), fuel: fuel, hotel: hotel, allowance: hotel > 0 ? 200 : 0 });
+  });
+
+  // Build cash rows from ce-table inputs (for cash entry page)
+  var cashRows = [];
+  for (var i = 1; i <= TOTAL_ROWS; i++) {
+    var code = ((document.getElementById('cc-'+i)||{}).value||'').trim();
+    var inv  = ((document.getElementById('inv-'+i)||{}).value||'').trim();
+    var cash = parseFloat(((document.getElementById('cash-'+i)||{}).value||'').replace(/,/g,''))||0;
+    var cheq = parseFloat(((document.getElementById('cheq-'+i)||{}).value||'').replace(/,/g,''))||0;
+    if (!cash && !cheq) continue;
+    cashRows.push({
+      customer_code: code,
+      customer_name: ((document.getElementById('nm-'+i)||{}).value||'').trim(),
+      invoice_no:    inv,
+      cash_amount:   cash,
+      cheq_amount:   cheq,
+      note:          ((document.getElementById('nt-'+i)||{}).value||'').trim(),
+    });
+  }
+
+  showToast('⏳ กำลังสร้าง PDF รวม...', '');
+  google.script.run
+    .withSuccessHandler(function(html) {
+      if (!html) { showToast('เกิดข้อผิดพลาดในการสร้าง PDF', 'error'); return; }
+      var w = window.open('', '_blank');
+      if (!w) { showToast('กรุณา allow popup แล้วลองใหม่', 'error'); return; }
+      w.document.write(html);
+      w.document.close();
+      setTimeout(function(){ w.print(); }, 800);
+    })
+    .withFailureHandler(function(err) {
+      showToast('⚠️ ' + ((err && err.message) || 'เกิดข้อผิดพลาด'), 'error');
+    })
+    .handleApiCall('GENERATE_ALL_REPORTS_PDF', {
+      dsrName:     currentUser.display_name || currentUser.email,
+      dsrEmail:    currentUser.email,
+      weekStart:   weekStart,
+      weekEnd:     weekEnd,
+      monISO:      monISO,
+      sunISO:      sunISO,
+      cashRows:    cashRows,
+      incomeRows:  _stlIncomeRows  || [],
+      expenseRows: expenseRows,
+      mileageRows: _stlMileageRows || [],
+      slipTotal:   _stlSlipTotal   || { total: 0, count: 0 },
+      slipByDate:  _stlSlipByDate  || {},
+      billAmounts: csBillAmounts   || {},
+      rowOrder:    [],
+    });
 }
 
 async function importCSV() {
@@ -3503,7 +3579,14 @@ function navTo(page) {
   // โหลดข้อมูล per page
   if (page === 'debt' && !debtData.length) loadHomeData();
   if (page === 'debt') switchDebtTab('collect');   // reset to tab 1 on nav
-  if (page === 'collection') { collectionBuildWeekOptions(); switchCollectionTab('summary'); }
+  if (page === 'collection') {
+    collectionBuildWeekOptions();
+    switchCollectionTab('summary');
+    requestAnimationFrame(function() {
+      var btn = document.getElementById('coltab-btn-summary');
+      updateTabIndicator(btn);
+    });
+  }
   if (page === 'mileage')    { mileageBuildWeekOptions(); mileageLoad(); }
   if (page === 'print') {
     var shared = document.getElementById('cs-shared');
@@ -3539,13 +3622,25 @@ function switchDebtTab(tab) {
 
 // ─── COLLECTION SUB-TABS ───────────────────────────────────────
 var _ceCashInited = false;
+function updateTabIndicator(activeEl) {
+  var indicator = document.getElementById('col-tab-indicator');
+  var bar = document.getElementById('col-subtabs-bar');
+  if (!indicator || !bar || !activeEl) return;
+  var rect = activeEl.getBoundingClientRect();
+  var barRect = bar.getBoundingClientRect();
+  indicator.style.left = (rect.left - barRect.left) + 'px';
+  indicator.style.width = rect.width + 'px';
+}
 function switchCollectionTab(tab) {
+  var activeBtn = null;
   ['summary','cash','slip'].forEach(function(t) {
     var btn = document.getElementById('coltab-btn-' + t);
     var pane = document.getElementById('coltab-' + t);
     if (btn)  btn.classList.toggle('active',  t === tab);
     if (pane) pane.classList.toggle('active', t === tab);
+    if (t === tab && btn) activeBtn = btn;
   });
+  updateTabIndicator(activeBtn);
 
   // Tab 0: summary — load data
   if (tab === 'summary') {
@@ -3631,9 +3726,10 @@ function positionInvPanel(n) {
   var ddv = document.getElementById('inv-ddv-' + n);
   var rect = ddv.getBoundingClientRect();
   var panel = document.getElementById('inv-panel-' + n);
-  panel.style.top = rect.bottom + 'px';
+  panel.style.top = (rect.bottom + 2) + 'px';
   panel.style.left = rect.left + 'px';
-  panel.style.minWidth = Math.max(rect.width, 270) + 'px';
+  panel.style.width = Math.max(rect.width, 280) + 'px';
+  panel.style.zIndex = '9999';
 }
 function selectInv(n, invoiceNo, amount, isStore) {
   closeAllInvDd();
@@ -3810,18 +3906,24 @@ function getRaw(id) {
 function fmtMoney(n) { return (parseFloat(n)||0).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:2}); }
 function fmtInt(n)   { return Math.round(parseFloat(n)||0).toLocaleString('th-TH'); }
 function updateFooter() {
+  // TASK 2: use td:nth-child selectors (robust even if id-based lookup fails)
+  // col 6 = เงินสด, col 7 = โอน/เช็ค, col 5 = ยอดบิล
   var tCash = 0, tCheq = 0, tBill = 0;
-  for (var i = 1; i <= TOTAL_ROWS; i++) {
-    tCash += getRaw('cash-' + i);
-    tCheq += getRaw('cheq-' + i);
-    tBill += parseInt((document.getElementById('bill-' + i).value||'0').replace(/,/g,''))||0;
-  }
-  document.getElementById('ft-bill').textContent  = tBill > 0 ? fmtInt(tBill) : '–';
-  document.getElementById('ft-cash').textContent  = fmtInt(tCash);
-  document.getElementById('ft-cheq').textContent  = fmtInt(tCheq);
-  document.getElementById('sum-cash').textContent = fmtInt(tCash);
-  document.getElementById('sum-cheq').textContent = fmtInt(tCheq);
-  document.getElementById('sum-total').textContent= fmtInt(tCash + tCheq);
+  document.querySelectorAll('#ce-table tbody tr td:nth-child(6) input').forEach(function(el) {
+    tCash += parseFloat((el.value||'').replace(/,/g,''))||0;
+  });
+  document.querySelectorAll('#ce-table tbody tr td:nth-child(7) input').forEach(function(el) {
+    tCheq += parseFloat((el.value||'').replace(/,/g,''))||0;
+  });
+  document.querySelectorAll('#ce-table tbody tr td:nth-child(5) input').forEach(function(el) {
+    tBill += parseInt((el.value||'').replace(/,/g,''))||0;
+  });
+  document.getElementById('ft-bill').textContent     = tBill > 0 ? fmtInt(tBill) : '–';
+  document.getElementById('ft-cash').textContent     = fmtInt(tCash);
+  document.getElementById('ft-cheq').textContent     = fmtInt(tCheq);
+  document.getElementById('ce-sum-cash').textContent = fmtInt(tCash);
+  document.getElementById('ce-sum-cheq').textContent = fmtInt(tCheq);
+  document.getElementById('ce-sum-total').textContent= fmtInt(tCash + tCheq);
 }
 function printDoc() {
   window.print();
@@ -3978,12 +4080,14 @@ function ceCashInit() {
 
   document.getElementById('tbl-wrap').addEventListener('scroll', closeAllInvDd);
   document.addEventListener('click', function(e) { if (!e.target.closest('.inv-dd')) closeAllInvDd(); });
+  window.addEventListener('scroll', closeAllInvDd);
+  window.addEventListener('resize', closeAllInvDd);
 
-  // TASK 1: event delegation — updateFooter when any amount input changes
+  // event delegation — updateFooter when any input in the table changes
   var ceTable = document.getElementById('ce-table');
   if (ceTable) {
     ceTable.addEventListener('input', function(e) {
-      if (e.target.matches('input[data-type="amount"]')) updateFooter();
+      if (e.target.tagName === 'INPUT') updateFooter();
     });
   }
 
@@ -4090,29 +4194,61 @@ async function ceSaveAndPrint() {
   }
 }
 
-// TASK 2: Load rows for selected date
+// TASK 2: Load rows for selected date — loads BOTH cash AND cheque entries
 async function ceLoadByDate() {
   var dateStr = getCeSelectedDate();
   ceShowToast('⏳ กำลังโหลดข้อมูล ' + dateStr + '...', '');
-  var rows = await apiCall('GET_CASH_LOG_BY_DATE', { dateStr: dateStr });
+  var rows = await apiCall('GET_CASH_CHEQUE_BY_DATE', { dateStr: dateStr });
   if (!rows) return;
   if (!rows.length) { ceShowToast('ไม่มีข้อมูลวันที่ ' + dateStr, ''); return; }
   initRows(); // reset table
-  rows.forEach(function(r, idx) {
-    var n = idx + 1;
+  var rowIdx = 0;
+  rows.forEach(function(r) {
+    rowIdx++;
+    var n = rowIdx;
     if (n > TOTAL_ROWS) return;
+    var row = document.getElementById('row-'+n);
     var ccEl = document.getElementById('cc-'+n);
     var nmEl = document.getElementById('nm-'+n);
+    var invEl = document.getElementById('inv-'+n);
+    var invDdv = document.getElementById('inv-ddv-'+n);
     var ntEl = document.getElementById('nt-'+n);
-    if (ccEl) { ccEl.value = r.customer_code; document.getElementById('row-'+n).classList.add('has-data'); }
-    if (nmEl) nmEl.value = r.customer_name;
-    if (ntEl) ntEl.value = r.note;
-    // set cash or cheque amount
-    var cashEl = document.getElementById('cash-'+n);
-    if (cashEl && r.amount > 0) cashEl.value = fmtMoney(r.amount);
+    if (ccEl) { ccEl.value = r.customer_code || ''; if (r.customer_code) row && row.classList.add('has-data'); }
+    if (nmEl) nmEl.value = r.customer_name || '';
+    if (ntEl) ntEl.value = r.note || '';
+    if (invEl && r.invoice_no) {
+      invEl.value = r.invoice_no;
+      if (invDdv) { invDdv.textContent = r.invoice_no; invDdv.classList.remove('muted'); }
+    }
+    // set amount into cash or cheque column — use plain string to avoid locale issues
+    var amt = r.amount > 0 ? String(r.amount) : '';
+    if (r.type === 'cheque') {
+      var cheqEl = document.getElementById('cheq-'+n);
+      if (cheqEl && amt) { cheqEl.value = amt; toggleCheqFields(n); }
+      // set cheque-specific fields
+      var cdEl = document.getElementById('cd-'+n);
+      var cnEl = document.getElementById('cn-'+n);
+      var bkSel = document.getElementById('bk-'+n);
+      var brSel = document.getElementById('br-'+n);
+      if (cdEl && r.cheque_date) cdEl.value = r.cheque_date;
+      if (cnEl && r.cheque_no)   { cnEl.value = r.cheque_no; onCheqNoInput(n); }
+      if (bkSel && r.bank_name)  { bkSel.value = r.bank_name; onBankChange(n); }
+      if (brSel && r.branch_name) brSel.value = r.branch_name;
+    } else {
+      var cashEl = document.getElementById('cash-'+n);
+      if (cashEl && amt) cashEl.value = amt;
+    }
+    checkRowIndicators(n);
   });
+  var tbody = document.getElementById('tbody');
+  if (tbody) { tbody.classList.remove('fade-in-up'); void tbody.offsetWidth; tbody.classList.add('fade-in-up'); }
   updateFooter();
   ceShowToast('โหลด ' + rows.length + ' รายการสำเร็จ', 'success');
+}
+
+function ceClearTable() {
+  if (!confirm('ล้างข้อมูลในตารางทั้งหมด?')) return;
+  initRows();
 }
 
 // ════════════════════════════════════════════
@@ -4291,6 +4427,7 @@ async function collectionLoadSummary() {
       '<td class="r" style="font-weight:600">' + fmtN(totCheque) + '</td>' +
       '<td class="r" style="font-weight:600">' + fmtN(totCash + totCheque) + '</td>' +
     '</tr></tfoot></table>';
+  container.classList.remove('fade-in-up'); void container.offsetWidth; container.classList.add('fade-in-up');
 }
 
 // TASK 1C: view-only Slip2Go summary — grouped by date, no edit buttons, no status filter
@@ -4327,21 +4464,22 @@ async function collectionLoadSlips() {
 
   var tableRows = rows.map(function(r) {
     return '<tr>' +
-      '<td>' + fmtD(r.date) + '</td>' +
-      '<td class="r" style="font-weight:600;">' + fmtN(r.total) + '</td>' +
+      '<td style="width:1%;white-space:nowrap;padding-right:6px;">' + fmtD(r.date) + '</td>' +
+      '<td style="font-weight:600;text-align:left;padding-left:0;">' + fmtN(r.total) + '</td>' +
       '<td style="color:var(--ink3);font-size:11px;">' + r.count + ' สลิป</td>' +
       '</tr>';
   }).join('');
 
   container.innerHTML =
     '<table class="stl-table"><thead><tr>' +
-      '<th>วันที่</th><th class="r">ยอดโอน (฿)</th><th>จำนวน</th>' +
+      '<th style="width:1%;white-space:nowrap;">วันที่</th><th style="text-align:left;padding-left:0;">ยอดโอน (฿)</th><th>จำนวน</th>' +
     '</tr></thead><tbody>' + tableRows + '</tbody>' +
     '<tfoot><tr>' +
       '<td style="font-weight:600">รวม</td>' +
-      '<td class="r" style="font-weight:600">' + fmtN(grandTotal) + '</td>' +
+      '<td style="font-weight:600;text-align:left;padding-left:0;">' + fmtN(grandTotal) + '</td>' +
       '<td></td>' +
     '</tr></tfoot></table>';
+  container.classList.remove('fade-in-up'); void container.offsetWidth; container.classList.add('fade-in-up');
 }
 
 async function slipEditBill(rowIndex, btn) {
@@ -4551,26 +4689,68 @@ function csInjectCSS(){
   document.head.appendChild(s);
 }
 
+// TASK 4C: populate week selector dropdown (เหมือน settlement)
+function csBuildWeekDropdown(selectedIso) {
+  var sel = document.getElementById('cs-week-sel-dropdown');
+  if (!sel) return;
+  if (sel.options.length > 0 && sel.value === selectedIso) return; // already correct
+  var today  = _today();
+  var monday = new Date(today);
+  var diff = (today.getDay() === 0) ? -6 : 1 - today.getDay();
+  monday.setDate(today.getDate() + diff);
+  monday.setHours(0,0,0,0);
+  var mo = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  var thDay = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  function wkLabel(mon) {
+    var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    var sameMon = mon.getMonth() === sun.getMonth();
+    var prefix = (mon.getTime() === monday.getTime()) ? '▶ ' : '';
+    var lbl = prefix + thDay[mon.getDay()] + '. ' + mon.getDate();
+    if (!sameMon) lbl += ' ' + mo[mon.getMonth()+1];
+    lbl += ' – ' + thDay[sun.getDay()] + '. ' + sun.getDate() + ' ' + mo[sun.getMonth()+1] + ' ' + (sun.getFullYear()+543) + ' ∨';
+    return lbl;
+  }
+  sel.innerHTML = '';
+  for (var i = 0; i < 9; i++) {
+    var mon = new Date(monday);
+    mon.setDate(monday.getDate() - i * 7);
+    var iso = _localIso(mon);
+    var opt = document.createElement('option');
+    opt.value = iso;
+    opt.textContent = wkLabel(mon);
+    if (iso === selectedIso) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+// TASK 4C: handler for week dropdown change
+function csWeekDropdownChanged() {
+  var sel = document.getElementById('cs-week-sel-dropdown');
+  if (!sel) return;
+  var iso = sel.value;
+  if (!iso) return;
+  // compute sun from mon
+  var mon = new Date(iso + 'T00:00:00');
+  var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  csRangeStart = mon; csRangeStart.setHours(0,0,0,0);
+  csRangeEnd   = sun; csRangeEnd.setHours(23,59,59,0);
+  csWeekOffset = 0;
+  csLoad();
+}
+
 function csLoad(){
   if(!currentUser)return;
   csInjectCSS();csBillCache={};csDropSt={};csEdits={};csBillAmounts={};csStoreCache={};
 
-  var navWrap=document.getElementById('cs-week-nav');
-  if(!navWrap){navWrap=document.createElement('div');navWrap.id='cs-week-nav';navWrap.className='cs-wnav';document.getElementById('cs-app').parentNode.insertBefore(navWrap,document.getElementById('cs-app'));}
-
-  var r=csGetRange(),startIso=_localIso(r.mon),endIso=_localIso(r.sun),isCustom=!!(csRangeStart||csRangeEnd);
+  var r=csGetRange(),startIso=_localIso(r.mon),endIso=_localIso(r.sun);
   csWeekStart=startIso;
-  navWrap.innerHTML=
-    '<button class="cs-wbtn" onclick="csChangeWeek(-1)">&#8249;</button>'
-    +'<div class="cs-wlabel">'+csFmtRangeLabel()+'</div>'
-    +'<button class="cs-wbtn" onclick="csChangeWeek(1)">&#8250;</button>'
-    +'<div class="cs-range-wrap">'
-      +'<span class="cs-range-label">เริ่ม</span>'
-      +'<select class="cs-range-sel" id="cs-sel-start" onchange="csOnRangeChange()">'+_buildDayOptions(startIso)+'</select>'
-      +'<span class="cs-range-label">สิ้นสุด</span>'
-      +'<select class="cs-range-sel" id="cs-sel-end" onchange="csOnRangeChange()">'+_buildDayOptions(endIso)+'</select>'
-      +(isCustom?'<span class="cs-range-reset" onclick="csResetRange()">รีเซ็ต</span>':'')
-    +'</div>';
+
+  // TASK 4C: populate the dropdown selector
+  csBuildWeekDropdown(startIso);
+
+  // Hide the old nav injected inside cs-app area if it exists
+  var navWrap=document.getElementById('cs-week-nav');
+  if(navWrap) navWrap.style.display='none';
 
   var app=document.getElementById('cs-app');
   app.style.cssText='background:transparent;border-radius:var(--radius);margin-bottom:12px;overflow:visible;';
@@ -4586,6 +4766,8 @@ function csLoad(){
       document.getElementById('cs-cnt').textContent=csRows.length;
       document.getElementById('cs-sum').textContent=Number(d.total||0).toLocaleString('th-TH')+' ฿';
       csRender(app);
+      // TASK 1: fade-in
+      app.classList.remove('fade-in'); void app.offsetWidth; app.classList.add('fade-in');
     })
     .withFailureHandler(function(e){app.textContent='ERROR: '+e.message;})
     .getDsrWeekSlipsWithPendingRows(currentUser.email,monStr,sunStr);
