@@ -158,11 +158,10 @@ function authenticateRequest(idToken) {
 }
 
 // Called from client via google.script.run (no token needed)
-// [FIXED] รับ email จาก frontend แทน Session.getActiveUser()
-// เพราะ "Execute as: Me" deployment ทำให้ Session คืน email เจ้าของ script เสมอ
-function getUserProfile(emailFromClient) {
-  var userEmail = emailFromClient || Session.getActiveUser().getEmail();
-  console.log('getUserProfile called with:', userEmail);
+// ต้อง deploy แบบ "Execute as: User accessing the web app" เพื่อให้ Session คืน email จริง
+function getUserProfile() {
+  var userEmail = Session.getActiveUser().getEmail();
+  console.log('SESSION EMAIL:', userEmail);
 
   if (!userEmail) throw new Error('Cannot determine user email');
 
@@ -203,7 +202,7 @@ function getUserProfile(emailFromClient) {
 // ใช้แทน doPost เพราะ google.script.run ไม่มีปัญหา CORS
 function handleApiCall(action, payload) {
   payload = payload || {};
-  var user = getUserProfile(payload._email || null);
+  var user = getUserProfile();
   // ถ้า Admin บันทึกข้อมูลของตัวเอง ให้ inject dsr_id อัตโนมัติ
   if (payload.data && !payload.data.dsr_id) {
     payload.data.dsr_id = user.email;
@@ -213,11 +212,6 @@ function handleApiCall(action, payload) {
   return result;
 }
 
-
-// Returns OAuth Client ID for frontend GIS initialization
-function getOAuthClientId() {
-  return prop('OAUTH_CLIENT_ID') || '';
-}
 
 // ── Email whitelist check ──────────────────────────────────────────
 // [FIXED] อ่านจาก USERS sheet โดยตรง (single source of truth)
