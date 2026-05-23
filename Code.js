@@ -76,6 +76,14 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  // Route LINE Mileage Bot webhook — has events[], no action/token
+  try {
+    var _body = JSON.parse(e.postData.contents);
+    if (_body && Array.isArray(_body.events) && _body.destination !== undefined) {
+      return handleMileageBotWebhook(e);
+    }
+  } catch (_) {}
+
   const start = Date.now();
   let payload, user;
   try {
@@ -312,6 +320,20 @@ function routeAction(action, payload, user) {
     GENERATE_CASH_ENTRY_PDF:  () => generateCashEntryPDF(payload),
     // All-in-one print (TASK 6)
     GENERATE_ALL_REPORTS_PDF: () => generateAllReportsPDF(payload),
+    // Mileage Bot (Code_MileageBot.gs)
+    GET_BOT_MILEAGE_SUMMARY:   () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return getMileageBotSummary(payload.weekStart, em || null);
+    },
+    UPDATE_MILEAGE_RECORD:     () => updateMileageBotRecord(payload.id, payload.confirmedMile, user),
+    GET_MILEAGE_WEEKLY_SUMMARY:() => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return getMileageWeeklySummary(em, payload.weekStart);
+    },
+    SUBMIT_WEEKLY_MILEAGE:     () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return submitWeeklyMileageSummary(em, payload.weekStart, user);
+    },
   };
 
   if (!routes[action]) throw new Error('Unknown action: ' + action);
@@ -1073,6 +1095,7 @@ function getAuditLog(filters) {
 }
 
 function isWriteAction(action) {
+  if (action === 'UPDATE_MILEAGE_RECORD' || action === 'SUBMIT_WEEKLY_MILEAGE') return true;
   return /^(SAVE|UPSERT|CREATE|DELETE|IMPORT|TOGGLE|CONFIRM|SET|DEACTIVATE)/.test(action);
 }
 
@@ -1944,7 +1967,7 @@ function getPrintCssStandard() {
     /* shared footer (print-only fixed position) */
     '@media print { .print-footer { position: fixed; bottom: 12mm; left: 15mm; right: 15mm;',
     '  display: flex; justify-content: space-between;',
-    '  font-size: 11px; border-top: 0.5px solid #999; padding-top: 6px; } }',
+    '  font-size: 11px; padding-top: 0; } }',
     '@media screen { .print-footer { display: none; } }',
   ].join('\n');
 }
@@ -2913,8 +2936,7 @@ function buildCoverSheetHtmlV15(rows, dsrName, today, total, weekLabel, billAmou
       '</tr>';
   }).join('');
 
-  var empty='';
-  for(var i=rows.length;i<15;i++) empty+='<tr><td class="c">'+(i+1)+'</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+  // [CHANGED] ลบแถวว่างออก — แสดงเฉพาะแถวที่มีข้อมูล (TASK 4A)
 
   var css=[
     getPrintCssStandard(),
@@ -2943,9 +2965,8 @@ function buildCoverSheetHtmlV15(rows, dsrName, today, total, weekLabel, billAmou
     +getPrintHeaderHtml({title:'สรุปใบโอน Slip2Go', dsrName:dsrName, dateRange:weekLabel, printedAt:today})
     +'<table><colgroup><col class="no"><col class="code"><col class="shop"><col class="bi"><col class="am"><col class="am"><col class="dt"><col class="nt"></colgroup>'
     +'<thead><tr><th>No.</th><th>รหัสลูกค้า</th><th>ชื่อร้าน</th><th>เลขที่บิล</th><th>ยอดบิล</th><th>ยอดโอน</th><th>วันที่โอน</th><th>หมายเหตุ</th></tr></thead>'
-    +'<tbody>'+tableRows+empty+'</tbody></table>'
+    +'<tbody>'+tableRows+'</tbody></table>'
     +'<table class="summary-tbl">'
-      +'<tr><td class="lbl">จำนวนสลิป</td><td class="val">'+rows.length+'</td></tr>'
       +'<tr><td class="lbl">ยอดโอนเงินรวม</td><td class="val">'+formatMoney(total)+' ฿</td></tr>'
     +'</table>'
     +getPrintFooterHtml()
@@ -3800,7 +3821,12 @@ function saveCashEntryForDate(date, dsrEmail, rows) {
 function generateCashEntryPDF(payload) {
   console.log('[generateCashEntryPDF] dsr=%s date=%s rows=%s', payload.dsrEmail, payload.selectedDate, (payload.rows||[]).length);
   var dsrName    = escapeHtmlSrv(payload.dsrName || payload.dsrEmail || '');
-  var dateLabel  = escapeHtmlSrv(payload.selectedDate || '');
+  // [CHANGED] format วันที่เป็น DD/MM/YYYY (TASK 3B)
+  var dateLabel  = escapeHtmlSrv((function(s){
+    if (!s) return s;
+    var p = s.split('-');
+    return p.length === 3 ? p[2]+'/'+p[1]+'/'+p[0] : s;
+  })(payload.selectedDate || ''));
   var rows       = payload.rows || [];
   var logoHtml   = getLogoBase64Html();
 
@@ -3820,17 +3846,17 @@ function generateCashEntryPDF(payload) {
     var bill = parseFloat(r.bill_amount) || 0;
     totCash += cash; totCheq += cheq;
     return '<tr>' +
-      '<td style="text-align:center;width:22px">' + (idx+1) + '</td>' +
-      '<td style="width:60px">' + esc(r.customer_code) + '</td>' +
-      '<td>' + esc(r.customer_name) + '</td>' +
-      '<td style="width:90px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">' + esc(r.invoice_no) + '</td>' +
-      '<td style="text-align:right;width:70px">' + fmtN(bill) + '</td>' +
-      '<td style="text-align:right;width:70px">' + fmtN(cash) + '</td>' +
-      '<td style="text-align:right;width:70px">' + fmtN(cheq) + '</td>' +
-      '<td style="width:62px">' + esc(r.cheque_date  || '') + '</td>' +
-      '<td style="width:70px">' + esc(r.cheque_no    || '') + '</td>' +
-      '<td style="width:80px;font-size:9px">' + esc(r.bank_name   || '') + '</td>' +
-      '<td style="width:80px;font-size:9px">' + esc(r.branch_name || '') + '</td>' +
+      '<td style="text-align:center;width:4%">' + (idx+1) + '</td>' +
+      '<td style="width:8%">' + esc(r.customer_code) + '</td>' +
+      '<td style="width:20%">' + esc(r.customer_name) + '</td>' +
+      '<td style="width:18%;white-space:nowrap;font-size:10px">' + esc(r.invoice_no) + '</td>' +
+      '<td style="text-align:right;width:8%">' + fmtN(bill) + '</td>' +
+      '<td style="text-align:right;width:8%">' + fmtN(cash) + '</td>' +
+      '<td style="text-align:right;width:8%">' + fmtN(cheq) + '</td>' +
+      '<td style="width:8%">' + esc(r.cheque_date  || '') + '</td>' +
+      '<td style="width:8%">' + esc(r.cheque_no    || '') + '</td>' +
+      '<td style="width:6%;font-size:9px">' + esc(r.bank_name   || '') + '</td>' +
+      '<td style="width:6%;font-size:9px">' + esc(r.branch_name || '') + '</td>' +
       '<td>' + esc(r.note) + '</td>' +
       '</tr>';
   }).join('');
@@ -3861,17 +3887,17 @@ function generateCashEntryPDF(payload) {
     getPrintHeaderHtml({title:'บันทึกเงินสด / โอน / เช็ค', dsrName:dsrName, dateRange:dateLabel, printedAt:printDate}) +
     '<table>' +
       '<thead><tr>' +
-        '<th style="width:22px">No.</th>' +
-        '<th style="width:60px">รหัสลูกค้า</th>' +
-        '<th>ชื่อร้าน</th>' +
-        '<th style="width:90px">เลขที่บิล</th>' +
-        '<th style="width:70px;text-align:right">ยอดบิล</th>' +
-        '<th style="width:70px;text-align:right">เงินสด</th>' +
-        '<th style="width:70px;text-align:right">ยอดโอน/เช็ค</th>' +
-        '<th style="width:62px">วันที่โอน/เช็ค</th>' +
-        '<th style="width:70px">เลขที่เช็ค</th>' +
-        '<th style="width:80px">ธนาคาร</th>' +
-        '<th style="width:80px">สาขา</th>' +
+        '<th style="width:4%">No.</th>' +
+        '<th style="width:8%">รหัสลูกค้า</th>' +
+        '<th style="width:20%">ชื่อร้าน</th>' +
+        '<th style="width:18%">เลขที่บิล</th>' +
+        '<th style="width:8%;text-align:right">ยอดบิล</th>' +
+        '<th style="width:8%;text-align:right">เงินสด</th>' +
+        '<th style="width:8%;text-align:right">ยอดโอน/เช็ค</th>' +
+        '<th style="width:8%">วันที่โอน/เช็ค</th>' +
+        '<th style="width:8%">เลขที่เช็ค</th>' +
+        '<th style="width:6%">ธนาคาร</th>' +
+        '<th style="width:6%">สาขา</th>' +
         '<th>หมายเหตุ</th>' +
       '</tr></thead>' +
       '<tbody>' + (bodyRows || '<tr><td colspan="12" style="text-align:center;color:#999;">ไม่มีรายการ</td></tr>') + '</tbody>' +
@@ -4267,13 +4293,18 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
         '<div class="income-info-row bold"><span>รวมรายรับทั้งสิ้น</span><span>' + fmtNAlways(totMergedCash + slipTotal + totCheque) + ' ฿</span></div>' +
       '</div>' +
       '<div class="summary-box">' +
-        '<div class="sum-row"><span>รวมรายรับ</span><span class="b">' + fmtNAlways(totMergedCash + slipTotal + totCheque) + ' ฿</span></div>' +
-        '<div class="sum-row deduct"><span>หัก ค่าใช้จ่าย</span><span>− ' + fmtNAlways(totMergedFuel + totMergedHotel + totMergedAllow + totDepr) + ' ฿</span></div>' +
+        '<div class="sum-row"><span>รวมเงินสด</span><span class="b">' + fmtNAlways(totMergedCash) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก จ่ายเงินน้ำมัน/แก๊ส</span><span>− ' + fmtNAlways(totMergedFuel) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtNAlways(totMergedHotel) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtNAlways(totMergedAllow) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div>' +
         '<div class="sum-divider"></div>' +
         '<div class="sum-net">' +
-          '<span class="sum-net-lbl">ยอดนำส่งสุทธิ</span>' +
-          '<span class="sum-net-amt">' + fmtNAlways(totMergedCash + slipTotal + totCheque - totMergedFuel - totMergedHotel - totMergedAllow - totDepr) + ' ฿</span>' +
+          '<span class="sum-net-lbl">ยอดนำส่งสุทธิ (เงินสด)</span>' +
+          '<span class="sum-net-amt">' + fmtNAlways(netRemit) + ' ฿</span>' +
         '</div>' +
+        '<div class="sum-extra"><span>โอน/เช็ค (ส่งแยก)</span><span>' + fmtNAlways(totCheque) + ' ฿</span></div>' +
+        '<div class="sum-extra"><span>Slip2Go (ส่งแยก)</span><span>' + fmtNAlways(slipTotal) + ' ฿</span></div>' +
       '</div>' +
     '</div>' +
 

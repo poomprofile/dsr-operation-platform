@@ -1740,6 +1740,10 @@ img { max-width: 100%; }
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 4v4l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
           <span class="sidebar-label">สรุปเลขไมล์</span>
         </div>
+        <div class="sidebar-item" onclick="navTo('milagebot')" id="sb-milagebot" data-label="บันทึกไมล์ Bot">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
+          <span class="sidebar-label">บันทึกไมล์ Bot</span>
+        </div>
         <div class="sidebar-item" onclick="navTo('collection')" data-label="สรุปการเก็บเงิน">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
           <span class="sidebar-label">สรุปการเก็บเงิน</span>
@@ -1901,6 +1905,73 @@ img { max-width: 100%; }
         </div>
         
 
+
+        <!-- ── page-milagebot ── บันทึกไมล์ Bot ── -->
+        <div class="page" id="page-milagebot">
+          <div class="section-header">
+            <div class="section-title">บันทึกไมล์ Bot</div>
+          </div>
+
+          <!-- Admin: DSR selector -->
+          <div id="mbadmin-bar" style="display:none;margin-bottom:12px;">
+            <select id="mb-dsr-sel" class="stl-week-sel" style="max-width:220px;" onchange="mbLoad()">
+              <!-- populated by mbBuildDsrOptions() -->
+            </select>
+          </div>
+
+          <div class="stl-week-bar">
+            <select id="mb-week-sel" class="stl-week-sel" onchange="mbLoad()">
+              <!-- populated by mbBuildWeekOptions() -->
+            </select>
+          </div>
+
+          <!-- Legend -->
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--ink2);">
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#fff;border:1px solid #ccc;display:inline-block;"></span>OCR อ่านได้</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#FFF9C4;border:1px solid #F9A825;display:inline-block;"></span>ค่าประมาณ / รอกรอก</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#FFCDD2;border:1px solid #E53935;display:inline-block;"></span>ข้อมูลผิดปกติ</span>
+          </div>
+
+          <div class="card mb-16" id="mb-summary-card">
+            <div class="card-title">📸 ไมล์รถรายวัน (จาก LINE Bot)</div>
+            <div style="overflow-x:auto;">
+              <table class="stl-table" style="min-width:600px;">
+                <thead>
+                  <tr>
+                    <th>วันที่</th>
+                    <th class="r">ไมล์เช้า</th>
+                    <th class="r">ไมล์เย็น</th>
+                    <th class="r">ระยะทาง</th>
+                    <th>รถ</th>
+                    <th class="r">ค่าเสื่อม</th>
+                    <th>สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody id="mb-body">
+                  <tr><td colspan="7" class="stl-empty-msg">กำลังโหลด...</td></tr>
+                </tbody>
+                <tfoot id="mb-foot"></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <!-- Weekly summary & submit -->
+          <div class="card mb-16" id="mb-week-summary" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+              <div>
+                <div style="font-size:13px;color:var(--ink2);">รวมสัปดาห์นี้</div>
+                <div style="font-size:20px;font-weight:700;" id="mb-total-dist">— กม.</div>
+                <div style="font-size:13px;color:var(--ink3);" id="mb-total-depr">ค่าเสื่อม —฿</div>
+              </div>
+              <div>
+                <div style="font-size:13px;color:var(--ink3);" id="mb-incomplete-days"></div>
+              </div>
+              <button class="btn btn-primary" id="mb-submit-btn" onclick="mbSubmitWeek()" style="min-width:140px;">
+                ส่งสรุปสัปดาห์
+              </button>
+            </div>
+          </div>
+        </div>
 
         <!-- ── page-collection ── สรุปการเก็บเงิน ── -->
         <div class="page" id="page-collection">
@@ -2284,6 +2355,30 @@ img { max-width: 100%; }
 
 
 
+
+<!-- ── Mileage Bot Edit Modal ── -->
+<div class="modal-overlay" id="modal-mb-edit" onclick="closeModal('modal-mb-edit')">
+  <div class="bottom-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="mb-edit-title">แก้ไขไมล์</div>
+    <div class="sheet-body">
+      <div id="mb-edit-photo-wrap" style="margin-bottom:14px;display:none;">
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:6px;">ภาพหน้าปัดไมล์</div>
+        <img id="mb-edit-photo" src="" alt="odometer" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid var(--border);">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ไมล์ที่ถูกต้อง (กม.) <span>*</span></label>
+        <input type="number" class="form-input" id="mb-edit-km" inputmode="numeric" placeholder="เช่น 123456">
+        <div class="form-hint" id="mb-edit-hint"></div>
+      </div>
+      <input type="hidden" id="mb-edit-record-id">
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-mb-edit')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="mbConfirmEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="modal-mileage" onclick="closeModal('modal-mileage')">
   <div class="bottom-sheet" onclick="event.stopPropagation()">
@@ -2985,6 +3080,203 @@ async function mileageLoad() {
   }
 }
 
+// ─── MILEAGE BOT MODULE ──────────────────────────────────────────
+var _mbRows         = [];   // last loaded rows
+var _mbWeekStart    = '';
+
+function mbBuildWeekOptions() {
+  var sel = document.getElementById('mb-week-sel');
+  if (!sel || sel.options.length > 0) return;
+  var today  = new Date();
+  var monday = stlGetMonday(today);
+  for (var i = 0; i < 9; i++) {
+    var mon = new Date(monday);
+    mon.setDate(monday.getDate() - i * 7);
+    var opt = document.createElement('option');
+    opt.value       = stlDateISO(mon);
+    opt.textContent = (i === 0 ? '▶ ' : '') + stlWeekLabel(mon);
+    sel.appendChild(opt);
+  }
+}
+
+function mbBuildDsrOptions() {
+  if (!currentUser || currentUser.role === 'dsr') return;
+  var bar = document.getElementById('mbadmin-bar');
+  if (bar) bar.style.display = 'block';
+  var sel = document.getElementById('mb-dsr-sel');
+  if (!sel || sel.options.length > 0) return;
+  // Add "ทั้งหมด" option then per-DSR
+  var allOpt = document.createElement('option');
+  allOpt.value = ''; allOpt.textContent = 'ทุก DSR';
+  sel.appendChild(allOpt);
+  (window._dsrUsers || []).forEach(function(u) {
+    if (u.role !== 'dsr' && u.role !== 'specialist') return;
+    var o = document.createElement('option');
+    o.value = u.email; o.textContent = u.display_name || u.email;
+    sel.appendChild(o);
+  });
+}
+
+async function mbLoad() {
+  var wSel = document.getElementById('mb-week-sel');
+  var dSel = document.getElementById('mb-dsr-sel');
+  _mbWeekStart = wSel ? wSel.value : '';
+  var dsrEmail = currentUser && currentUser.role === 'dsr'
+    ? currentUser.email
+    : (dSel ? dSel.value : '');
+  if (!_mbWeekStart || !currentUser) return;
+
+  var tbody = document.getElementById('mb-body');
+  var tfoot = document.getElementById('mb-foot');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="stl-empty-msg">⏳ กำลังโหลด...</td></tr>';
+  if (tfoot) tfoot.innerHTML = '';
+  document.getElementById('mb-week-summary').style.display = 'none';
+
+  try {
+    _mbRows = await apiCall('GET_BOT_MILEAGE_SUMMARY', { weekStart: _mbWeekStart, dsrEmail: dsrEmail });
+    _mbRows = _mbRows || [];
+    mbRenderTable(_mbRows);
+    mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
+  } catch(err) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="stl-empty-msg">เกิดข้อผิดพลาด: ' + err.message + '</td></tr>';
+  }
+}
+
+function mbCellBg(session) {
+  if (!session) return '#F7F5F2';   // empty / null
+  if (session.errorFlag)                         return '#FFCDD2'; // red
+  if (session.pendingFill || session.sourceFlag === 'prevDay') return '#FFF9C4'; // yellow
+  if (session.sourceFlag === 'vision')            return '#FFFFFF'; // white
+  if (session.sourceFlag === 'manual')            return '#E8F5E9'; // light green
+  return '#F7F5F2';
+}
+
+function mbFmtMile(session) {
+  if (!session) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
+  if (session.confirmedMile === null) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
+  return String(session.confirmedMile).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function mbRenderTable(rows) {
+  var tbody = document.getElementById('mb-body');
+  var tfoot = document.getElementById('mb-foot');
+  if (!tbody) return;
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="stl-empty-msg">ยังไม่มีข้อมูลไมล์จาก LINE Bot อาทิตย์นี้</td></tr>';
+    return;
+  }
+
+  var totDist = 0, totDepr = 0;
+  tbody.innerHTML = rows.map(function(r) {
+    if (r.distance !== null) totDist += r.distance;
+    totDepr += r.depreciationCost || 0;
+
+    var mornBg  = mbCellBg(r.morning);
+    var eveBg   = mbCellBg(r.evening);
+    var rowStyle = r.errorFlag ? 'border-left:3px solid #E53935;' : '';
+
+    var mornId  = r.morning  ? r.morning.id  : '';
+    var eveId   = r.evening  ? r.evening.id  : '';
+
+    return '<tr style="' + rowStyle + '">' +
+      '<td>' + (r.dateLabel || r.date) + '</td>' +
+      '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + mornId + '\',\'เช้า\',' + (r.morning && r.morning.confirmedMile !== null ? r.morning.confirmedMile : 'null') + ',\'' + (r.morning && r.morning.imageUrl ? r.morning.imageUrl : '') + '\')">' +
+        mbFmtMile(r.morning) +
+      '</td>' +
+      '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + eveId + '\',\'เย็น\',' + (r.evening && r.evening.confirmedMile !== null ? r.evening.confirmedMile : 'null') + ',\'' + (r.evening && r.evening.imageUrl ? r.evening.imageUrl : '') + '\')">' +
+        mbFmtMile(r.evening) +
+      '</td>' +
+      '<td class="r">' + (r.distance !== null ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
+      '<td>' + (r.vehicleType === 'personal' ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
+      '<td class="r">' + (r.depreciationCost ? r.depreciationCost.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</td>' +
+      '<td>' + (r.errorFlag ? '<span style="color:#E53935;font-size:11px;">' + r.errorFlag + '</span>' : '<span style="color:var(--g);font-size:11px;">✓</span>') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  if (tfoot) {
+    tfoot.innerHTML = '<tr>' +
+      '<td colspan="3" style="font-weight:600;">รวม</td>' +
+      '<td class="r" style="font-weight:700;">' + totDist.toLocaleString() + ' กม.</td>' +
+      '<td></td>' +
+      '<td class="r" style="font-weight:700;">' + totDepr.toLocaleString('th-TH', {minimumFractionDigits:2}) + ' ฿</td>' +
+      '<td></td>' +
+      '</tr>';
+  }
+}
+
+async function mbLoadWeeklySummary(dsrEmail, weekStart) {
+  if (!dsrEmail || !weekStart) return;
+  var card = document.getElementById('mb-week-summary');
+  try {
+    var s = await apiCall('GET_MILEAGE_WEEKLY_SUMMARY', { weekStart: weekStart, dsrEmail: dsrEmail });
+    if (!s || !card) return;
+    document.getElementById('mb-total-dist').textContent = (s.totalDistance || 0).toLocaleString() + ' กม.';
+    document.getElementById('mb-total-depr').textContent = 'ค่าเสื่อม ' + (s.totalDeprCost || 0).toLocaleString('th-TH', {minimumFractionDigits:2}) + ' ฿';
+    var incEl = document.getElementById('mb-incomplete-days');
+    if (incEl) incEl.textContent = s.incompleteDays > 0 ? '⚠️ ยังกรอกไม่ครบ ' + s.incompleteDays + ' วัน' : '✅ กรอกครบทุกวัน';
+    var submitBtn = document.getElementById('mb-submit-btn');
+    if (submitBtn) {
+      submitBtn.textContent = s.submitted ? '✅ ส่งแล้ว' : 'ส่งสรุปสัปดาห์';
+      submitBtn.disabled    = s.submitted;
+    }
+    card.style.display = 'block';
+  } catch(_) {}
+}
+
+function mbOpenEdit(recordId, sessionLabel, currentMile, imageUrl) {
+  document.getElementById('mb-edit-title').textContent = 'แก้ไขไมล์ ' + sessionLabel;
+  document.getElementById('mb-edit-record-id').value = recordId || '';
+  var kmInput = document.getElementById('mb-edit-km');
+  kmInput.value = (currentMile !== null && currentMile !== undefined) ? String(currentMile) : '';
+
+  var hint = document.getElementById('mb-edit-hint');
+  if (hint) hint.textContent = recordId ? '' : 'ยังไม่มีข้อมูล — Bot ยังไม่ได้รับรูป หรือ OCR ล้มเหลว';
+
+  var photoWrap = document.getElementById('mb-edit-photo-wrap');
+  var photoImg  = document.getElementById('mb-edit-photo');
+  if (imageUrl && photoWrap && photoImg) {
+    photoImg.src = imageUrl;
+    photoWrap.style.display = 'block';
+  } else if (photoWrap) {
+    photoWrap.style.display = 'none';
+  }
+  openModal('modal-mb-edit');
+}
+
+async function mbConfirmEdit() {
+  var recordId = document.getElementById('mb-edit-record-id').value;
+  var km = parseFloat(document.getElementById('mb-edit-km').value);
+  if (!recordId) {
+    showToast('ยังไม่มี record (Bot ยังไม่ได้รับรูปจาก LINE)', 'error');
+    return;
+  }
+  if (isNaN(km) || km < 10000 || km > 999999) {
+    showToast('กรอกเลขไมล์ให้ถูกต้อง (5-6 หลัก)', 'error');
+    return;
+  }
+  var result = await apiCall('UPDATE_MILEAGE_RECORD', { id: recordId, confirmedMile: km });
+  if (result) {
+    closeModal('modal-mb-edit');
+    showToast('✅ แก้ไขไมล์แล้ว', 'success');
+    mbLoad();
+  }
+}
+
+async function mbSubmitWeek() {
+  var dSel = document.getElementById('mb-dsr-sel');
+  var dsrEmail = currentUser && currentUser.role === 'dsr'
+    ? currentUser.email
+    : (dSel ? dSel.value : '');
+  if (!dsrEmail) { showToast('กรุณาเลือก DSR ก่อนส่ง', 'error'); return; }
+  if (!confirm('ยืนยันส่งสรุปไมล์สัปดาห์นี้?')) return;
+  var result = await apiCall('SUBMIT_WEEKLY_MILEAGE', { weekStart: _mbWeekStart, dsrEmail: dsrEmail });
+  if (result) {
+    showToast(result.alreadySubmitted ? 'ส่งแล้วก่อนหน้านี้' : '✅ ส่งสรุปสัปดาห์แล้ว', 'success');
+    mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
+  }
+}
+
 // ─── SETTLEMENT MODULE F ───────────────────────────────────────
 var _stlIncomeRows  = [];
 var _stlSavedExp    = {};   // date → { fuel, hotel, allowance }
@@ -3079,11 +3371,16 @@ async function stlLoadSettlement() {
   const mileage   = (pageData && pageData.mileage)     || [];
   const slipTot   = (pageData && pageData.slipTotal)   || { total: 0, count: 0 };
   const slipBD    = (pageData && pageData.slipByDate)  || {};
+  console.log('slipTotal from backend:', slipTot);
+
+  // Derive total from slipByDate (no status filter) so it matches income table
+  // [FIXED] fallback to slipTot.total ถ้า slipByDate ว่าง (TASK 1)
+  var slipBDTotal = Object.keys(slipBD).reduce(function(s,k){ return s + (parseFloat(slipBD[k])||0); }, 0);
 
   _stlIncomeRows  = income;
   _stlMileageRows = mileage;
-  _stlSlipTotal   = slipTot;
-  _stlSlipByDate  = slipBD;   // TASK 4A: per-day slip amounts
+  _stlSlipTotal   = { total: slipBDTotal || slipTot.total, count: slipTot.count };
+  _stlSlipByDate  = slipBD;
   _stlSavedExp    = {};
   (expenses || []).forEach(function(r) { _stlSavedExp[r.date] = r; });
 
@@ -3206,6 +3503,7 @@ function stlUpdateAllow(iso) {
 }
 
 function stlRecalc() {
+  console.log('recalc _stlSlipTotal:', _stlSlipTotal);
   var totCash   = _stlIncomeRows.reduce(function(s, r) { return s + (r.cashAmount   || 0); }, 0);
   var totCheque = _stlIncomeRows.reduce(function(s, r) { return s + (r.chequeAmount || 0); }, 0);
   var slipAmt   = (_stlSlipTotal && _stlSlipTotal.total) ? parseFloat(_stlSlipTotal.total) : 0;
@@ -3617,6 +3915,7 @@ function navTo(page) {
     });
   }
   if (page === 'mileage')    { mileageBuildWeekOptions(); mileageLoad(); }
+  if (page === 'milagebot')  { mbBuildWeekOptions(); mbBuildDsrOptions(); mbLoad(); }
   if (page === 'print') {
     var shared = document.getElementById('cs-shared');
     var slot   = document.getElementById('cs-slot-print');
