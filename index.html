@@ -2277,12 +2277,15 @@ img { max-width: 100%; }
           <div id="cs-slot-print">
           <div id="cs-shared">
           <!-- 4A: header bar with week selector (left) + buttons (right) -->
+          <!-- [CHANGED] 4A: header bar — week selector left, refresh+save right -->
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-            <select id="cs-week-sel-dropdown" class="stl-week-sel" style="flex:1;min-width:180px;" onchange="csWeekDropdownChanged()">
+            <select id="cs-week-sel-dropdown" class="stl-week-sel" style="flex:1;min-width:180px;max-width:320px;" onchange="csWeekDropdownChanged()">
               <!-- populated by csLoad() -->
             </select>
-            <div style="cursor:pointer;font-size:18px;color:var(--ink3);padding:4px;" onclick="csReload()" title="รีเฟรช">🔄</div>
-            <div class="btn btn-green" id="cs-btn" style="padding:8px 14px;font-size:13px;" onclick="csSave()">บันทึก + สร้าง Cover Sheet</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
+              <button onclick="csReload()" title="รีเฟรช" style="padding:6px 10px;border:0.5px solid var(--border2,#ddd);border-radius:8px;background:var(--card,#fff);cursor:pointer;font-size:16px;line-height:1;">🔄</button>
+              <div class="btn btn-green" id="cs-btn" style="padding:8px 14px;font-size:13px;" onclick="csSave()">💾 บันทึก + สร้าง Cover Sheet</div>
+            </div>
           </div>
 
           <!-- Table -->
@@ -2625,10 +2628,17 @@ function resetLoginBtn() {
   btn.style.opacity = '1';
 }
 
+// ─── AVATAR HELPER ───────────────────────────────────────────
+function getAvatarText(displayName) {
+  var map = { 'นา':'นา','นุช':'นุช','มัดหมี่':'มัด','แอน':'แอน','กร':'กร','มะปราง':'มะ','ภูมิ':'ภูมิ','เฟิร์น':'เฟิร์น' };
+  for (var key in map) { if ((displayName||'').indexOf(key) > -1) return map[key]; }
+  return (displayName||'').slice(0,2);
+}
+
 // ─── ENTER APP ───────────────────────────────────────────────
 function enterApp(user) {
   // อัปเดต nav
-  const initials = user.display_name ? user.display_name.slice(0,2) : user.email.slice(0,2).toUpperCase();
+  const initials = getAvatarText(user.display_name || user.email.slice(0,2).toUpperCase());
   const color    = DSR_COLORS.default[Object.keys({นุช:0,นา:1,แอน:2,กร:3,มัดหมี่:4,มาพราง:5}).indexOf(user.display_name)] || '#E8631A';
   document.getElementById('nav-avatar').textContent    = initials;
   document.getElementById('nav-avatar').style.background = color;
@@ -2643,13 +2653,11 @@ function enterApp(user) {
   else if (user.role === 'specialist') roleEl.style.cssText = 'background:#FFF3E0;color:#C87000;';
   else                            roleEl.style.cssText = 'background:var(--o-lite);color:var(--o-dark);';
 
-  // Admin/Specialist = sidebar layout
-  if (['admin','specialist'].includes(user.role)) {
-    const wrap = document.getElementById('admin-layout-wrap');
-    if (wrap) wrap.className = 'admin-layout';
-    const sb = document.getElementById('sidebar');
-    if (sb) sb.style.display = 'flex';
-  }
+  // [FIXED] All roles use sidebar layout — DSR needs same grid as admin
+  const wrap = document.getElementById('admin-layout-wrap');
+  if (wrap) wrap.className = 'admin-layout';
+  const sb = document.getElementById('sidebar');
+  if (sb) sb.style.display = 'flex';
 
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').style.cssText = 'display:flex;flex-direction:column;';
@@ -2888,7 +2896,7 @@ function renderDSRRoster() {
     return `<div class="dsr-card">
       <div class="dsr-card-stripe" style="background:${col}"></div>
       <div class="dsr-card-header">
-        <div class="dsr-avatar" style="background:${col}">${(d.display_name||'').slice(0,2)}</div>
+        <div class="dsr-avatar" style="background:${col}">${getAvatarText(d.display_name||'')}</div>
         <div><div class="dsr-name">${d.display_name||''}</div><div class="dsr-zone">📍 ${d.province_zone||''}</div></div>
         <div class="tag" style="background:${statusColor[st]}22;color:${statusColor[st]};margin-left:auto;">${statusTh[st]}</div>
       </div>
@@ -4784,18 +4792,18 @@ async function collectionLoadSlips() {
   var tableRows = rows.map(function(r) {
     return '<tr>' +
       '<td style="width:1%;white-space:nowrap;padding-right:6px;">' + fmtD(r.date) + '</td>' +
-      '<td style="font-weight:600;text-align:left;padding-left:0;">' + fmtN(r.total) + '</td>' +
+      '<td style="font-weight:600;text-align:right;padding-left:8px;">' + fmtN(r.total) + '</td>' +
       '<td style="color:var(--ink3);font-size:11px;">' + r.count + ' สลิป</td>' +
       '</tr>';
   }).join('');
 
   container.innerHTML =
     '<table class="stl-table"><thead><tr>' +
-      '<th style="width:1%;white-space:nowrap;">วันที่</th><th style="text-align:left;padding-left:0;">ยอดโอน (฿)</th><th>จำนวน</th>' +
+      '<th style="width:1%;white-space:nowrap;">วันที่</th><th style="text-align:right;padding-left:8px;">ยอดโอน (฿)</th><th>จำนวน</th>' +
     '</tr></thead><tbody>' + tableRows + '</tbody>' +
     '<tfoot><tr>' +
       '<td style="font-weight:600">รวม</td>' +
-      '<td style="font-weight:600;text-align:left;padding-left:0;">' + fmtN(grandTotal) + '</td>' +
+      '<td style="font-weight:600;text-align:right;padding-left:8px;">' + fmtN(grandTotal) + '</td>' +
       '<td></td>' +
     '</tr></tfoot></table>';
   container.classList.remove('fade-in-up'); void container.offsetWidth; container.classList.add('fade-in-up');

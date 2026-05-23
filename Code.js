@@ -3303,6 +3303,60 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
     var slipSsId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID_SLIP');
     if (!slipSsId) return base;
 
+    // [ADDED] TASK 5: lookup shop name + auto-match status from DEBT_MASTER
+    try {
+      var opsSs  = SpreadsheetApp.openById(prop('SPREADSHEET_ID'));
+      var debtSh = opsSs.getSheetByName('DEBT_MASTER');
+      if (debtSh) {
+        var dRaw  = debtSh.getDataRange().getValues();
+        var dH    = dRaw[0];
+        function dColIdx(n){for(var ci=0;ci<dH.length;ci++)if(String(dH[ci]).trim().toLowerCase()===n)return ci;return -1;}
+        var cCust = dColIdx('customer_code'), cName = dColIdx('customer_name');
+        var cInv  = dColIdx('invoice_no'),    cDsr  = dColIdx('assigned_dsr_id');
+
+        var custNameMap  = {}, dsrCustSet = {}, debtInvMap = {};
+        dRaw.slice(1).forEach(function(row) {
+          var code = String(row[cCust]||'').trim();
+          if (!code) return;
+          if (cName>=0 && !custNameMap[code]) custNameMap[code] = String(row[cName]||'').trim();
+          if (cDsr>=0) {
+            var adr = String(row[cDsr]||'').trim().toLowerCase();
+            if (email==='ALL' || adr===email.toLowerCase()) dsrCustSet[code] = true;
+          }
+          if (cInv>=0) {
+            var ni = normalizeInvoice(String(row[cInv]||'').trim());
+            if (ni) { if(!debtInvMap[code])debtInvMap[code]=[]; debtInvMap[code].push(ni); }
+          }
+        });
+
+        // inject shopName + auto-match each base row
+        (base.rows||[]).forEach(function(r) {
+          var code = String(r['รหัสลูกค้า']||'').trim();
+          if (!code) return;
+          if (!r['ชื่อร้าน'] && custNameMap[code]) r['ชื่อร้าน'] = custNameMap[code];
+          var inv = normalizeInvoice(String(r['เลขที่บิล']||'').trim());
+          if (inv && debtInvMap[code]) {
+            var invSfx = inv.split('-').pop();
+            var matched = debtInvMap[code].some(function(di){
+              return di===inv || di.split('-').pop()===invSfx;
+            });
+            var curSt = r['สถานะ']||'';
+            if (!curSt || curSt==='รอระบุ') r['สถานะ'] = matched ? 'เรียบร้อย' : 'รอระบุ';
+          }
+        });
+
+        // filter base rows to DSR's customers only (skip for admin)
+        if (email!=='ALL' && Object.keys(dsrCustSet).length>0) {
+          base.rows = (base.rows||[]).filter(function(r){
+            var code = String(r['รหัสลูกค้า']||'').trim();
+            return !code || dsrCustSet[code];
+          });
+          base.total = (base.rows||[]).reduce(function(s,r){return s+(parseFloat(r['ยอดเงิน'])||0);},0);
+          base.count = (base.rows||[]).length;
+        }
+      }
+    } catch(e5) { console.log('[getDsrWeekSlips-debtLookup] '+e5.message); }
+
     var ss    = SpreadsheetApp.openById(slipSsId);
     var sheet = ss.getSheetByName('PENDING_SLIPS');
     if (!sheet) return base;
