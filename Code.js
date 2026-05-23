@@ -158,46 +158,52 @@ function authenticateRequest(idToken) {
 }
 
 // Called from client via google.script.run (no token needed)
-function getUserProfile() {
-  const email = Session.getActiveUser().getEmail();
-  console.log('ACTIVE USER EMAIL:', email);
+// [FIXED] รับ email จาก frontend แทน Session.getActiveUser()
+// เพราะ "Execute as: Me" deployment ทำให้ Session คืน email เจ้าของ script เสมอ
+function getUserProfile(emailFromClient) {
+  var userEmail = emailFromClient || Session.getActiveUser().getEmail();
+  console.log('getUserProfile called with:', userEmail);
 
-  // ── diagnostic block ──────────────────────────────────────────────
-  try {
-    var _ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-    console.log('SS ID:', _ss.getId(), '| SS Name:', _ss.getName());
-    var _sh = _ss.getSheetByName('USERS');
-    console.log('USERS sheet found:', _sh ? _sh.getName() : 'NULL');
-    if (_sh) {
-      var _rows = _sh.getDataRange().getValues();
-      console.log('USERS total rows:', _rows.length);
-      console.log('USERS header:', JSON.stringify(_rows[0]));
-      var _eCol = _rows[0].indexOf('email');
-      console.log('email column index:', _eCol);
-      _rows.slice(1).forEach(function(r, i) {
-        console.log('row', i + 2, ':', JSON.stringify(r[_eCol]),
-          '=== match:', r[_eCol].toString().trim().toLowerCase()
-                       === (email || '').trim().toLowerCase());
-      });
+  if (!userEmail) throw new Error('Cannot determine user email');
+
+  var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName('USERS');
+  if (!sheet) throw new Error('USERS sheet not found');
+
+  var rows    = sheet.getDataRange().getValues();
+  var headers = rows[0].map(function(h) { return h.toString().trim().toLowerCase(); });
+  var emailCol  = headers.indexOf('email');
+  var roleCol   = headers.indexOf('role');
+  var nameCol   = headers.indexOf('display_name');
+  var zoneCol   = headers.indexOf('province_zone');
+  var activeCol = headers.indexOf('active');
+  var uidCol    = headers.indexOf('user_id');
+
+  for (var i = 1; i < rows.length; i++) {
+    var rowEmail = rows[i][emailCol].toString().trim().toLowerCase();
+    if (rowEmail === userEmail.toString().trim().toLowerCase()) {
+      console.log('FOUND user:', rowEmail, 'role:', rows[i][roleCol]);
+      var active = rows[i][activeCol];
+      if (String(active).toUpperCase() !== 'TRUE') throw new Error('Account disabled');
+      return {
+        email:         rows[i][emailCol].toString().trim(),
+        display_name:  rows[i][nameCol],
+        role:          rows[i][roleCol],
+        province_zone: rows[i][zoneCol],
+        active:        active,
+        user_id:       uidCol >= 0 ? rows[i][uidCol] : '',
+      };
     }
-    console.log('SCRIPT PROPS ALLOWED_EMAILS:',
-      PropertiesService.getScriptProperties().getProperty('ALLOWED_EMAILS'));
-  } catch (_e) { console.log('diagnostic error:', _e.message); }
-  // ─────────────────────────────────────────────────────────────────
+  }
 
-  if (!email || !isAllowedEmail(email))
-    throw new Error('Email not allowed: ' + email);
-  const p = findUserByEmail(email);
-  if (!p)                throw new Error('User not found — ติดต่อ Admin เพื่อเพิ่มสิทธิ์');
-  if (p.active.toUpperCase() !== 'TRUE') throw new Error('Account disabled');
-  return { email, display_name: p.display_name, role: p.role,
-           user_id: p.user_id, province_zone: p.province_zone };
+  console.log('NOT FOUND:', userEmail);
+  throw new Error('Email not allowed: ' + userEmail);
 }
 // ─── PUBLIC API HANDLER — เรียกจาก google.script.run ────────
 // ใช้แทน doPost เพราะ google.script.run ไม่มีปัญหา CORS
 function handleApiCall(action, payload) {
   payload = payload || {};
-  var user = getUserProfile();
+  var user = getUserProfile(payload._email || null);
   // ถ้า Admin บันทึกข้อมูลของตัวเอง ให้ inject dsr_id อัตโนมัติ
   if (payload.data && !payload.data.dsr_id) {
     payload.data.dsr_id = user.email;
@@ -207,6 +213,11 @@ function handleApiCall(action, payload) {
   return result;
 }
 
+
+// Returns OAuth Client ID for frontend GIS initialization
+function getOAuthClientId() {
+  return prop('OAUTH_CLIENT_ID') || '';
+}
 
 // ── Email whitelist check ──────────────────────────────────────────
 // [FIXED] อ่านจาก USERS sheet โดยตรง (single source of truth)

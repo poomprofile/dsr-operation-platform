@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 
 
 
@@ -2589,41 +2590,108 @@ function showInstallPrompt() {
 window.addEventListener('offline', () => showToast('📴 ออฟไลน์ — บันทึกข้อมูลได้ จะส่งเมื่อมีเน็ต', 'warning'));
 window.addEventListener('online',  () => showToast('✅ กลับมาออนไลน์แล้ว', 'success'));
 
-// ─── AUTH — ใช้ google.script.run (built-in Apps Script auth) ───
-// ไม่ต้องใช้ OAuth Client ID เลย — Apps Script จัดการ session ให้อัตโนมัติ
+// ─── AUTH — Google Identity Services (GIS) ──────────────────────
+// [FIXED] ใช้ GIS JWT เพื่อได้ email จริงของ user แล้วส่งไป backend
+// Session.getActiveUser() ใน "Execute as: Me" คืน email เจ้าของ script เสมอ
+var _gisClientId = null;
+
+// Pre-fetch OAuth client ID from Script Properties on page load
+function _prefetchGISClientId() {
+  google.script.run
+    .withSuccessHandler(function(id) { _gisClientId = id || ''; })
+    .withFailureHandler(function() { _gisClientId = ''; })
+    .getOAuthClientId();
+}
+
 function handleLogin() {
-  const btn = document.querySelector('.btn-google');
+  var btn = document.querySelector('.btn-google');
   btn.innerHTML = '<div style="width:18px;height:18px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px;"></div> กำลังเข้าสู่ระบบ...';
   btn.style.opacity = '.8';
   btn.disabled = true;
 
-  // google.script.run เรียก getUserProfile() ใน Code.gs โดยตรง
-  // Apps Script จะให้ user login ด้วย Google account อัตโนมัติก่อนถ้ายังไม่ได้ login
-  google.script.run
-    .withSuccessHandler(function(profile) {
-      if (!profile) {
+  if (typeof google === 'undefined' || !google.accounts) {
+    showToast('กำลังโหลด Google Sign-In — รอสักครู่...', '');
+    setTimeout(handleLogin, 600);
+    return;
+  }
+
+  if (_gisClientId === null) {
+    // Client ID ยังไม่ได้ fetch — fetch แล้วลองใหม่
+    google.script.run
+      .withSuccessHandler(function(id) {
+        _gisClientId = id || '';
+        handleLogin();
+      })
+      .withFailureHandler(function() {
+        _gisClientId = '';
         resetLoginBtn();
-        showToast('ไม่พบบัญชีในระบบ — ติดต่อภูมิ หรือเฟิร์น', 'error');
-        return;
-      }
-      currentUser = profile;
-      sessionStorage.setItem('nco_session', JSON.stringify(profile));
-      enterApp(profile);
-      // เพิ่มบรรทัดนี้ต่อท้าย block role badge ใน enterApp()
-      applyRoleUI(user.role);
-    })
-    .withFailureHandler(function(err) {
+        showToast('ไม่สามารถโหลด config ได้', 'error');
+      })
+      .getOAuthClientId();
+    return;
+  }
+
+  if (!_gisClientId) {
+    resetLoginBtn();
+    showToast('กรุณาตั้งค่า OAUTH_CLIENT_ID ใน Script Properties', 'error');
+    return;
+  }
+
+  google.accounts.id.initialize({
+    client_id:             _gisClientId,
+    callback:              _handleGISCredential,
+    auto_select:           false,
+    cancel_on_tap_outside: true,
+  });
+  google.accounts.id.prompt(function(notification) {
+    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
       resetLoginBtn();
-      const msg = err.message || 'เข้าสู่ระบบไม่ได้';
-      if (msg.includes('disabled')) {
-        showToast('❌ บัญชีถูกระงับ — ติดต่อ Admin', 'error');
-      } else if (msg.includes('not found')) {
-        showToast('❌ ไม่พบบัญชีในระบบ — ติดต่อภูมิ หรือเฟิร์น', 'error');
-      } else {
-        showToast('❌ ' + msg, 'error');
-      }
-    })
-    .getUserProfile();
+      showToast('กรุณาอนุญาต pop-up แล้วลองอีกครั้ง', 'error');
+    }
+  });
+}
+
+function _handleGISCredential(response) {
+  if (!response || !response.credential) {
+    resetLoginBtn();
+    showToast('ไม่ได้รับ credential จาก Google', 'error');
+    return;
+  }
+  try {
+    // Decode JWT payload (base64url → base64 → JSON)
+    var b64 = response.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    var decoded = JSON.parse(atob(b64));
+    var email = decoded.email;
+    if (!email) throw new Error('no email in credential');
+
+    google.script.run
+      .withSuccessHandler(function(profile) {
+        if (!profile) {
+          resetLoginBtn();
+          showToast('ไม่พบบัญชีในระบบ — ติดต่อภูมิ หรือเฟิร์น', 'error');
+          return;
+        }
+        currentUser = profile;
+        sessionStorage.setItem('nco_session', JSON.stringify(profile));
+        enterApp(profile);
+        applyRoleUI(profile.role);
+      })
+      .withFailureHandler(function(err) {
+        resetLoginBtn();
+        var msg = (err && err.message) ? err.message : 'เข้าสู่ระบบไม่ได้';
+        if (msg.includes('disabled')) {
+          showToast('❌ บัญชีถูกระงับ — ติดต่อ Admin', 'error');
+        } else if (msg.includes('not found') || msg.includes('not allowed')) {
+          showToast('❌ ไม่พบบัญชีในระบบ — ติดต่อภูมิ หรือเฟิร์น', 'error');
+        } else {
+          showToast('❌ ' + msg, 'error');
+        }
+      })
+      .getUserProfile(email);
+  } catch (ex) {
+    resetLoginBtn();
+    showToast('Credential error: ' + ex.message, 'error');
+  }
 }
 
 function resetLoginBtn() {
@@ -2710,6 +2778,8 @@ function apiCall(action, payload) {
       showToast('📴 บันทึก offline — จะส่งเมื่อมีเน็ต', 'warning');
       resolve({ queued: true }); return;
     }
+    // inject email ทุก API call เพราะ handleApiCall ต้องการ _email เพื่อ auth
+    var _p = Object.assign({}, payload, { _email: currentUser.email });
     google.script.run
       .withSuccessHandler(function(result) {
         resolve(result);
@@ -2719,7 +2789,7 @@ function apiCall(action, payload) {
         showToast('⚠️ ' + msg, 'error');
         resolve(null);
       })
-      .handleApiCall(action, payload);
+      .handleApiCall(action, _p);
   });
 }
 
@@ -4434,7 +4504,7 @@ function ceCashInit() {
     .withFailureHandler(function() {
       document.getElementById('inp-dsr').placeholder = 'ไม่สามารถโหลดชื่อได้';
     })
-    .getUserProfile();
+    .getUserProfile(currentUser ? currentUser.email : null);
 
   // TASK 3: preload customer/bill master data once
   if (!ceMasterData) {
@@ -5615,6 +5685,7 @@ function applyRoleUI(role) {
 // ─── BOOT ────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   setGreetingDate();
+  _prefetchGISClientId();  // pre-fetch OAuth client ID ก่อน user กดปุ่ม login
 });
 </script>
 
