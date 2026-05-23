@@ -398,6 +398,7 @@ img { max-width: 100%; }
     transition: grid-template-columns 250ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   .admin-layout.sb-collapsed { grid-template-columns: var(--sidebar-collapsed-w) 1fr; }
+  .main-content { min-width: 0; overflow-x: hidden; }
   .sidebar {
     display: flex !important;
     flex-direction: column;
@@ -4431,7 +4432,7 @@ function ceCashInit() {
     google.script.run
       .withSuccessHandler(function(data) { ceMasterData = data || {}; })
       .withFailureHandler(function() { ceMasterData = {}; })
-      .handleApiCall('GET_CASH_ENTRY_MASTER', {});
+      .getCashEntryMasterData(currentUser.email);
   }
 
   initRows();
@@ -5088,7 +5089,7 @@ function csLoad(){
       app.classList.remove('fade-in'); void app.offsetWidth; app.classList.add('fade-in');
     })
     .withFailureHandler(function(e){app.textContent='ERROR: '+e.message;})
-    .getDsrWeekSlipsWithPendingRows(currentUser.email,monStr,sunStr);
+    .getDsrWeekSlipsWithPendingRows((currentUser.role==='admin'?'ALL':currentUser.email),monStr,sunStr);
 }
 
 function csOnRangeChange(){

@@ -2117,7 +2117,7 @@ function getDsrWeekSlipsWithRange(email, monISO, sunISO) {
     var rows = [];
     for (var i = 1; i < data.length; i++) {
       var rowEmail = String(data[i][eIdx]||'').trim().toLowerCase();
-      if (rowEmail !== email.toLowerCase()) continue;
+      if (email !== 'ALL' && rowEmail !== email.toLowerCase()) continue;
       var st = stIdx>=0 ? String(data[i][stIdx]||'') : '';
       if (st === 'ไม่ใช้') continue;
  
@@ -2941,6 +2941,11 @@ function buildCoverSheetHtmlV15(rows, dsrName, today, total, weekLabel, billAmou
     var sfx  = norm.split('-').pop();
     return set.indexOf(norm)>=0 || (sfx.length>=4 && set.indexOf(sfx)>=0);
   }
+
+  rows = rows.filter(function(r) {
+    var amt = parseMoneyCell(r['ยอดเงิน']);
+    return amt > 0 || (r['รหัสลูกค้า'] || '').toString().trim().length > 0;
+  });
 
   var tableRows = rows.map(function(r,i){
     var transferAmt = parseMoneyCell(r['ยอดเงิน']);
@@ -3890,6 +3895,15 @@ function generateCashEntryPDF(payload) {
     return (parseFloat(n)||0).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0});
   }
   function esc(s) { return escapeHtmlSrv(String(s||'')); }
+  function fmtChequeDate(s) {
+    if (!s) return '';
+    try {
+      var dt = new Date(s);
+      if (!isNaN(dt.getTime())) return Utilities.formatDate(dt, 'Asia/Bangkok', 'dd/MM/yyyy');
+    } catch(e) {}
+    var p = String(s).split('-');
+    return p.length === 3 ? p[2]+'/'+p[1]+'/'+p[0] : String(s);
+  }
 
   var totCash = 0, totCheq = 0;
   var bodyRows = rows.map(function(r, idx) {
@@ -3905,7 +3919,7 @@ function generateCashEntryPDF(payload) {
       '<td style="text-align:right;width:8%">' + fmtN(bill) + '</td>' +
       '<td style="text-align:right;width:8%">' + fmtN(cash) + '</td>' +
       '<td style="text-align:right;width:8%">' + fmtN(cheq) + '</td>' +
-      '<td style="width:8%">' + esc(r.cheque_date  || '') + '</td>' +
+      '<td style="width:8%">' + esc(fmtChequeDate(r.cheque_date)) + '</td>' +
       '<td style="width:8%">' + esc(r.cheque_no    || '') + '</td>' +
       '<td style="width:6%;font-size:9px">' + esc(r.bank_name   || '') + '</td>' +
       '<td style="width:6%;font-size:9px">' + esc(r.branch_name || '') + '</td>' +
