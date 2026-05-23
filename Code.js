@@ -160,6 +160,31 @@ function authenticateRequest(idToken) {
 // Called from client via google.script.run (no token needed)
 function getUserProfile() {
   const email = Session.getActiveUser().getEmail();
+  console.log('ACTIVE USER EMAIL:', email);
+
+  // ── diagnostic block ──────────────────────────────────────────────
+  try {
+    var _ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    console.log('SS ID:', _ss.getId(), '| SS Name:', _ss.getName());
+    var _sh = _ss.getSheetByName('USERS');
+    console.log('USERS sheet found:', _sh ? _sh.getName() : 'NULL');
+    if (_sh) {
+      var _rows = _sh.getDataRange().getValues();
+      console.log('USERS total rows:', _rows.length);
+      console.log('USERS header:', JSON.stringify(_rows[0]));
+      var _eCol = _rows[0].indexOf('email');
+      console.log('email column index:', _eCol);
+      _rows.slice(1).forEach(function(r, i) {
+        console.log('row', i + 2, ':', JSON.stringify(r[_eCol]),
+          '=== match:', r[_eCol].toString().trim().toLowerCase()
+                       === (email || '').trim().toLowerCase());
+      });
+    }
+    console.log('SCRIPT PROPS ALLOWED_EMAILS:',
+      PropertiesService.getScriptProperties().getProperty('ALLOWED_EMAILS'));
+  } catch (_e) { console.log('diagnostic error:', _e.message); }
+  // ─────────────────────────────────────────────────────────────────
+
   if (!email || !isAllowedEmail(email))
     throw new Error('Email not allowed: ' + email);
   const p = findUserByEmail(email);
@@ -184,17 +209,39 @@ function handleApiCall(action, payload) {
 
 
 // ── Email whitelist check ──────────────────────────────────────────
-// ตรวจสองชั้น: (1) อยู่ใน ALLOWED_EMAILS หรือไม่, (2) อยู่ใน USERS sheet หรือไม่
-// Admin สามารถเพิ่ม email ใหม่ได้สองที่: CONFIG.ALLOWED_EMAILS + USERS sheet
+// [FIXED] อ่านจาก USERS sheet โดยตรง (single source of truth)
+// case-insensitive + trim — ไม่พึ่ง ALLOWED_EMAILS Script Property อีกต่อไป
+// active check ถูก comment ออกระหว่าง debug
 function isAllowedEmail(email) {
   if (!email) return false;
-  // ถ้าอยู่ใน hardcoded list → ผ่านด่านแรก
-  if (CONFIG.ALLOWED_EMAILS.includes(email.toLowerCase())) return true;
-  // fallback: ถ้าอยู่ใน USERS sheet และ active → ก็ผ่าน (Admin เพิ่มทีหลังได้)
+  var norm = email.toString().trim().toLowerCase();
+
   try {
-    const u = findUserByEmail(email);
-    return u && u.active.toUpperCase() === 'TRUE';
-  } catch (_) { return false; }
+    var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    var sheet = ss.getSheetByName('USERS');
+    if (!sheet) { console.log('ERROR: USERS sheet not found'); return false; }
+
+    var rows    = sheet.getDataRange().getValues();
+    var headers = rows[0].map(function(h) { return h.toString().trim().toLowerCase(); });
+    var emailCol  = headers.indexOf('email');
+    var activeCol = headers.indexOf('active');
+    console.log('isAllowedEmail emailCol:', emailCol, 'activeCol:', activeCol);
+
+    for (var i = 1; i < rows.length; i++) {
+      var rowEmail = rows[i][emailCol].toString().trim().toLowerCase();
+      var isActive = rows[i][activeCol];
+      console.log('checking row', i + 1, ':', rowEmail, 'active:', isActive);
+      if (rowEmail === norm) {
+        console.log('FOUND match at row', i + 1, 'active:', isActive);
+        return true;  // active check ปิดไว้ระหว่าง debug
+      }
+    }
+    console.log('NOT FOUND in USERS sheet:', norm);
+    return false;
+  } catch (e) {
+    console.log('isAllowedEmail error:', e.message);
+    return false;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
