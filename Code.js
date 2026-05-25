@@ -1996,6 +1996,27 @@ function getLogoBase64Html() {
   }
 }
 
+// คืน logo HTML สำหรับทุก role — ใช้ embedded base64 จาก Code_Logo.js
+// ทำงานได้ทั้ง Admin และ DSR โดยไม่ต้องพึ่ง Drive permission
+function getLogoHtml() {
+  try { return getEmbeddedLogoHtml(); } catch(e) {}
+  var cached = PropertiesService.getScriptProperties().getProperty('LOGO_HTML_CACHE');
+  if (cached) return cached;
+  return getLogoBase64Html();
+}
+
+// รันครั้งเดียวในฐานะ owner เพื่อ cache logo ให้ทุก role ใช้ได้
+function setupLogoCache() {
+  var html = getLogoBase64Html();
+  if (html && html.indexOf('<img') >= 0) {
+    PropertiesService.getScriptProperties().setProperty('LOGO_HTML_CACHE', html);
+    console.log('[setupLogoCache] Logo cached (' + html.length + ' chars)');
+    return 'cached';
+  }
+  console.log('[setupLogoCache] No image found — DSR will see text fallback');
+  return 'text_fallback';
+}
+
 // ─────────────────────────────────────────────────────────────────────
 //  SHARED PRINT STANDARD — ใช้ทุกใบ (generateCashEntryPDF, generateSettlementPDF)
 // ─────────────────────────────────────────────────────────────────────
@@ -3007,7 +3028,7 @@ function buildCoverSheetHtmlV15(rows, dsrName, today, total, weekLabel, billAmou
     'body { font-size:13px; }',
     '@media screen { body{background:#ddd;display:flex;justify-content:center;padding:24px 16px} .page-wrap{background:#fff;padding:15mm 13mm;width:297mm;min-height:210mm;box-shadow:0 4px 28px rgba(0,0,0,.18)} .print-btn{position:fixed;top:14px;right:14px;background:#007B40;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;cursor:pointer;font-family:inherit;z-index:99} }',
     '@media print { body{background:none;padding:0;display:block} .page-wrap{box-shadow:none;padding:0;width:100%} .print-btn{display:none} }',
-    'table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:3px}',
+    'table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:3px;border:0.5px solid #aaa}',
     'th{font-size:12px;font-weight:400;border:0.5px solid #aaa;padding:5px 4px;text-align:center;background:#fff;white-space:nowrap}',
     'td{border:0.5px solid #aaa;padding:5px 5px;font-size:13px;vertical-align:middle;overflow:hidden}',
     'tr:nth-child(even) td{background:#fafafa}',
@@ -3105,7 +3126,7 @@ function lookupStoreInvoice(trimmedInv) {
     var results = []; // เก็บทุก match แล้วเลือก remaining > 0
 
     for (var r=1;r<data.length;r++) {
-      var raw = String(data[r][iInv]||'').trim();
+      var raw = String(data[r][iInv]||'').trim().split('/')[0].trim();
       if (!raw) continue;
 
       var rowFull   = raw.toLowerCase().replace(/\s/g,'');
@@ -3149,6 +3170,7 @@ function lookupStoreInvoice(trimmedInv) {
 
 function getBillsForCustomerCode(customerCode) {
   customerCode = (customerCode||'').toString().trim();
+  console.log('[AUTH CHECK] effectiveUser=' + Session.getEffectiveUser().getEmail() + ' activeUser=' + Session.getActiveUser().getEmail());
   if (!customerCode) return { ok:false, error:'ไม่ระบุรหัสลูกค้า' };
 
   try {
@@ -3175,6 +3197,7 @@ function getBillsForCustomerCode(customerCode) {
     var iDue  = col(['DueDate','duedate','วันครบกำหนด','วันที่ครบกำหนด']);
     var iShop = col(['ชื่อลูกค้าหลัก','ชื่อลูกค้า','Sale','sale','CustomerName']);
 
+    console.log('[getBillsForCustomerCode] cust='+customerCode+' searching บิลค้างจ่าย rows='+(data.length-1)+' iKey='+iKey+' iInv='+iInv);
     var today    = new Date(); today.setHours(0,0,0,0);
     var shopName = '';
     var bills    = [];
@@ -3183,7 +3206,7 @@ function getBillsForCustomerCode(customerCode) {
     if (iKey>=0 && iInv>=0 && data.length>1) {
       for (var r=1; r<data.length; r++) {
         if (String(data[r][iKey]||'').trim() !== customerCode) continue;
-        var invoiceNo = String(data[r][iInv]||'').trim();
+        var invoiceNo = String(data[r][iInv]||'').trim().split('/')[0].trim();
         if (!invoiceNo) continue;
         if (!shopName && iShop>=0) shopName = String(data[r][iShop]||'').trim();
         var amount = parseFloat(String(data[r][iAmt>=0?iAmt:0]||0).replace(/[^0-9.\-]/g,''))||0;
@@ -3201,6 +3224,7 @@ function getBillsForCustomerCode(customerCode) {
       }
     }
 
+    console.log('[getBillsForCustomerCode] บิลค้างจ่าย matched='+bills.length+' shopName="'+shopName+'"');
     bills.sort(function(a,b){
       if(!a.dueDate&&!b.dueDate)return 0;
       if(!a.dueDate)return 1;
@@ -3212,10 +3236,24 @@ function getBillsForCustomerCode(customerCode) {
     var storeInvSet = [];
     try {
       var STORE_SS_ID = '1ADwKdbF8Eo1ZuTXRRKUdgD-9NXvbphuA49PvB5sWGeY';
-      var storeSs = SpreadsheetApp.openById(STORE_SS_ID);
-      var storeSh = storeSs.getSheetByName('Pay');
+      var storeSh = null;
+      try {
+        var storeSs = SpreadsheetApp.openById(STORE_SS_ID);
+        storeSh = storeSs.getSheetByName('Pay');
+      } catch(accessErr) {
+        console.log('[store lookup] direct access failed: '+accessErr.message+' — trying BILL_CACHE');
+        var opsSsId2 = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+        if (opsSsId2) {
+          try {
+            var opsSs2 = SpreadsheetApp.openById(opsSsId2);
+            storeSh = opsSs2.getSheetByName('BILL_CACHE');
+            if (storeSh) console.log('[store lookup] using BILL_CACHE from SPREADSHEET_ID');
+          } catch(cacheErr) { console.log('[BILL_CACHE] '+cacheErr.message); }
+        }
+      }
       if (storeSh) {
         var sData = storeSh.getDataRange().getValues();
+        console.log('[getBillsForCustomerCode] searching Pay rows='+(sData.length-1));
         var sh    = sData[0];
 
         // defaults จาก log ที่รู้แล้ว
@@ -3235,7 +3273,7 @@ function getBillsForCustomerCode(customerCode) {
 
           if (!shopName && sShop>=0) shopName = String(sData[sr][sShop]||'').trim();
 
-          var rowInv = String(sData[sr][sInv]||'').trim();
+          var rowInv = String(sData[sr][sInv]||'').trim().split('/')[0].trim();
           if (!rowInv) continue;
 
           var rowRemain = parseFloat(String(sData[sr][sRemain]||0).replace(/[^0-9.\-]/g,''))||0;
@@ -3284,6 +3322,7 @@ function getBillsForCustomerCode(customerCode) {
           }
         } // end Pay loop
 
+        console.log('[getBillsForCustomerCode] Pay matched storeInvSet='+storeInvSet.length+' shopName="'+shopName+'"');
         console.log('[storeInvSet for '+customerCode+'] '+JSON.stringify(storeInvSet));
         console.log('[bills total] '+bills.length+' (after merge Pay)');
       }
@@ -3297,6 +3336,84 @@ function getBillsForCustomerCode(customerCode) {
     console.log('[getBillsForCustomerCode] '+err.message);
     return { ok:false, error:err.message };
   }
+}
+
+// ─── refreshExternalDataCache ────────────────────────────────────────
+// รันเป็น owner ผ่าน time trigger เพื่อ copy Pay sheet → BILL_CACHE ใน SPREADSHEET_ID
+// DSR ไม่มีสิทธิ์เข้า Store SS โดยตรง แต่เข้า SPREADSHEET_ID ได้
+// BILL_CACHE ใช้ชื่อคอลัมน์ภาษาไทยตรงกับ getBillsForCustomerCode column detection
+function refreshExternalDataCache() {
+  var result = { pay: false, error: null };
+  try {
+    var opsSsId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    if (!opsSsId) throw new Error('ไม่พบ SPREADSHEET_ID');
+    var opsSs = SpreadsheetApp.openById(opsSsId);
+
+    var STORE_SS_ID = '1ADwKdbF8Eo1ZuTXRRKUdgD-9NXvbphuA49PvB5sWGeY';
+    var storeSs  = SpreadsheetApp.openById(STORE_SS_ID);
+    var paySheet = storeSs.getSheetByName('Pay');
+    if (!paySheet) throw new Error('ไม่พบ sheet Pay ใน Store SS');
+
+    var payData = paySheet.getDataRange().getValues();
+    if (payData.length < 2) throw new Error('Pay sheet มีข้อมูลน้อยเกินไป');
+
+    var ph = payData[0];
+    function fcol(names) {
+      for (var ni=0; ni<names.length; ni++)
+        for (var hi=0; hi<ph.length; hi++)
+          if (String(ph[hi]).trim().toLowerCase().indexOf(names[ni].toLowerCase())>=0) return hi;
+      return -1;
+    }
+    var sCust   = fcol(['รหัสลูกค้า']); if (sCust<0)   sCust=1;
+    var sInv    = fcol(['เลขที่บิล','docno','invoiceno']); if (sInv<0) sInv=2;
+    var sRemain = fcol(['ยอดคงเหลือ','คงเหลือ']); if (sRemain<0) sRemain=5;
+    var sDue    = fcol(['ถึงกำหนดชำระ','duedate','วันครบกำหนด']); if (sDue<0) sDue=9;
+    var sShop   = fcol(['ลูกค้า','ชื่อลูกค้า','customername']);
+
+    // ชื่อคอลัมน์ตรงกับที่ getBillsForCustomerCode ใช้ detect
+    var rows = [['รหัสลูกค้า','เลขที่บิล','ยอดคงเหลือ','ถึงกำหนดชำระ','ลูกค้า','source']];
+    for (var r=1; r<payData.length; r++) {
+      var cust = String(payData[r][sCust]||'').trim();
+      var inv  = String(payData[r][sInv]||'').trim().split('/')[0].trim();
+      if (!cust || !inv) continue;
+      var remain = parseFloat(String(payData[r][sRemain]||0).replace(/[^0-9.\-]/g,''))||0;
+      var dueStr = '';
+      if (sDue>=0 && payData[r][sDue]) {
+        var rd  = payData[r][sDue];
+        var rdt = (rd instanceof Date)?rd:new Date(rd);
+        if (!isNaN(rdt.getTime())) dueStr = rdt.toISOString().slice(0,10);
+      }
+      var shop = sShop>=0 ? String(payData[r][sShop]||'').trim() : '';
+      rows.push([cust, inv, remain, dueStr, shop, 'pay']);
+    }
+
+    var cacheSh = opsSs.getSheetByName('BILL_CACHE');
+    if (!cacheSh) cacheSh = opsSs.insertSheet('BILL_CACHE');
+    else cacheSh.clearContents();
+    cacheSh.getRange(1, 1, rows.length, 6).setValues(rows);
+
+    result.pay = true;
+    console.log('[refreshExternalDataCache] BILL_CACHE updated: '+(rows.length-1)+' rows in SPREADSHEET_ID');
+  } catch(e) {
+    result.error = e.message;
+    console.log('[refreshExternalDataCache] ERROR: '+e.message);
+  }
+  return result;
+}
+
+// ติดตั้ง time trigger สำหรับ refreshExternalDataCache ทุก 1 ชั่วโมง (รันครั้งเดียว)
+function setupBillsCacheTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i=0; i<triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'refreshExternalDataCache') {
+      console.log('[setupBillsCacheTrigger] trigger already exists');
+      return;
+    }
+  }
+  ScriptApp.newTrigger('refreshExternalDataCache')
+    .timeBased().everyHours(1).create();
+  console.log('[setupBillsCacheTrigger] trigger created (every 1 hour)');
+  refreshExternalDataCache(); // รันทันทีเพื่อ populate cache ครั้งแรก
 }
 
 // ─── getDsrWeekSlipsWithPendingRows v17 ──────────────────────────────
@@ -3982,6 +4099,7 @@ function saveCashEntryForDate(date, dsrEmail, rows) {
     var amt = parseFloat(r.amount);
     if (!amt || amt <= 0) { skipped++; return; }
     r.log_date = date;
+    r.invoice_no = r.invoice_no || '-'; // validate() throws on empty string
     try {
       if (r.type === 'cheque') { saveCheque(r, fakeUser); }
       else                     { saveCash(r, fakeUser); }
@@ -4004,7 +4122,7 @@ function generateCashEntryPDF(payload) {
     return p.length === 3 ? p[2]+'/'+p[1]+'/'+p[0] : s;
   })(payload.selectedDate || ''));
   var rows       = payload.rows || [];
-  var logoHtml   = getLogoBase64Html();
+  var logoHtml   = getLogoHtml();
 
   function fmtN(n) {
     var v = parseFloat(n) || 0;
@@ -4525,23 +4643,41 @@ function generateAllReportsPDF(payload) {
     return (h || '').replace(/<\/body>[\s\S]*?<\/html>/i, '');
   }
 
-  // [1] สรุปใบโอน Slip2Go
-  try {
-    htmlParts.push(getCoverSheetHtml(
-      payload.dsrEmail,
-      payload.monISO || payload.weekStart,
-      payload.sunISO || payload.weekEnd,
-      payload.billAmounts || {},
-      payload.rowOrder    || []
-    ));
-  } catch(e) {
-    console.error('[generateAllReportsPDF] coversheet err: ' + e.message);
-    htmlParts.push('<p style="font-family:sans-serif;padding:20px;">Cover Sheet: ' + escapeHtmlSrv(e.message) + '</p>');
+  // ── pre-check: ข้อมูลแต่ละส่วน ──
+  var slipTotal  = payload.slipTotal || { total: 0, count: 0 };
+  var hasSlips   = ((slipTotal.count || 0) > 0) || ((slipTotal.total || 0) > 0);
+  var cashDates  = (payload.cashDates || []).slice().sort();
+  var cashRowsByDate = payload.cashRowsByDate || {};
+  var hasCash    = cashDates.some(function(d){ return (cashRowsByDate[d]||[]).length > 0; });
+  var hasActivity= (payload.mileageRows||[]).length > 0 ||
+                   (payload.incomeRows ||[]).length > 0 ||
+                   (payload.expenseRows||[]).length > 0;
+
+  if (!hasSlips && !hasCash && !hasActivity) {
+    return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">' +
+      '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">' +
+      '<style>body{font-family:"Sarabun",sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#999;}</style></head>' +
+      '<body><div style="text-align:center"><p style="font-size:22px;">ไม่มีข้อมูลในช่วงเวลานี้</p>' +
+      '<p style="font-size:14px;margin-top:8px;">ยังไม่มีรายการบันทึกสำหรับสัปดาห์นี้</p></div></body></html>';
+  }
+
+  // [1] สรุปใบโอน Slip2Go — แสดงเฉพาะเมื่อมีข้อมูลสลิป
+  if (hasSlips) {
+    try {
+      htmlParts.push(getCoverSheetHtml(
+        payload.dsrEmail,
+        payload.monISO || payload.weekStart,
+        payload.sunISO || payload.weekEnd,
+        payload.billAmounts || {},
+        payload.rowOrder    || []
+      ));
+    } catch(e) {
+      console.error('[generateAllReportsPDF] coversheet err: ' + e.message);
+      htmlParts.push('<p style="font-family:sans-serif;padding:20px;">Cover Sheet: ' + escapeHtmlSrv(e.message) + '</p>');
+    }
   }
 
   // [2] บันทึกเงินสด/โอน/เช็ค ทุกวันที่มีข้อมูล เรียง ascending
-  var cashDates = (payload.cashDates || []).slice().sort();
-  var cashRowsByDate = payload.cashRowsByDate || {};
   cashDates.forEach(function(date) {
     var dayRows = cashRowsByDate[date] || [];
     if (!dayRows.length) return;

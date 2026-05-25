@@ -435,7 +435,10 @@ body.no-overnight .stl-ov-col { display: none; }
   letter-spacing: .08em;
   text-transform: uppercase;
   padding: 4px 10px 6px;
-  margin-top: 6px;
+  margin-top: 0;
+}
+.sidebar-item + .sidebar-section-label {
+  margin-top: 8px;
 }
 .sidebar-item {
   display: flex;
@@ -4073,7 +4076,12 @@ function toggleInvDd(n) {
   var panel = document.getElementById('inv-panel-' + n);
   var isOpen = panel.style.display === 'block';
   closeAllInvDd();
-  if (!isOpen && panel.children.length) { positionInvPanel(n); panel.style.display = 'block'; }
+  if (!isOpen && panel.children.length) {
+    // Move to body to escape stacking context from tbody fadeInUp animation
+    if (panel.parentNode !== document.body) document.body.appendChild(panel);
+    positionInvPanel(n);
+    panel.style.display = 'block';
+  }
 }
 function positionInvPanel(n) {
   var ddv = document.getElementById('inv-ddv-' + n);
@@ -4364,6 +4372,11 @@ function onNoteKey(e, n) {
   if (n < TOTAL_ROWS) document.getElementById('cc-' + (n + 1)).focus();
 }
 function initRows() {
+  // Clean up any panels moved to body (from toggleInvDd body-move)
+  for (var ci = 1; ci <= TOTAL_ROWS; ci++) {
+    var op = document.getElementById('inv-panel-' + ci);
+    if (op && op.parentNode === document.body) document.body.removeChild(op);
+  }
   var tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
   for (var i = 1; i <= TOTAL_ROWS; i++) { tbody.appendChild(buildRow(i)); }
@@ -4448,7 +4461,7 @@ function ceCashInit() {
     .withSuccessHandler(function(html) {
       if (html) document.getElementById('ce-logo-wrap').innerHTML = html;
     })
-    .getLogoBase64Html();
+    .getLogoHtml();
   google.script.run
     .withSuccessHandler(function(profile) {
       if (!profile) return;
@@ -4523,8 +4536,13 @@ async function ceSaveAndPrint() {
         customer_code: rows[j].customer_code || '',
         customer_name: rows[j].customer_name || '',
         invoice_no:    rows[j].invoice_no    || '',
+        bill_amount:   0,
         cash_amount:   rows[j].type === 'cash'   ? rows[j].amount : 0,
         cheq_amount:   rows[j].type === 'cheque' ? rows[j].amount : 0,
+        cheque_date:   rows[j].cheque_date   || '',
+        cheque_no:     rows[j].cheque_no     || '',
+        bank_name:     rows[j].bank_name     || '',
+        branch_name:   rows[j].branch_name   || '',
         note:          rows[j].note || '',
       });
     }
@@ -5333,27 +5351,33 @@ function csEditRow(ri){
     +'<td style="white-space:nowrap;vertical-align:middle"><button class="cs-row-btn cs-row-save" onclick="csSaveRow('+ri+')">&#10003;</button> <button class="cs-row-btn cs-row-cancel" onclick="csCancelEdit('+ri+')">&#10005;</button></td>'
     +'</tr>';
   var sr=document.getElementById('cs-sr-'+ri);if(sr)sr.outerHTML=h;
+  // move dropdown to body so position:fixed works against viewport, not animation stacking context
+  var ddEl=document.getElementById('cs-bd-'+ri);if(ddEl)document.body.appendChild(ddEl);
   csFetchBillsForEdit(cust,ri,billVal);
 }
 
 var _shopTimer={};
 function csLookupShop(ri,cust){
-  cust=(cust||'').trim();var wrap=document.getElementById('ce-shop-wrap-'+ri);
+  cust=(cust||'').trim();
+  // priority 1: use existing shop name already in the SLIPS row
+  var rowData=csRows.find(function(x){return x._row===ri;});
+  var rowShop=rowData?(rowData['ชื่อร้าน']||'').trim():'';
+  var wrap=document.getElementById('ce-shop-wrap-'+ri);
   if(wrap)wrap.innerHTML='<div class="cs-shop-loading"><div class="cs-shop-spinner"></div><span>ค้นหา...</span></div>';
   if(_shopTimer[ri])clearTimeout(_shopTimer[ri]);
   _shopTimer[ri]=setTimeout(function(){
-    if(!cust){_setShopWrap(ri,'');return;}
-    if(csBillCache[cust]){_setShopWrap(ri,csBillCache[cust].shopName||'');csDropSt[ri]={bills:csBillCache[cust].bills||[],selected:null,selectedAmt:0,selectedDue:null,storeBills:csStoreCache[cust]||[]};csRenderList(ri,csDropSt[ri].bills,'');return;}
+    if(!cust){_setShopWrap(ri,rowShop||'');return;}
+    if(csBillCache[cust]){_setShopWrap(ri,csBillCache[cust].shopName||rowShop||'');csDropSt[ri]={bills:csBillCache[cust].bills||[],selected:null,selectedAmt:0,selectedDue:null,storeBills:csStoreCache[cust]||[]};csRenderList(ri,csDropSt[ri].bills,'');return;}
     google.script.run
       .withSuccessHandler(function(res){
-        var bills=(res&&res.ok)?res.bills:[],sn=(res&&res.shopName)||'';
+        var bills=(res&&res.ok)?res.bills:[],sn=(res&&res.shopName)||rowShop||'';
         csBillCache[cust]={bills:bills,shopName:sn};
         if(res&&res.storeInvSet)csStoreCache[cust]=res.storeInvSet;
         _setShopWrap(ri,sn);
         csDropSt[ri]={bills:bills,selected:null,selectedAmt:0,selectedDue:null,storeBills:csStoreCache[cust]||[]};
         csRenderList(ri,bills,'');
       })
-      .withFailureHandler(function(){_setShopWrap(ri,'(ไม่พบ)');})
+      .withFailureHandler(function(){_setShopWrap(ri,rowShop||'(ไม่พบ)');})
       .getBillsForCustomerCode(cust);
   },300);
 }
@@ -5510,6 +5534,7 @@ function csUpdateEditStatus(ri,billAmt,transferAmt,overdueDays,paidMap){
 
 function csSaveRow(ri){
   var r=csRows.find(function(x){return x._row===ri;});if(!r)return;
+  var ddEl=document.getElementById('cs-bd-'+ri);if(ddEl&&ddEl.parentElement===document.body)document.body.removeChild(ddEl);
   var custEl=document.getElementById('ce-cust-'+ri),shopEl=document.getElementById('ce-shop-'+ri),noteEl=document.getElementById('ce-note-'+ri);
   var newCust=custEl?custEl.value.trim():(r['รหัสลูกค้า']||''),newShop=shopEl?shopEl.value.trim():(r['ชื่อร้าน']||''),newNote=noteEl?noteEl.value.trim():(r['note']||'');
   var newInv=csDropSt[ri]&&csDropSt[ri].selected?csDropSt[ri].selected:(r['เลขที่บิล']||'');
@@ -5533,6 +5558,7 @@ function csSaveRow(ri){
 function csCancelEdit(ri){
   var r=csRows.find(function(x){return x._row===ri;});if(!r)return;
   var idx=csRows.findIndex(function(x){return x._row===ri;});
+  var ddEl=document.getElementById('cs-bd-'+ri);if(ddEl&&ddEl.parentElement===document.body)document.body.removeChild(ddEl);
   var er=document.getElementById('cs-er-'+ri);if(er)er.outerHTML=csStaticRow(r,idx>=0?idx:0);
   if(r['_billAmt']){var bEl=document.getElementById('cs-billamt-'+ri);if(bEl){bEl.className='cs-amt';bEl.textContent=Number(r['_billAmt']).toLocaleString('th-TH');}}
   if(r['_od']!=null&&r['_od']>8){var dEl=document.getElementById('cs-due-'+ri);if(dEl)dEl.innerHTML='<span class="cs-overdue">'+r['_od']+' วัน</span>';}
