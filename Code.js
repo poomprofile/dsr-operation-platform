@@ -70,7 +70,9 @@ function doGet(e) {
     // Route: ?page=print-transfer&email=xxx&week=YY
     if (page === 'print-transfer')     return servePrintTransferPage(e.parameter.email || '', e.parameter.week || '');
   }
-  return HtmlService.createHtmlOutputFromFile('index')
+  var tmpl = HtmlService.createTemplateFromFile('index');
+  tmpl.serverEmail = Session.getActiveUser().getEmail() || '';
+  return tmpl.evaluate()
     .setTitle('DSR Portal — Nice Center Oil')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -157,13 +159,15 @@ function authenticateRequest(idToken) {
   return user;
 }
 
-// Called from client via google.script.run (no token needed)
-// ต้อง deploy แบบ "Execute as: User accessing the web app" เพื่อให้ Session คืน email จริง
-function getUserProfile() {
-  var userEmail = Session.getActiveUser().getEmail();
+// Called from client via google.script.run
+// Deploy: "Execute as: Me" — email embedded in page via doGet template scriptlet (serverEmail)
+function getUserProfile(emailFromClient) {
+  var userEmail = emailFromClient
+    || Session.getActiveUser().getEmail()
+    || Session.getEffectiveUser().getEmail();
   console.log('SESSION EMAIL:', userEmail);
 
-  if (!userEmail) throw new Error('Cannot determine user email');
+  if (!userEmail) throw new Error('Cannot determine user email — โปรดเข้าสู่ระบบด้วย Google account');
 
   var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   var sheet = ss.getSheetByName('USERS');
@@ -177,6 +181,7 @@ function getUserProfile() {
   var zoneCol   = headers.indexOf('province_zone');
   var activeCol = headers.indexOf('active');
   var uidCol    = headers.indexOf('user_id');
+  var aoCol     = headers.indexOf('allow_overnight');
 
   for (var i = 1; i < rows.length; i++) {
     var rowEmail = rows[i][emailCol].toString().trim().toLowerCase();
@@ -185,12 +190,13 @@ function getUserProfile() {
       var active = rows[i][activeCol];
       if (String(active).toUpperCase() !== 'TRUE') throw new Error('Account disabled');
       return {
-        email:         rows[i][emailCol].toString().trim(),
-        display_name:  rows[i][nameCol],
-        role:          rows[i][roleCol],
-        province_zone: rows[i][zoneCol],
-        active:        active,
-        user_id:       uidCol >= 0 ? rows[i][uidCol] : '',
+        email:           rows[i][emailCol].toString().trim(),
+        display_name:    rows[i][nameCol],
+        role:            rows[i][roleCol],
+        province_zone:   rows[i][zoneCol],
+        active:          active,
+        user_id:         uidCol >= 0 ? rows[i][uidCol] : '',
+        allow_overnight: aoCol >= 0 ? String(rows[i][aoCol]).toUpperCase() === 'TRUE' : true,
       };
     }
   }
@@ -202,7 +208,7 @@ function getUserProfile() {
 // ใช้แทน doPost เพราะ google.script.run ไม่มีปัญหา CORS
 function handleApiCall(action, payload) {
   payload = payload || {};
-  var user = getUserProfile();
+  var user = getUserProfile(payload._callerEmail || '');
   // ถ้า Admin บันทึกข้อมูลของตัวเอง ให้ inject dsr_id อัตโนมัติ
   if (payload.data && !payload.data.dsr_id) {
     payload.data.dsr_id = user.email;
@@ -1308,7 +1314,7 @@ function setupSpreadsheet() {
   var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
 
   var SCHEMA = {
-    USERS:           ['user_id','email','display_name','role','province_zone','active','created_at'],
+    USERS:           ['user_id','email','display_name','role','province_zone','active','allow_overnight','created_at'],
     VEHICLES:        ['vehicle_id','dsr_id','vehicle_type','license_plate','brand_model',
                       'tax_expiry_date','act_expiry_date','oil_change_km','tire_change_date',
                       'is_active','created_at'],
@@ -3374,9 +3380,33 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
     var iRef   = pCol(['ref1']);
     var iCust  = pCol(['cust_code']);    // ← จาก column ใหม่
     var iInv   = pCol(['invoice_no']);   // ← จาก column ใหม่
-    var iShop  = pCol(['sender_name']); // fallback ใช้ชื่อผู้โอน
-    var iXDate = pCol(['transfer_date']);
-    var iEmail = -1; // ไม่มีใน PENDING_SLIPS
+    var iShop   = pCol(['sender_name']); // fallback ใช้ชื่อผู้โอน
+    var iXDate  = pCol(['transfer_date']);
+    var iUserId = pCol(['user_id']);
+
+    // ── build LINE user ID set for this DSR from LINE_USER_MAP ──
+    var dsrLineIds = {};
+    if (email && email !== 'ALL') {
+      try {
+        var lineMapSh = ss.getSheetByName('LINE_USER_MAP');
+        if (lineMapSh) {
+          var lmData = lineMapSh.getDataRange().getValues();
+          var lmH = lmData[0];
+          var lmUid = -1, lmEm = -1;
+          for (var ci=0;ci<lmH.length;ci++){
+            var ch=String(lmH[ci]).trim().toLowerCase();
+            if(ch==='line_user_id'||ch==='user_id') lmUid=ci;
+            if(ch==='email') lmEm=ci;
+          }
+          if (lmUid>=0 && lmEm>=0) {
+            for (var li=1;li<lmData.length;li++){
+              var lme=String(lmData[li][lmEm]||'').trim().toLowerCase();
+              if(lme===email.toLowerCase()) dsrLineIds[String(lmData[li][lmUid]).trim()]=true;
+            }
+          }
+        }
+      } catch(lmErr){ console.log('[getPendingRows] LINE_USER_MAP: '+lmErr.message); }
+    }
 
     var mon = new Date(monISO), sun = new Date(sunISO);
     var pendingRows = [];
@@ -3386,20 +3416,23 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
       if (!rowDate||isNaN(rowDate)) continue;
       if (rowDate<mon||rowDate>sun) continue;
 
-      // ใหม่ — ขึ้นทุก pending ในช่วงวันที่ ไม่ filter email
-      // (Admin เห็นทั้งทีม, DSR เห็นของตัวเอง — handle ฝั่ง frontend)
-      // ลบ block filter email ทิ้ง หรือเปลี่ยนเป็น:
-      if (iEmail>=0 && email && !email.includes('admin')) {
-        var rowEmail=String(data[r][iEmail]||'').trim().toLowerCase();
-        if (rowEmail && rowEmail !== email.toLowerCase()) continue;
+      // filter by LINE user_id for DSR view (admin 'ALL' sees everything)
+      if (email !== 'ALL') {
+        var rowUid = iUserId>=0 ? String(data[r][iUserId]||'').trim() : '';
+        if (!rowUid || !dsrLineIds[rowUid]) continue;
       }
-      // ไม่ filter status เลย — admin จะได้เห็นและแก้ไขได้  
 
       var amt   = iAmt>=0   ? parseFloat(String(data[r][iAmt]||0).replace(/[^0-9.\-]/g,''))||0   : 0;
       var inv   = iInv>=0   ? String(data[r][iInv]||'').trim()   : '';
       var cust  = iCust>=0  ? String(data[r][iCust]||'').trim()  : '';
       var shop  = iShop>=0  ? String(data[r][iShop]||'').trim()  : '';
       var xdate = iXDate>=0 ? data[r][iXDate] : null;
+
+      // สถานะตามข้อมูลที่มี (ไม่ hardcode รอระบุ)
+      var pendingStatus;
+      if (cust && inv)  pendingStatus = 'จับคู่แล้ว';
+      else if (cust)    pendingStatus = 'รอยืนยัน';
+      else              pendingStatus = 'รอระบุ';
 
       pendingRows.push({
         _row        : 900000 + r,
@@ -3410,7 +3443,7 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
         'ชื่อร้าน'   : iSender>=0 ? String(data[r][iSender]||'').trim() : '',
         'รหัสลูกค้า' : iCust>=0 ? String(data[r][iCust]||'').trim() : '',
         'วันที่โอน'  : rowDate.toISOString(),
-        'สถานะ'     : 'รอระบุ',
+        'สถานะ'     : pendingStatus,
         'note'      : (iRef>=0 ? String(data[r][iRef]||'').trim() : '')
                     + (iBank>=0 ? ' ' + String(data[r][iBank]||'').trim() : ''),
       });
@@ -3931,6 +3964,7 @@ function saveCashEntryForDate(date, dsrEmail, rows) {
 // ─── generateCashEntryPDF — A4 print form (TASK 2C) ──────────────────
 function generateCashEntryPDF(payload) {
   console.log('[generateCashEntryPDF] dsr=%s date=%s rows=%s', payload.dsrEmail, payload.selectedDate, (payload.rows||[]).length);
+  console.log('[generateCashEntryPDF] rows[0]:', JSON.stringify((payload.rows||[])[0]));
   var dsrName    = escapeHtmlSrv(payload.dsrName || payload.dsrEmail || '');
   // [CHANGED] format วันที่เป็น DD/MM/YYYY (TASK 3B)
   var dateLabel  = escapeHtmlSrv((function(s){
@@ -4196,6 +4230,13 @@ function saveSettlementExpenses(data, user) {
     }
   }
 
+  // [TASK 5] DSR ที่ไม่มีสิทธิค้างคืน: force hotel = 0 ก่อน upsert
+  if (user && user.allow_overnight === false) {
+    data.expenses = (data.expenses || []).map(function(ex) {
+      return Object.assign({}, ex, { hotel: 0 });
+    });
+  }
+
   var inserted = 0;
   data.expenses.forEach(function(ex) {
     var fuel     = parseFloat(ex.fuel)            || 0;
@@ -4236,10 +4277,11 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
   console.log('[generateSettlementPDF] dsr=%s weekStart=%s', payload.dsrEmail, payload.weekStart);
   var logoHtml    = getLogoBase64Html();
   var dsrName     = escapeHtmlSrv(payload.dsrName || payload.dsrEmail);
-  var incRows     = payload.incomeRows   || [];
-  var expRows     = payload.expenseRows  || [];
-  var mileRows    = payload.mileageRows  || [];
-  var slipByDate = payload.slipByDate || {};   // {date → amount} — TASK 4A auto Slip2Go
+  var incRows        = payload.incomeRows    || [];
+  var expRows        = payload.expenseRows   || [];
+  var mileRows       = payload.mileageRows   || [];
+  var slipByDate     = payload.slipByDate    || {};
+  var allowOvernight = payload.allowOvernight !== false; // ค่า default = true (DSR สายไกล)
 
   // ── Build lookup maps ──────────────────────────────────────────────
   var incByDate  = {};
@@ -4328,8 +4370,8 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
       '<td class="r" style="width:11%">' + fmtBlank(cheq)  + '</td>' +
       '<td class="r" style="width:11%">' + fmtBlank(slip)  + '</td>' +
       '<td class="r" style="width:9%">'  + fmtBlank(fuel)  + '</td>' +
-      '<td class="r" style="width:9%">'  + fmtBlank(hotel) + '</td>' +
-      '<td class="r" style="width:8%">'  + fmtBlank(allow) + '</td>' +
+      (allowOvernight ? '<td class="r" style="width:9%">'  + fmtBlank(hotel) + '</td>' : '') +
+      (allowOvernight ? '<td class="r" style="width:8%">'  + fmtBlank(allow) + '</td>' : '') +
       '</tr>';
   }).join('');
 
@@ -4387,8 +4429,8 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
         '<th class="r" style="width:11%">โอน/เช็ค</th>' +
         '<th class="r" style="width:11%">ใบโอน Slip2Go</th>' +
         '<th class="r" style="width:9%">น้ำมัน/แก๊ส</th>' +
-        '<th class="r" style="width:9%">ค่าที่พัก</th>' +
-        '<th class="r" style="width:8%">เบี้ยเลี้ยง</th>' +
+        (allowOvernight ? '<th class="r" style="width:9%">ค่าที่พัก</th>' : '') +
+        (allowOvernight ? '<th class="r" style="width:8%">เบี้ยเลี้ยง</th>' : '') +
       '</tr></thead>' +
       '<tbody>' + mergedRows + '</tbody>' +
       '<tfoot><tr>' +
@@ -4398,8 +4440,8 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
         '<td class="r b">' + fmtNAlways(totMergedCheq)  + '</td>' +
         '<td class="r b">' + fmtNAlways(totMergedSlip)  + '</td>' +
         '<td class="r b">' + fmtNAlways(totMergedFuel)  + '</td>' +
-        '<td class="r b">' + fmtNAlways(totMergedHotel) + '</td>' +
-        '<td class="r b">' + fmtNAlways(totMergedAllow) + '</td>' +
+        (allowOvernight ? '<td class="r b">' + fmtNAlways(totMergedHotel) + '</td>' : '') +
+        (allowOvernight ? '<td class="r b">' + fmtNAlways(totMergedAllow) + '</td>' : '') +
       '</tr></tfoot>' +
     '</table>' +
     '<div class="note-row">(หน่วย: บาท)</div>' +
@@ -4415,8 +4457,8 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
       '<div class="summary-box">' +
         '<div class="sum-row"><span>รวมเงินสด</span><span class="b">' + fmtNAlways(totMergedCash) + ' ฿</span></div>' +
         '<div class="sum-row deduct"><span>หัก จ่ายเงินน้ำมัน/แก๊ส</span><span>− ' + fmtNAlways(totMergedFuel) + ' ฿</span></div>' +
-        '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtNAlways(totMergedHotel) + ' ฿</span></div>' +
-        '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtNAlways(totMergedAllow) + ' ฿</span></div>' +
+        (allowOvernight ? '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtNAlways(totMergedHotel) + ' ฿</span></div>' : '') +
+        (allowOvernight ? '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtNAlways(totMergedAllow) + ' ฿</span></div>' : '') +
         '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div>' +
         '<div class="sum-divider"></div>' +
         '<div class="sum-net">' +
@@ -4488,15 +4530,16 @@ function generateAllReportsPDF(payload) {
   var settlementHtml = '';
   try {
     settlementHtml = generateSettlementPDF({
-      dsrName:     payload.dsrName     || payload.dsrEmail,
-      dsrEmail:    payload.dsrEmail,
-      weekStart:   payload.weekStart   || '',
-      weekEnd:     payload.weekEnd     || '',
-      incomeRows:  payload.incomeRows  || [],
-      expenseRows: payload.expenseRows || [],
-      mileageRows: payload.mileageRows || [],
-      slipTotal:   payload.slipTotal   || { total: 0, count: 0 },
-      slipByDate:  payload.slipByDate  || {},
+      dsrName:        payload.dsrName        || payload.dsrEmail,
+      dsrEmail:       payload.dsrEmail,
+      weekStart:      payload.weekStart      || '',
+      weekEnd:        payload.weekEnd        || '',
+      incomeRows:     payload.incomeRows     || [],
+      expenseRows:    payload.expenseRows    || [],
+      mileageRows:    payload.mileageRows    || [],
+      slipTotal:      payload.slipTotal      || { total: 0, count: 0 },
+      slipByDate:     payload.slipByDate     || {},
+      allowOvernight: payload.allowOvernight !== false,
     });
   } catch(e) {
     console.error('[generateAllReportsPDF] settlement err: ' + e.message);
@@ -4563,57 +4606,60 @@ function getCoverSheetBatch(payload) {
 
   var todayBKK = bkkToday();
 
-  // ── Read บิลค้างจ่าย sheet 1 ครั้ง ──
+  // ── Read com_debt-initial (Castrol) ──
+  var CASTROL_SS_ID = '1j969ymKjtLWQAgRf_kSEaQQLrpHvDfk1KBswquw4WDI';
   try {
-    var slipSsId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID_SLIP');
-    var ss       = SpreadsheetApp.openById(slipSsId);
-    var sheet    = ss.getSheetByName('บิลค้างจ่าย');
-    if (sheet) {
-      var data = sheet.getDataRange().getValues();
+    var castrolSs = SpreadsheetApp.openById(CASTROL_SS_ID);
+    var castrolSh = castrolSs.getSheetByName('com_debt-initial');
+    if (castrolSh) {
+      var data = castrolSh.getDataRange().getValues();
       var h    = data[0] || [];
 
-      function col(names) {
+      function castrolCol(names) {
         for (var ni = 0; ni < names.length; ni++)
           for (var hi = 0; hi < h.length; hi++)
             if (String(h[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi;
         return -1;
       }
-      var iKey  = col(['รหัสหลัก','TaxNo','taxno','รหัสลูกค้า']);
-      var iInv  = col(['InvoiceNo','invoiceno','เลขที่บิล','DocNo']);
-      var iAmt  = col(['ยอดคงเหลือ','ยอดบิล','Amount','amount']);
-      var iDue  = col(['DueDate','duedate','วันครบกำหนด','วันที่ครบกำหนด']);
-      var iShop = col(['ชื่อลูกค้าหลัก','ชื่อลูกค้า','Sale','sale','CustomerName']);
+      var iKey  = castrolCol(['customer_code']);
+      var iName = castrolCol(['customer_name','ชื่อลูกค้า','name','customername','distributor_name']);
+      var iInv  = castrolCol(['invoice_no','invoiceno','เลขที่บิล','DocNo','InvoiceNo']);
+      var iAmt  = castrolCol(['amount','ยอดคงเหลือ','ยอดบิล','Amount','outstanding','balance']);
+      var iDue  = castrolCol(['due_date','duedate','DueDate','วันครบกำหนด','ถึงกำหนดชำระ']);
 
-      if (iKey >= 0 && iInv >= 0 && data.length > 1) {
+      if (iKey >= 0 && data.length > 1) {
         for (var r = 1; r < data.length; r++) {
           var cust = String(data[r][iKey] || '').trim();
           if (!billsMap[cust]) continue;
-          var invoiceNo = String(data[r][iInv] || '').trim();
-          if (!invoiceNo) continue;
-          if (!billsMap[cust].shopName && iShop >= 0)
-            billsMap[cust].shopName = String(data[r][iShop] || '').trim();
-          var amount = parseFloat(String(data[r][iAmt >= 0 ? iAmt : 0] || 0).replace(/[^0-9.\-]/g, '')) || 0;
-          var dueDate = null, overdueDays = null;
-          if (iDue >= 0 && data[r][iDue]) {
-            var dd = bkkDate(data[r][iDue]);
-            if (dd) { dueDate = isoFromDate(dd); overdueDays = Math.floor((todayBKK - dd) / 86400000); }
+          // shop name — fill on first match
+          if (!billsMap[cust].shopName && iName >= 0)
+            billsMap[cust].shopName = String(data[r][iName] || '').trim();
+          // bills
+          if (iInv >= 0) {
+            var invoiceNo = String(data[r][iInv] || '').trim();
+            if (!invoiceNo) continue;
+            var amount = iAmt >= 0 ? parseFloat(String(data[r][iAmt] || 0).replace(/[^0-9.\-]/g, '')) || 0 : 0;
+            var dueDate = null, overdueDays = null;
+            if (iDue >= 0 && data[r][iDue]) {
+              var dd = bkkDate(data[r][iDue]);
+              if (dd) { dueDate = isoFromDate(dd); overdueDays = Math.floor((todayBKK - dd) / 86400000); }
+            }
+            billsMap[cust].bills.push({ invoiceNo: invoiceNo, amount: amount, dueDate: dueDate, overdueDays: overdueDays, source: 'castrol' });
           }
-          billsMap[cust].bills.push({ invoiceNo: invoiceNo, amount: amount, dueDate: dueDate, overdueDays: overdueDays, source: 'main' });
         }
-      }
-
-      // Sort per cust by dueDate
-      uniqueCusts.forEach(function(c) {
-        billsMap[c].bills.sort(function(a, b) {
-          if (!a.dueDate && !b.dueDate) return 0;
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return new Date(a.dueDate) - new Date(b.dueDate);
+        // Sort per cust by dueDate
+        uniqueCusts.forEach(function(c) {
+          billsMap[c].bills.sort(function(a, b) {
+            if (!a.dueDate && !b.dueDate) return 0;
+            if (!a.dueDate) return 1;
+            if (!b.dueDate) return -1;
+            return new Date(a.dueDate) - new Date(b.dueDate);
+          });
         });
-      });
+      }
     }
   } catch(e) {
-    console.log('[getCoverSheetBatch] debt sheet error: ' + e.message);
+    console.log('[getCoverSheetBatch] Castrol debt sheet error: ' + e.message);
   }
 
   // ── Read Pay sheet 1 ครั้ง ──
