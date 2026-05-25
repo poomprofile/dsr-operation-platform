@@ -3384,9 +3384,36 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
     var iXDate  = pCol(['transfer_date']);
     var iUserId = pCol(['user_id']);
 
-    // ── build LINE user ID set for this DSR from LINE_USER_MAP ──
+    // ── build DSR territory: customer codes from ALL-TIME SLIPS history ──
+    // + LINE user IDs as secondary match (production: DSR submitted their own)
+    var dsrCustTerritory = {};
     var dsrLineIds = {};
     if (email && email !== 'ALL') {
+      // Primary: derive territory from all processed slips with this DSR's email
+      try {
+        var slipsSh2 = ss.getSheetByName(SH.SLIPS);
+        if (slipsSh2) {
+          var slData = slipsSh2.getDataRange().getValues();
+          if (slData.length > 1) {
+            var slH = slData[0];
+            var slEmail = -1, slCust = -1;
+            for (var ci2=0;ci2<slH.length;ci2++){
+              var ch2=String(slH[ci2]).trim().toLowerCase();
+              if(ch2==='email'||ch2==='dsr_email'||ch2==='dsr email') slEmail=ci2;
+              if(ch2==='รหัสลูกค้า'||ch2==='customer'||ch2==='cust_code'||ch2==='customer_code') slCust=ci2;
+            }
+            if (slEmail>=0 && slCust>=0) {
+              for (var si=1;si<slData.length;si++){
+                var sle=String(slData[si][slEmail]||'').trim().toLowerCase();
+                var slc=String(slData[si][slCust]||'').trim();
+                if(sle===email.toLowerCase() && slc) dsrCustTerritory[slc]=true;
+              }
+            }
+          }
+        }
+      } catch(slErr){ console.log('[getPendingRows] SLIPS territory: '+slErr.message); }
+
+      // Secondary: LINE user IDs for slips submitted directly by DSR
       try {
         var lineMapSh = ss.getSheetByName('LINE_USER_MAP');
         if (lineMapSh) {
@@ -3416,10 +3443,14 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
       if (!rowDate||isNaN(rowDate)) continue;
       if (rowDate<mon||rowDate>sun) continue;
 
-      // filter by LINE user_id for DSR view (admin 'ALL' sees everything)
+      // filter for DSR view: show if cust_code in territory OR submitted by own LINE ID
+      // unmatched slips (no cust_code) are admin-only
       if (email !== 'ALL') {
-        var rowUid = iUserId>=0 ? String(data[r][iUserId]||'').trim() : '';
-        if (!rowUid || !dsrLineIds[rowUid]) continue;
+        var rowCust2 = iCust>=0 ? String(data[r][iCust]||'').trim() : '';
+        var rowUid   = iUserId>=0 ? String(data[r][iUserId]||'').trim() : '';
+        var inTerritory = rowCust2 && dsrCustTerritory[rowCust2];
+        var isOwnLine   = rowUid && dsrLineIds[rowUid];
+        if (!inTerritory && !isOwnLine) continue;
       }
 
       var amt   = iAmt>=0   ? parseFloat(String(data[r][iAmt]||0).replace(/[^0-9.\-]/g,''))||0   : 0;
