@@ -1967,7 +1967,7 @@ function getLogoBase64Html() {
   try {
     // ค้นใน folder NCO_CoverSheets ก่อน แล้วค่อย fallback ทั้ง Drive
     var logoBlob = null;
-    var logoName = 'Nice Center Oil x Castrol - Business Card ใส.png';
+    var logoName = 'Nice_Center_Oil_x_Castrol_-_Business_Card_ใส.png';
 
     var folders = DriveApp.getFoldersByName('NCO_CoverSheets');
     if (folders.hasNext()) {
@@ -1989,7 +1989,8 @@ function getLogoBase64Html() {
 
     var b64  = Utilities.base64Encode(logoBlob.getBytes());
     var mime = logoBlob.getContentType();
-    return '<img src="data:' + mime + ';base64,' + b64 + '" style="height:44px;">';
+    return '<img src="data:' + mime + ';base64,' + b64 + '" style="height:44px;object-fit:contain;"' +
+           ' onerror="this.outerHTML=\'<b style=\\\'color:#E8631A\\\'>NICE CENTER</b>&nbsp;<b style=\\\'color:#C8102E\\\'>Castrol</b>\'">';
 
   } catch(e) {
     return '<span style="font-size:15px;font-weight:700;color:#E8212A">Castrol</span>';
@@ -2052,7 +2053,7 @@ function getPrintCssStandard() {
 }
 
 function getPrintHeaderHtml(config) {
-  var logoHtml  = getLogoBase64Html();
+  var logoHtml  = getLogoHtml();
   var title     = escapeHtmlSrv(config.title     || '');
   var dsrName   = escapeHtmlSrv(config.dsrName   || '');
   var dateRange = escapeHtmlSrv(config.dateRange  || '');
@@ -2945,15 +2946,16 @@ function buildCoverSheetHtmlV15(rows, dsrName, today, total, weekLabel, billAmou
   // Logo
   var logoHtml = '';
   try {
-    var names = ['Nice Center Oil x Castrol - Business Card ใส.png','logo_nco.png'];
+    var names = ['Nice_Center_Oil_x_Castrol_-_Business_Card_ใส.png','logo_nco.png'];
+    var onerr = ' onerror="this.outerHTML=\'<b style=\\\'color:#E8631A\\\'>NICE CENTER</b>&nbsp;<b style=\\\'color:#C8102E\\\'>Castrol</b>\'"';
     outer: for (var li = 0; li < names.length; li++) {
       var folds = DriveApp.getFoldersByName('NCO_CoverSheets');
       while (folds.hasNext()) {
         var ff = folds.next().getFilesByName(names[li]);
-        if (ff.hasNext()) { var bb=ff.next().getBlob(); logoHtml='<img src="data:'+bb.getContentType()+';base64,'+Utilities.base64Encode(bb.getBytes())+'" style="height:44px;object-fit:contain;">'; break outer; }
+        if (ff.hasNext()) { var bb=ff.next().getBlob(); logoHtml='<img src="data:'+bb.getContentType()+';base64,'+Utilities.base64Encode(bb.getBytes())+'" style="height:44px;object-fit:contain;"'+onerr+'>'; break outer; }
       }
       var af = DriveApp.getFilesByName(names[li]);
-      if (af.hasNext()) { var bb=af.next().getBlob(); logoHtml='<img src="data:'+bb.getContentType()+';base64,'+Utilities.base64Encode(bb.getBytes())+'" style="height:44px;object-fit:contain;">'; break; }
+      if (af.hasNext()) { var bb=af.next().getBlob(); logoHtml='<img src="data:'+bb.getContentType()+';base64,'+Utilities.base64Encode(bb.getBytes())+'" style="height:44px;object-fit:contain;"'+onerr+'>'; break; }
     }
   } catch(e) { console.log('[logo] '+e.message); }
   if (!logoHtml) logoHtml='<div style="text-align:right;line-height:1.4"><span style="font-size:14px;font-weight:700;color:#E8631A">NICE CENTER</span><br><span style="font-size:12px;color:#C8102E">x CASTROL</span></div>';
@@ -4095,16 +4097,19 @@ function saveCashEntryForDate(date, dsrEmail, rows) {
   // Insert แถวใหม่
   var fakeUser = { email: dsrEmail };
   var inserted = 0, skipped = 0;
-  (rows || []).forEach(function(r) {
+  (rows || []).forEach(function(r, idx) {
     var amt = parseFloat(r.amount);
-    if (!amt || amt <= 0) { skipped++; return; }
+    console.log('[saveCashEntryForDate] row['+idx+'] type='+r.type+' code='+r.customer_code+' inv='+r.invoice_no+' amt='+amt);
+    if (!amt || amt <= 0) { skipped++; console.log('[saveCashEntryForDate] skip row['+idx+']: amount='+amt); return; }
     r.log_date = date;
-    r.invoice_no = r.invoice_no || '-'; // validate() throws on empty string
+    r.invoice_no   = r.invoice_no   || '-';
+    r.customer_code = r.customer_code || '-'; // validate() throws on empty
     try {
       if (r.type === 'cheque') { saveCheque(r, fakeUser); }
       else                     { saveCash(r, fakeUser); }
       inserted++;
-    } catch(e) { skipped++; console.error('[saveCashEntryForDate] skip: ' + e.message); }
+      console.log('[saveCashEntryForDate] wrote row['+idx+'] type='+r.type+' dsrEmail='+fakeUser.email);
+    } catch(e) { skipped++; console.error('[saveCashEntryForDate] skip row['+idx+']: ' + e.message); }
   });
   console.log('[saveCashEntryForDate] inserted=%s skipped=%s', inserted, skipped);
   return { deleted: delCash + delCheq, inserted: inserted, skipped: skipped };
@@ -4149,17 +4154,17 @@ function generateCashEntryPDF(payload) {
     var bill = parseFloat(r.bill_amount) || 0;
     totCash += cash; totCheq += cheq;
     return '<tr>' +
-      '<td style="text-align:center;width:4%">' + (idx+1) + '</td>' +
-      '<td style="width:8%">' + esc(r.customer_code) + '</td>' +
-      '<td style="width:20%">' + esc(r.customer_name) + '</td>' +
-      '<td style="width:18%;white-space:nowrap;font-size:10px">' + esc(r.invoice_no) + '</td>' +
-      '<td style="text-align:right;width:8%">' + fmtN(bill) + '</td>' +
-      '<td style="text-align:right;width:8%">' + fmtN(cash) + '</td>' +
-      '<td style="text-align:right;width:8%">' + fmtN(cheq) + '</td>' +
-      '<td style="width:8%">' + esc(fmtChequeDate(r.cheque_date)) + '</td>' +
-      '<td style="width:8%">' + esc(r.cheque_no    || '') + '</td>' +
-      '<td style="width:6%;font-size:9px">' + esc(r.bank_name   || '') + '</td>' +
-      '<td style="width:6%;font-size:9px">' + esc(r.branch_name || '') + '</td>' +
+      '<td style="text-align:center;">' + (idx+1) + '</td>' +
+      '<td>' + esc(r.customer_code) + '</td>' +
+      '<td>' + esc(r.customer_name) + '</td>' +
+      '<td style="font-size:9px;word-break:break-all;">' + esc(r.invoice_no) + '</td>' +
+      '<td style="text-align:right;">' + fmtN(bill) + '</td>' +
+      '<td style="text-align:right;">' + fmtN(cash) + '</td>' +
+      '<td style="text-align:right;">' + fmtN(cheq) + '</td>' +
+      '<td>' + esc(fmtChequeDate(r.cheque_date)) + '</td>' +
+      '<td>' + esc(r.cheque_no    || '') + '</td>' +
+      '<td style="font-size:8px;">' + esc(r.bank_name   || '') + '</td>' +
+      '<td style="font-size:8px;">' + esc(r.branch_name || '') + '</td>' +
       '<td>' + esc(r.note) + '</td>' +
       '</tr>';
   }).join('');
@@ -4188,20 +4193,26 @@ function generateCashEntryPDF(payload) {
     '<button class="print-btn" onclick="window.print()">พิมพ์ / บันทึก PDF</button>' +
     '<div class="pw">' +
     getPrintHeaderHtml({title:'บันทึกเงินสด / โอน / เช็ค', dsrName:dsrName, dateRange:dateLabel, printedAt:printDate}) +
-    '<table>' +
+    '<table style="table-layout:fixed;word-break:break-word;">' +
+      '<colgroup>' +
+        '<col style="width:4%"><col style="width:8%"><col style="width:15%">' +
+        '<col style="width:10%"><col style="width:8%"><col style="width:7%">' +
+        '<col style="width:8%"><col style="width:8%"><col style="width:8%">' +
+        '<col style="width:8%"><col style="width:7%"><col style="width:9%">' +
+      '</colgroup>' +
       '<thead><tr>' +
         '<th style="width:4%">No.</th>' +
         '<th style="width:8%">รหัสลูกค้า</th>' +
-        '<th style="width:20%">ชื่อร้าน</th>' +
-        '<th style="width:18%">เลขที่บิล</th>' +
+        '<th style="width:15%">ชื่อร้าน</th>' +
+        '<th style="width:10%">เลขที่บิล</th>' +
         '<th style="width:8%;text-align:right">ยอดบิล</th>' +
-        '<th style="width:8%;text-align:right">เงินสด</th>' +
+        '<th style="width:7%;text-align:right">เงินสด</th>' +
         '<th style="width:8%;text-align:right">ยอดโอน/เช็ค</th>' +
         '<th style="width:8%">วันที่โอน/เช็ค</th>' +
         '<th style="width:8%">เลขที่เช็ค</th>' +
-        '<th style="width:6%">ธนาคาร</th>' +
-        '<th style="width:6%">สาขา</th>' +
-        '<th>หมายเหตุ</th>' +
+        '<th style="width:8%">ธนาคาร</th>' +
+        '<th style="width:7%">สาขา</th>' +
+        '<th style="width:9%">หมายเหตุ</th>' +
       '</tr></thead>' +
       '<tbody>' + (bodyRows || '<tr><td colspan="12" style="text-align:center;color:#999;">ไม่มีรายการ</td></tr>') + '</tbody>' +
       '<tfoot><tr class="total-row">' +

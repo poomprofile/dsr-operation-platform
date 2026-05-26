@@ -48,7 +48,7 @@
     background: var(--blue); padding: 4px 10px; margin: 10px 0 4px; border-radius: 2px;
   }
 
-  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; border: 1px solid var(--border); }
   th {
     background: var(--light); border: 1px solid var(--border);
     padding: 4px 6px; text-align: center; font-weight: 700; white-space: nowrap;
@@ -88,7 +88,7 @@
     body { background: #fff; }
     #loading { display: none !important; }
     #doc { display: block !important; }
-    @page { size: A4 landscape; margin: 10mm 14mm; }
+    @page { size: A4 landscape; margin: 10mm 12mm 10mm 12mm; }
   }
 </style>
 </head>
@@ -124,7 +124,15 @@
     return s;
   }
 
-  function renderDoc(d) {
+  var _logoHtml = null;
+  var _docData  = null;
+
+  function maybeRender() {
+    if (_logoHtml === null || _docData === null) return;
+    renderDoc(_docData, _logoHtml);
+  }
+
+  function renderDoc(d, logoHtml) {
     var t = d.totals;
     var transfers = d.transfers || [];
 
@@ -152,7 +160,7 @@
     document.getElementById('doc').innerHTML =
       '<div class="page-header">' +
         '<div>' +
-          '<div class="logo-castrol">C<span>A</span>STROL</div>' +
+          (logoHtml || '<b style="color:#E8631A;font-size:18pt;">NICE CENTER</b>&nbsp;<b style="color:#C8102E;font-size:18pt;">Castrol</b>') +
           '<div class="logo-sub">Nice Center Oil Co., Ltd.</div>' +
         '</div>' +
         '<div class="doc-title">' +
@@ -200,7 +208,12 @@
   }
 
   google.script.run
-    .withSuccessHandler(renderDoc)
+    .withSuccessHandler(function(html) { _logoHtml = html || ''; maybeRender(); })
+    .withFailureHandler(function() { _logoHtml = ''; maybeRender(); })
+    .getLogoHtml();
+
+  google.script.run
+    .withSuccessHandler(function(d) { _docData = d; maybeRender(); })
     .withFailureHandler(function(err) {
       document.getElementById('loading').innerHTML =
         '<p style="color:#C8102E">เกิดข้อผิดพลาด: ' + (err.message || err) + '</p>';

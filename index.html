@@ -435,10 +435,10 @@ body.no-overnight .stl-ov-col { display: none; }
   letter-spacing: .08em;
   text-transform: uppercase;
   padding: 4px 10px 6px;
-  margin-top: 0;
+  margin-top: 10px;
 }
-.sidebar-item + .sidebar-section-label {
-  margin-top: 8px;
+.sidebar > .sidebar-section-label:first-of-type {
+  margin-top: 6px;
 }
 .sidebar-item {
   display: flex;
@@ -1532,7 +1532,7 @@ body.no-overnight .stl-ov-col { display: none; }
 .inv-dd-val{width:100%;padding:5px 22px 5px 7px;cursor:pointer;font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%23888'/%3E%3C/svg%3E") no-repeat right 6px center transparent;user-select:none;min-height:28px;line-height:18px;}
 .inv-dd-val:hover{background-color:#FFFDE7;}
 .inv-dd-val.muted{color:var(--muted);}
-.inv-dd-panel{position:fixed;background:var(--white);border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.13);max-height:220px;overflow-y:auto;z-index:500;display:none;}
+.inv-dd-panel{position:fixed;background:#fff;border:1.5px solid #ccc;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.18);max-height:220px;overflow-y:auto;z-index:500;display:none;}
 .inv-dd-opt{padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid #f0ede8;white-space:nowrap;}
 .inv-dd-opt:last-child{border-bottom:none;}
 .inv-dd-opt:hover{background:#FFF8F5;color:var(--o);}
@@ -3572,8 +3572,8 @@ function stlRecalc() {
       '<td class="r">' + stlFmtAlways(totDist)  + '</td>' +
       '<td class="r">' + stlFmtAlways(totDepr)  + '</td>' +
       '<td>' + stlFmtAlways(totFuel)  + '</td>' +
-      '<td>' + stlFmtAlways(totHotel) + '</td>' +
-      '<td style="font-size:11px;">' + stlFmtAlways(totAllow) + '</td>' +
+      '<td class="stl-ov-col">' + stlFmtAlways(totHotel) + '</td>' +
+      '<td class="stl-ov-col" style="font-size:11px;">' + stlFmtAlways(totAllow) + '</td>' +
       '</tr>';
   }
 }
@@ -4503,16 +4503,17 @@ async function ceSaveAndPrint() {
     var cash = getRaw('cash-'+i);
     var cheq = getRaw('cheq-'+i);
     if (!cash && !cheq) continue;
+    var billAmt = parseFloat(((document.getElementById('bill-'+i)||{}).value||'').replace(/,/g,'')) || 0;
     if (cash > 0) {
       rows.push({ customer_code:code,
         customer_name:((document.getElementById('nm-'+i)||{}).value||'').trim(),
-        invoice_no:inv, type:'cash', amount:cash,
+        invoice_no:inv, type:'cash', amount:cash, bill_amount:billAmt,
         note:((document.getElementById('nt-'+i)||{}).value||'').trim() });
     }
     if (cheq > 0) {
       rows.push({ customer_code:code,
         customer_name:((document.getElementById('nm-'+i)||{}).value||'').trim(),
-        invoice_no:inv, type:'cheque', amount:cheq,
+        invoice_no:inv, type:'cheque', amount:cheq, bill_amount:billAmt,
         cheque_date:((document.getElementById('cd-'+i)||{}).value||'').trim(),
         cheque_no:  ((document.getElementById('cn-'+i)||{}).value||'').trim(),
         bank_name:  ((document.getElementById('bk-'+i)||{}).value||'').trim(),
@@ -4536,7 +4537,7 @@ async function ceSaveAndPrint() {
         customer_code: rows[j].customer_code || '',
         customer_name: rows[j].customer_name || '',
         invoice_no:    rows[j].invoice_no    || '',
-        bill_amount:   0,
+        bill_amount:   rows[j].bill_amount || 0,
         cash_amount:   rows[j].type === 'cash'   ? rows[j].amount : 0,
         cheq_amount:   rows[j].type === 'cheque' ? rows[j].amount : 0,
         cheque_date:   rows[j].cheque_date   || '',
