@@ -336,7 +336,7 @@ input.invalid{background:#FFF0F0!important;border:1px solid var(--r)!important;b
 <!-- ═══ HEADER ══════════════════════════════════════ -->
 <div class="hdr">
   <div id="logo-wrap">
-    <span style="font-size:15px;font-weight:700;color:var(--o)">NCO</span>
+    <div style="font-size:16px;font-weight:700;color:#007B40;letter-spacing:1px;line-height:1.2">C<span style="color:#E8631A">A</span>STROL<div style="font-size:9px;color:#555;font-weight:400;letter-spacing:0;margin-top:1px">Nice Center Oil Co., Ltd.</div></div>
   </div>
   <div class="hdr-title"><h1>NCO DSR Portal</h1><p>บันทึกเงินสด / เช็ค</p></div>
   <div class="hdr-meta">
@@ -419,6 +419,9 @@ input.invalid{background:#FFF0F0!important;border:1px solid var(--r)!important;b
 <div class="toast" id="toast"></div>
 
 <script>
+// email ฝังมาจาก doGet() template scriptlet — ใช้เป็น _callerEmail fallback
+var _callerEmail = '<?= callerEmail ?>';
+
 // ════════════════════════════════════════════
 //  STATIC DATA
 // ════════════════════════════════════════════
@@ -460,7 +463,7 @@ window.onload = function() {
         document.getElementById('ph-logo-wrap').innerHTML = html;
       }
     })
-    .getLogoBase64Html();
+    .getLogoHtml();
 
   google.script.run
     .withSuccessHandler(function(profile) {
@@ -472,7 +475,7 @@ window.onload = function() {
     .withFailureHandler(function() {
       document.getElementById('inp-dsr').placeholder = 'ไม่สามารถโหลดชื่อได้';
     })
-    .getUserProfile();
+    .getUserProfile(_callerEmail);
 
   initRows();
 };
@@ -604,7 +607,15 @@ function fmtDateInput(el) {
 //  CUSTOM INVOICE DROPDOWN
 // ════════════════════════════════════════════
 function closeAllInvDd() {
-  document.querySelectorAll('.inv-dd-panel').forEach(function(p) { p.style.display = 'none'; });
+  document.querySelectorAll('.inv-dd-panel').forEach(function(p) {
+    if (p.style.display !== 'none') {
+      p.style.display = 'none';
+      // move back to original .inv-dd container
+      var rowN = p.id.replace('inv-panel-', '');
+      var dd   = document.getElementById('inv-dd-' + rowN);
+      if (dd && p.parentElement === document.body) dd.appendChild(p);
+    }
+  });
 }
 
 function toggleInvDd(n) {
@@ -612,6 +623,7 @@ function toggleInvDd(n) {
   var isOpen = panel.style.display === 'block';
   closeAllInvDd();
   if (!isOpen && panel.children.length) {
+    document.body.appendChild(panel); // move to body to escape overflow/stacking context
     positionInvPanel(n);
     panel.style.display = 'block';
   }
@@ -621,8 +633,8 @@ function positionInvPanel(n) {
   var ddv   = document.getElementById('inv-ddv-' + n);
   var rect  = ddv.getBoundingClientRect();
   var panel = document.getElementById('inv-panel-' + n);
-  panel.style.top      = rect.bottom + 'px';
-  panel.style.left     = rect.left + 'px';
+  panel.style.top      = rect.bottom + window.scrollY + 'px';
+  panel.style.left     = rect.left   + window.scrollX + 'px';
   panel.style.minWidth = Math.max(rect.width, 270) + 'px';
 }
 
@@ -970,11 +982,11 @@ function loadHistory() {
   google.script.run
     .withSuccessHandler(function(res){ _histData.cash = normalizeRows(res); tryDone(); })
     .withFailureHandler(function(){ tryDone(); })
-    .handleApiCall('GET_CASH_LOG', {filters:{}});
+    .handleApiCall('GET_CASH_LOG', {filters:{}, _callerEmail: _callerEmail});
   google.script.run
     .withSuccessHandler(function(res){ _histData.cheq = normalizeRows(res); tryDone(); })
     .withFailureHandler(function(){ tryDone(); })
-    .handleApiCall('GET_CHEQUE_LOG', {filters:{}});
+    .handleApiCall('GET_CHEQUE_LOG', {filters:{}, _callerEmail: _callerEmail});
 }
 function normalizeRows(res) {
   if (Array.isArray(res)) return res;
@@ -1019,7 +1031,7 @@ function deleteHistRow(btn) {
       renderHistBody(); showToast('ลบสำเร็จ','ok');
     })
     .withFailureHandler(function(e){ showToast('ลบไม่สำเร็จ: '+(e&&e.message?e.message:''),'err'); })
-    .handleApiCall(action, {log_id: logId});
+    .handleApiCall(action, {log_id: logId, _callerEmail: _callerEmail});
 }
 
 // ════════════════════════════════════════════

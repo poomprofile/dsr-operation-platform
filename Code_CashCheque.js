@@ -208,8 +208,10 @@ function ccWeekRangeStr(wn) {
 // ─────────────────────────────────────────────────────────────────────
 //  PAGE SERVERS
 // ─────────────────────────────────────────────────────────────────────
-function serveCashEntryPage() {
-  return HtmlService.createHtmlOutputFromFile('cash_entry')
+function serveCashEntryPage(email) {
+  var tmpl = HtmlService.createTemplateFromFile('cash_entry');
+  tmpl.callerEmail = email || '';
+  return tmpl.evaluate()
     .setTitle('บันทึกเงินสด / เช็ค — NCO DSR')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }

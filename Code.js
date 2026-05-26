@@ -63,15 +63,15 @@ function doGet(e) {
     var page = e.parameter.page;
     // Route: ?page=dsr-review&email=xxx
     if (page === 'dsr-review')         return serveDsrReviewPage(e.parameter.email || '');
-    // Route: ?page=cash-entry
-    if (page === 'cash-entry')         return serveCashEntryPage();
+    // Route: ?page=cash-entry&email=xxx
+    if (page === 'cash-entry')         return serveCashEntryPage(e.parameter.email || '');
     // Route: ?page=print-cash-cheque&email=xxx&week=YY
     if (page === 'print-cash-cheque')  return servePrintCashChequePage(e.parameter.email || '', e.parameter.week || '');
     // Route: ?page=print-transfer&email=xxx&week=YY
     if (page === 'print-transfer')     return servePrintTransferPage(e.parameter.email || '', e.parameter.week || '');
   }
   var tmpl = HtmlService.createTemplateFromFile('index');
-  tmpl.serverEmail = Session.getActiveUser().getEmail() || '';
+  tmpl.gsiClientId = prop('GSI_CLIENT_ID') || '';
   return tmpl.evaluate()
     .setTitle('DSR Portal — Nice Center Oil')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
@@ -160,11 +160,9 @@ function authenticateRequest(idToken) {
 }
 
 // Called from client via google.script.run
-// Deploy: "Execute as: Me" — email embedded in page via doGet template scriptlet (serverEmail)
+// Deploy: "Execute as: Me (owner)" — identity comes from GIS session token or _callerEmail fallback
 function getUserProfile(emailFromClient) {
-  var userEmail = emailFromClient
-    || Session.getActiveUser().getEmail()
-    || Session.getEffectiveUser().getEmail();
+  var userEmail = emailFromClient;
   console.log('SESSION EMAIL:', userEmail);
 
   if (!userEmail) throw new Error('Cannot determine user email — โปรดเข้าสู่ระบบด้วย Google account');
@@ -204,11 +202,32 @@ function getUserProfile(emailFromClient) {
   console.log('NOT FOUND:', userEmail);
   throw new Error('Email not allowed: ' + userEmail);
 }
+// ─── SESSION TOKEN API (สำหรับ Execute as: Me (owner) deployment) ──────
+// initSession: ตรวจสอบ GIS ID token แล้วคืน UUID session token
+function initSession(idToken) {
+  var user = authenticateRequest(idToken);
+  if (!user) throw new Error('ยืนยันตัวตนไม่ได้ — กรุณา login ใหม่');
+  var token = Utilities.getUuid();
+  CacheService.getScriptCache().put('sess_' + token, JSON.stringify(user), CONFIG.SESSION_TTL_SEC);
+  return { token: token, profile: user };
+}
+
+// getSessionUser: ดึง user object จาก session token
+function getSessionUser(token) {
+  if (!token) return null;
+  var json = CacheService.getScriptCache().get('sess_' + token);
+  if (!json) return null;
+  try { return JSON.parse(json); } catch (_) { return null; }
+}
+
 // ─── PUBLIC API HANDLER — เรียกจาก google.script.run ────────
 // ใช้แทน doPost เพราะ google.script.run ไม่มีปัญหา CORS
+// ลำดับ: session token (GIS) → _callerEmail fallback (sub-pages)
 function handleApiCall(action, payload) {
   payload = payload || {};
-  var user = getUserProfile(payload._callerEmail || '');
+  var user = getSessionUser(payload.sessionToken)
+          || getUserProfile(payload._callerEmail || '');
+  if (!user) throw new Error('Session expired — กรุณา login ใหม่');
   // ถ้า Admin บันทึกข้อมูลของตัวเอง ให้ inject dsr_id อัตโนมัติ
   if (payload.data && !payload.data.dsr_id) {
     payload.data.dsr_id = user.email;
@@ -2852,26 +2871,6 @@ function getMondayOfWeek() {
   return mon;
 }
 
-function debugFernLogin() {
-  // Test 1: ดู email ที่ Session เห็น
-  var sessionEmail = Session.getActiveUser().getEmail();
-  Logger.log('Session email: "' + sessionEmail + '"');
-  
-  // Test 2: ดูข้อมูลใน Sheet
-  var u = findUserByEmail('fernery11@gmail.com');
-  Logger.log('User found: ' + JSON.stringify(u));
-  
-  // Test 3: เช็ค active field
-  if (u) {
-    Logger.log('active value: "' + u.active + '"');
-    Logger.log('active type: ' + typeof u.active);
-    Logger.log('toUpperCase: "' + u.active.toUpperCase() + '"');
-    Logger.log('=== TRUE: ' + (u.active.toUpperCase() === 'TRUE'));
-  }
-  
-  // Test 4: isAllowedEmail
-  Logger.log('isAllowed: ' + isAllowedEmail('fernery11@gmail.com'));
-}
 
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║  Code.gs patch v15                                               ║
@@ -3175,7 +3174,6 @@ function lookupStoreInvoice(trimmedInv) {
 
 function getBillsForCustomerCode(customerCode) {
   customerCode = (customerCode||'').toString().trim();
-  console.log('[AUTH CHECK] effectiveUser=' + Session.getEffectiveUser().getEmail() + ' activeUser=' + Session.getActiveUser().getEmail());
   if (!customerCode) return { ok:false, error:'ไม่ระบุรหัสลูกค้า' };
 
   try {

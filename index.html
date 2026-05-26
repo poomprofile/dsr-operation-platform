@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600&display=swap" rel="stylesheet">
-
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 
 
 <style>
@@ -2552,8 +2552,8 @@ body.no-overnight .stl-ov-col { display: none; }
 <script>
 'use strict';
 
-// [TASK 1] email ฝังมาจาก doGet() template scriptlet (Execute as: Me)
-var _serverEmail = '<?= serverEmail ?>';
+// GIS Client ID ฝังมาจาก doGet() template scriptlet (Execute as: Me owner)
+var _gsiClientId = '<?= gsiClientId ?>';
 
 // ─── CONFIG ──────────────────────────────────────────────────
 // แทนค่าสองอย่างนี้หลัง deploy Apps Script:
@@ -2565,10 +2565,11 @@ const DSR_COLORS = {
 };
 
 // ─── STATE ───────────────────────────────────────────────────
-let currentUser  = null;
-let currentPage  = 'home';
-let debtData     = [];
-let dsrRosterData= [];
+let currentUser    = null;
+let currentPage    = 'home';
+let debtData       = [];
+let dsrRosterData  = [];
+let _sessionToken  = null;
 
 // ─── PWA: SERVICE WORKER ─────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -2604,12 +2605,30 @@ window.addEventListener('online',  () => showToast('✅ กลับมาออ
 
 // ─── AUTH — Google Identity Services (GIS) ──────────────────────
 function doLogin() {
+  if (!_gsiClientId) {
+    showToast('GSI_CLIENT_ID ยังไม่ตั้งค่า — ติดต่อ Admin', 'error');
+    return;
+  }
   var btn = document.querySelector('.btn-google');
   if (btn) { btn.disabled = true; btn.style.opacity = '.7'; }
+  google.accounts.id.initialize({
+    client_id: _gsiClientId,
+    callback: onGisCredential,
+    auto_select: true,
+  });
+  google.accounts.id.prompt();
+}
+
+function onGisCredential(response) {
   google.script.run
-    .withSuccessHandler(onProfileLoaded)
+    .withSuccessHandler(function(res) {
+      if (!res || !res.token) { resetLoginBtn(); showToast('เข้าสู่ระบบไม่สำเร็จ', 'error'); return; }
+      _sessionToken = res.token;
+      sessionStorage.setItem('nco_token', res.token);
+      onProfileLoaded(res.profile);
+    })
     .withFailureHandler(onAuthError)
-    .getUserProfile(_serverEmail);
+    .initSession(response.credential);
 }
 
 function onProfileLoaded(profile) {
@@ -2717,7 +2736,10 @@ async function installPWA() {
 
 function doLogout() {
   currentUser = null;
+  _sessionToken = null;
   sessionStorage.removeItem('nco_session');
+  sessionStorage.removeItem('nco_token');
+  if (typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
   document.getElementById('app').style.display = 'none';
   document.getElementById('screen-login').style.display = 'flex';
   resetLoginBtn();
@@ -2726,8 +2748,12 @@ function doLogout() {
 // ─── API — ใช้ google.script.run (ไม่มี CORS ปัญหา) ──────────
 function apiCall(action, payload) {
   payload = payload || {};
-  // [TASK 1] ส่ง email ไปพร้อม payload เพื่อให้ handleApiCall ระบุ user ได้ (Execute as: Me)
-  if (currentUser && currentUser.email) payload._callerEmail = currentUser.email;
+  // ส่ง session token (GIS) หรือ _callerEmail fallback สำหรับ sub-pages
+  if (_sessionToken) {
+    payload.sessionToken = _sessionToken;
+  } else if (currentUser && currentUser.email) {
+    payload._callerEmail = currentUser.email;
+  }
   return new Promise(function(resolve) {
     if (!currentUser) { resolve(null); return; }
     if (!navigator.onLine && /^SAVE|^TOGGLE/.test(action)) {
@@ -3969,7 +3995,7 @@ function switchDebtTab(tab) {
     _cashFrameLoaded = true;
     var base = window.location.href.replace(/\?.*$/, '');
     var iframe = document.createElement('iframe');
-    iframe.src = base + '?page=cash-entry';
+    iframe.src = base + '?page=cash-entry&email=' + encodeURIComponent(currentUser ? currentUser.email : '');
     iframe.className = 'cash-entry-frame';
     iframe.setAttribute('allowfullscreen', '');
     document.getElementById('dbtab-cash').appendChild(iframe);
