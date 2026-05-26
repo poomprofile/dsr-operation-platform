@@ -30,7 +30,13 @@ function saveCash(data, user) {
     week_number:   weekNum(new Date(date)),
     created_at:    ts(),
   };
-  return appendSheetRow(SH_CC.CASH, row);
+  appendSheetRow(SH_CC.CASH, row);
+  // force log_date เป็น plain text — ป้องกัน Sheets auto-convert เป็น Date object
+  var caSh   = getSheet(SH_CC.CASH);
+  var caHdrs = caSh.getDataRange().getValues()[0];
+  var ldColC = caHdrs.indexOf('log_date') + 1;
+  if (ldColC > 0) caSh.getRange(caSh.getLastRow(), ldColC).setNumberFormat('@').setValue(date);
+  return { appended: true, id: row.log_id };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -57,7 +63,15 @@ function saveCheque(data, user) {
     week_number:   weekNum(new Date(date)),
     created_at:    ts(),
   };
-  return appendSheetRow(SH_CC.CHEQUE, row);
+  appendSheetRow(SH_CC.CHEQUE, row);
+  // force log_date + cheque_date เป็น plain text — ป้องกัน Sheets auto-convert เป็น Date object
+  var cqSh    = getSheet(SH_CC.CHEQUE);
+  var cqHdrs  = cqSh.getDataRange().getValues()[0];
+  var lastRow = cqSh.getLastRow();
+  var ldColQ  = cqHdrs.indexOf('log_date')    + 1;
+  var cdCol   = cqHdrs.indexOf('cheque_date') + 1;
+  if (ldColQ > 0) cqSh.getRange(lastRow, ldColQ).setNumberFormat('@').setValue(date);
+  if (cdCol  > 0 && data.cheque_date) cqSh.getRange(lastRow, cdCol).setNumberFormat('@').setValue(data.cheque_date);
 }
 
 // ─────────────────────────────────────────────────────────────────────

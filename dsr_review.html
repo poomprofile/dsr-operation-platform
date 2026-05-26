@@ -264,12 +264,13 @@ function fetchBills(custCode, rowIndex) {
   google.script.run
     .withSuccessHandler(function(res) {
       var bills = (res && res.ok) ? res.bills : [];
+      var sName = (res && res.shopName) ? res.shopName : '';
       billCache[custCode] = bills;
-      dropState[rowIndex] = { bills: bills, selected: null };
+      dropState[rowIndex] = { bills: bills, selected: null, shopName: sName };
       renderBillList(rowIndex, bills, '');
     })
     .withFailureHandler(function() {
-      dropState[rowIndex] = { bills: [], selected: null };
+      dropState[rowIndex] = { bills: [], selected: null, shopName: '' };
       renderBillList(rowIndex, [], '');
     })
     .getBillsForPendingRow(custCode);
@@ -358,6 +359,16 @@ function selectBill(rowIndex, invoiceNo) {
   // เปิดปุ่มบันทึก
   var btn = document.getElementById('bb-' + rowIndex);
   if (btn) btn.disabled = false;
+
+  // เก็บ เลขที่บิล + ชื่อร้าน ลง edits เพื่อให้ saveDsrEdits เขียนพร้อมกัน
+  if (!edits[rowIndex]) edits[rowIndex] = { row: parseInt(rowIndex), fields: {} };
+  edits[rowIndex].fields['เลขที่บิล'] = invoiceNo;
+  var sName = dropState[rowIndex].shopName;
+  if (sName) {
+    edits[rowIndex].fields['ชื่อร้าน'] = sName;
+    var shopCell = document.getElementById('shop-' + rowIndex);
+    if (shopCell) shopCell.textContent = sName;
+  }
 
   // re-render list เพื่อ highlight
   renderBillList(rowIndex, dropState[rowIndex].bills,

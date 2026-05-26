@@ -1651,7 +1651,8 @@ function saveDsrEdits(edits) {
   var ss    = SpreadsheetApp.openById(prop('SPREADSHEET_ID_SLIP'));
   var sheet = ss.getSheetByName(SH.SLIPS);
   var h     = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
- 
+  console.log('[saveDsrEdits] headers=' + JSON.stringify(h));
+
   function colOf(name) { var idx=h.indexOf(name); return idx>=0?idx+1:0; }
  
   var idxMap = {
@@ -1681,7 +1682,9 @@ function saveDsrEdits(edits) {
     h.forEach(function(k,i){ snapshot[k] = sheet.getRange(e.row, i+1).getValue(); });
  
     Object.keys(e.fields||{}).forEach(function(col) {
-      var colNum = idxMap[col]; if (!colNum) return;
+      var colNum = idxMap[col];
+      console.log('[saveDsrEdits] row=%s col=%s colNum=%s val=%s', e.row, col, colNum, e.fields[col]);
+      if (!colNum) return;
       sheet.getRange(e.row, colNum).setValue(e.fields[col]);
     });
  
@@ -3748,9 +3751,13 @@ function getCashChequeByDate(dateStr, dsrEmail) {
   console.log('[getCashChequeByDate] dateStr=%s dsrEmail=%s', dateStr, dsrEmail);
   ensureCashChequeSheets();
 
-  function filterByDate(rows) {
-    return rows.filter(function(r) {
-      if (r.dsr_email !== dsrEmail) return false;
+  function filterByDate(rows, label) {
+    var myRows = rows.filter(function(r){ return r.dsr_email === dsrEmail; });
+    myRows.slice(0, 3).forEach(function(r, i) {
+      console.log('[getCashChequeByDate] %s[%s] raw_log_date=%s norm=%s match=%s',
+        label, i, r.log_date, normDateStr(String(r.log_date)), normDateStr(String(r.log_date)) === dateStr);
+    });
+    return myRows.filter(function(r) {
       var raw = r.log_date;
       var d = (raw instanceof Date)
         ? Utilities.formatDate(raw, 'Asia/Bangkok', 'yyyy-MM-dd')
@@ -3759,7 +3766,7 @@ function getCashChequeByDate(dateStr, dsrEmail) {
     });
   }
 
-  var cashRows = filterByDate(sheetToObjects(SH_CC.CASH)).map(function(r) {
+  var cashRows = filterByDate(sheetToObjects(SH_CC.CASH), 'CASH').map(function(r) {
     return {
       type:          'cash',
       customer_code: r.customer_code || '',
@@ -3770,7 +3777,7 @@ function getCashChequeByDate(dateStr, dsrEmail) {
     };
   });
 
-  var cheqRows = filterByDate(sheetToObjects(SH_CC.CHEQUE)).map(function(r) {
+  var cheqRows = filterByDate(sheetToObjects(SH_CC.CHEQUE), 'CHEQ').map(function(r) {
     return {
       type:          'cheque',
       customer_code: r.customer_code || '',
@@ -4156,13 +4163,13 @@ function generateCashEntryPDF(payload) {
     return '<tr>' +
       '<td style="text-align:center;">' + (idx+1) + '</td>' +
       '<td>' + esc(r.customer_code) + '</td>' +
-      '<td>' + esc(r.customer_name) + '</td>' +
+      '<td style="overflow:hidden;white-space:nowrap;">' + esc(r.customer_name) + '</td>' +
       '<td style="font-size:9px;word-break:break-all;">' + esc(r.invoice_no) + '</td>' +
-      '<td style="text-align:right;">' + fmtN(bill) + '</td>' +
-      '<td style="text-align:right;">' + fmtN(cash) + '</td>' +
-      '<td style="text-align:right;">' + fmtN(cheq) + '</td>' +
-      '<td>' + esc(fmtChequeDate(r.cheque_date)) + '</td>' +
-      '<td>' + esc(r.cheque_no    || '') + '</td>' +
+      '<td style="text-align:right;white-space:nowrap;">' + fmtN(bill) + '</td>' +
+      '<td style="text-align:right;white-space:nowrap;">' + fmtN(cash) + '</td>' +
+      '<td style="text-align:right;white-space:nowrap;">' + fmtN(cheq) + '</td>' +
+      '<td style="white-space:nowrap;">' + esc(fmtChequeDate(r.cheque_date)) + '</td>' +
+      '<td style="white-space:nowrap;">' + esc(r.cheque_no    || '') + '</td>' +
       '<td style="font-size:8px;">' + esc(r.bank_name   || '') + '</td>' +
       '<td style="font-size:8px;">' + esc(r.branch_name || '') + '</td>' +
       '<td>' + esc(r.note) + '</td>' +
@@ -4195,24 +4202,24 @@ function generateCashEntryPDF(payload) {
     getPrintHeaderHtml({title:'บันทึกเงินสด / โอน / เช็ค', dsrName:dsrName, dateRange:dateLabel, printedAt:printDate}) +
     '<table style="table-layout:fixed;word-break:break-word;">' +
       '<colgroup>' +
-        '<col style="width:4%"><col style="width:8%"><col style="width:15%">' +
-        '<col style="width:10%"><col style="width:8%"><col style="width:7%">' +
-        '<col style="width:8%"><col style="width:8%"><col style="width:8%">' +
-        '<col style="width:8%"><col style="width:7%"><col style="width:9%">' +
+        '<col style="width:3%"><col style="width:7%"><col style="width:13%">' +
+        '<col style="width:11%"><col style="width:7%"><col style="width:7%">' +
+        '<col style="width:8%"><col style="width:8%"><col style="width:9%">' +
+        '<col style="width:9%"><col style="width:8%"><col style="width:10%">' +
       '</colgroup>' +
       '<thead><tr>' +
-        '<th style="width:4%">No.</th>' +
-        '<th style="width:8%">รหัสลูกค้า</th>' +
-        '<th style="width:15%">ชื่อร้าน</th>' +
-        '<th style="width:10%">เลขที่บิล</th>' +
-        '<th style="width:8%;text-align:right">ยอดบิล</th>' +
+        '<th style="width:3%">No.</th>' +
+        '<th style="width:7%">รหัสลูกค้า</th>' +
+        '<th style="width:13%">ชื่อร้าน</th>' +
+        '<th style="width:11%">เลขที่บิล</th>' +
+        '<th style="width:7%;text-align:right">ยอดบิล</th>' +
         '<th style="width:7%;text-align:right">เงินสด</th>' +
         '<th style="width:8%;text-align:right">ยอดโอน/เช็ค</th>' +
-        '<th style="width:8%">วันที่โอน/เช็ค</th>' +
-        '<th style="width:8%">เลขที่เช็ค</th>' +
-        '<th style="width:8%">ธนาคาร</th>' +
-        '<th style="width:7%">สาขา</th>' +
-        '<th style="width:9%">หมายเหตุ</th>' +
+        '<th style="width:8%;white-space:nowrap">วันที่โอน/เช็ค</th>' +
+        '<th style="width:9%;white-space:nowrap">เลขที่เช็ค</th>' +
+        '<th style="width:9%">ธนาคาร</th>' +
+        '<th style="width:8%">สาขา</th>' +
+        '<th style="width:10%">หมายเหตุ</th>' +
       '</tr></thead>' +
       '<tbody>' + (bodyRows || '<tr><td colspan="12" style="text-align:center;color:#999;">ไม่มีรายการ</td></tr>') + '</tbody>' +
       '<tfoot><tr class="total-row">' +
