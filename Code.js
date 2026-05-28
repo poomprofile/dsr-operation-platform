@@ -54,6 +54,7 @@ function prop(key) {
   return PropertiesService.getScriptProperties().getProperty(key) || '';
 }
 
+
 // รัน function นี้ใน Apps Script Editor เพื่อตรวจสอบว่า property อ่านได้ไหม
 function testReadProperties() {
   var sp = PropertiesService.getScriptProperties();
@@ -64,15 +65,7 @@ function testReadProperties() {
   return { gsiClientId: gsiId, allKeys: all };
 }
 
-// รันครั้งเดียวเพื่อ set GSI_CLIENT_ID ให้ถูกต้อง (ใช้แทน UI ที่ silent fail)
-function setCorrectGSIClientId() {
-  PropertiesService.getScriptProperties()
-    .setProperty('GSI_CLIENT_ID',
-      '766193809418-hjk1o1087ciuj6bcedo3uhi8qftsrrm4.apps.googleusercontent.com');
-  var saved = PropertiesService.getScriptProperties().getProperty('GSI_CLIENT_ID');
-  Logger.log('GSI_CLIENT_ID set to: ' + saved);
-  return saved;
-}
+
 
 // ─────────────────────────────────────────────────────────────────────
 //  SECTION 2 │ WEB APP ENTRY POINTS
@@ -88,7 +81,13 @@ function doGet(e) {
   if (p.page === 'print-transfer')    return servePrintTransferPage(p.email || '', p.week || '');
 
   // ── OAuth callback: Google redirects back with ?code=&state= ─────────
-  if (p.code && p.state) return handleOAuthCallback_(p.code, p.state);
+  if (p.code && p.state) {
+    try {
+      return handleOAuthCallback_(p.code, p.state);
+    } catch(err) {
+      return HtmlService.createHtmlOutput('<p><b>OAuth Error:</b> ' + err.message + '</p><pre>' + err.stack + '</pre><a href="' + ScriptApp.getService().getUrl() + '">ลองใหม่</a>');
+    }
+  }
 
   // ── Valid session token in URL (?token=) ─────────────────────────────
   if (p.token) {
@@ -111,9 +110,12 @@ function doGet(e) {
 }
 
 function serveLoginPage_() {
-  var state = Utilities.getUuid();
-  CacheService.getScriptCache().put('oauth_state_' + state, '1', 600);
-  var appUrl   = ScriptApp.getService().getUrl();
+  var state  = Utilities.getUuid();
+  var appUrl = ScriptApp.getService().getUrl();
+  // เก็บทั้ง state flag และ URL ที่ใช้จริง เผื่อ ScriptApp.getService().getUrl() คืน URL ต่างกันในแต่ละ call
+  var cache = CacheService.getScriptCache();
+  cache.put('oauth_state_' + state, '1', 600);
+  cache.put('oauth_url_' + state, appUrl, 600);
   var oauthUrl = 'https://accounts.google.com/o/oauth2/v2/auth'
     + '?client_id='    + encodeURIComponent(prop('GSI_CLIENT_ID'))
     + '&redirect_uri=' + encodeURIComponent(appUrl)
@@ -128,12 +130,15 @@ function serveLoginPage_() {
 
 function handleOAuthCallback_(code, state) {
   var cache  = CacheService.getScriptCache();
-  var appUrl = ScriptApp.getService().getUrl();
 
   if (!cache.get('oauth_state_' + state)) {
-    return HtmlService.createHtmlOutput('<p>Session หมดอายุ — <a href="' + appUrl + '">ลองใหม่</a></p>');
+    var fallback = ScriptApp.getService().getUrl();
+    return HtmlService.createHtmlOutput('<p>Session หมดอายุ — <a href="' + fallback + '">ลองใหม่</a></p>');
   }
+  // ใช้ URL ที่ถูก cache ไว้ตอนสร้าง login page — ป้องกัน ScriptApp.getService().getUrl() คืน URL เก่า
+  var appUrl = cache.get('oauth_url_' + state) || ScriptApp.getService().getUrl();
   cache.remove('oauth_state_' + state);
+  cache.remove('oauth_url_' + state);
 
   // แลก authorization code → access token
   var tokenRes = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
@@ -179,10 +184,14 @@ function handleOAuthCallback_(code, state) {
   var sessionToken = Utilities.getUuid();
   cache.put('sess_' + sessionToken, JSON.stringify(user), CONFIG.SESSION_TTL_SEC);
 
-  // Redirect กลับไป app พร้อม session token
+  // Redirect กลับไป app พร้อม session token (meta refresh — works in GAS sandbox)
+  var portalUrl = appUrl + '?token=' + sessionToken;
   return HtmlService.createHtmlOutput(
-    '<script>window.top.location.href="' + appUrl + '?token=' + sessionToken + '";</script>'
-    + '<p>กำลังเข้าสู่ระบบ... <a href="' + appUrl + '?token=' + sessionToken + '">คลิกที่นี่ถ้าไม่ redirect</a></p>'
+    '<!DOCTYPE html><html><head>' +
+    '<meta http-equiv="refresh" content="0;url=' + portalUrl + '">' +
+    '</head><body>' +
+    '<p>กำลังเข้าสู่ระบบ... <a href="' + portalUrl + '">คลิกที่นี่ถ้าไม่ redirect อัตโนมัติ</a></p>' +
+    '</body></html>'
   );
 }
 
