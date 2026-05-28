@@ -348,6 +348,8 @@ function filterDrop(searchEl, rowIndex) {
 function selectBill(rowIndex, invoiceNo) {
   if (!dropState[rowIndex]) return;
   dropState[rowIndex].selected = invoiceNo;
+  var matchedBill = dropState[rowIndex].bills.find(function(b) { return b.invoiceNo === invoiceNo; });
+  dropState[rowIndex].selectedAmount = matchedBill ? (parseFloat(matchedBill.amount) || 0) : 0;
 
   // อัปเดต input display
   var inputEl = document.getElementById('bi-' + rowIndex);
@@ -426,7 +428,7 @@ function saveBill(rowIndex) {
       btn.textContent = 'บันทึก';
       toast('❌ ' + e.message);
     })
-    .assignBillToSlipRow(parseInt(rowIndex), st.selected);
+    .assignBillToSlipRow(parseInt(rowIndex), st.selected, st.selectedAmount || 0);
 }
 
 // ── INPUT HELPER (สำหรับ column อื่นๆ) ─────────────────────

@@ -45,8 +45,8 @@ body {
   font-family: var(--font-body);
   background: var(--surface);
   color: var(--ink);
-  min-height: 100%;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 button { font-family: var(--font-body); cursor: pointer; border: none; background: none; }
@@ -227,7 +227,8 @@ body.no-overnight .stl-ov-col { display: none; }
 
 #app {
   display: none;
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
   flex-direction: column;
 }
 
@@ -324,6 +325,8 @@ body.no-overnight .stl-ov-col { display: none; }
   padding-top: var(--nav-h);
   padding-bottom: calc(var(--bottom-h) + 16px);
   flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 
@@ -3788,6 +3791,7 @@ async function stlPrintAll() {
       showToast('⚠️ ' + ((err && err.message) || 'เกิดข้อผิดพลาด'), 'error');
     })
     .handleApiCall('GENERATE_ALL_REPORTS_PDF', {
+      sessionToken:   _sessionToken,
       dsrName:        currentUser.display_name || currentUser.email,
       dsrEmail:       currentUser.email,
       weekStart:      weekStart,
@@ -4510,7 +4514,7 @@ function ceCashInit() {
     .withFailureHandler(function() {
       document.getElementById('inp-dsr').placeholder = 'ไม่สามารถโหลดชื่อได้';
     })
-    .getUserProfile();
+    .getUserProfile(currentUser ? currentUser.email : '');
 
   // TASK 3: preload customer/bill master data once
   if (!ceMasterData) {
@@ -5607,6 +5611,7 @@ function csEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 function csReload(){if(Object.keys(csEdits).length&&!confirm('มีการแก้ไขที่ยังไม่ได้บันทึก — โหลดใหม่?'))return;csLoad();}
 
 function csSave(){
+  console.log('[csSave] fired, currentUser=', currentUser ? currentUser.email : 'null');
   var btn=document.getElementById('cs-btn');btn.style.opacity='0.6';btn.textContent='กำลังบันทึก...';
   var list=Object.values(csEdits),range=csGetRange();
   var rowOrder=csRows.filter(function(r){return !r._isPending;}).map(function(r){return r._row;});

@@ -2976,9 +2976,10 @@ function getBillsForPendingRow(customerCode) {
 // คืน:  { ok } หรือ { ok: false, error }
 // เขียนลง Slip2Go Spreadsheet sheet 'Slip2Go'
 
-function assignBillToSlipRow(rowIndex, invoiceNo) {
-  rowIndex  = parseInt(rowIndex);
-  invoiceNo = (invoiceNo || '').toString().trim();
+function assignBillToSlipRow(rowIndex, invoiceNo, billAmount) {
+  rowIndex   = parseInt(rowIndex);
+  invoiceNo  = (invoiceNo || '').toString().trim();
+  billAmount = parseFloat(billAmount) || 0;
 
   if (!rowIndex || !invoiceNo) return { ok: false, error: 'ข้อมูลไม่ครบ' };
 
@@ -3000,6 +3001,7 @@ function assignBillToSlipRow(rowIndex, invoiceNo) {
 
     var iInvoice = colIdx('เลขที่บิล');
     var iStatus  = colIdx('สถานะ');
+    var iBillAmt = colIdx('ยอดบิล');
 
     if (iInvoice < 0) return { ok: false, error: 'ไม่พบ column เลขที่บิล' };
     if (iStatus  < 0) return { ok: false, error: 'ไม่พบ column สถานะ' };
@@ -3014,6 +3016,9 @@ function assignBillToSlipRow(rowIndex, invoiceNo) {
     sheet.getRange(rowIndex, iInvoice).setValue(invoiceNo);
     if (iStatus > 0) {
       sheet.getRange(rowIndex, iStatus).setValue('เรียบร้อย');
+    }
+    if (iBillAmt > 0 && billAmount > 0) {
+      sheet.getRange(rowIndex, iBillAmt).setValue(billAmount);
     }
 
     Logger.log('[assignBillToSlipRow] row=' + rowIndex + ' invoice=' + invoiceNo);
@@ -4036,8 +4041,6 @@ function getWeeklySlipTotal(weekStart, dsrEmail) {
     var total = 0, count = 0;
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][eIdx]||'').trim().toLowerCase() !== dsrEmail.toLowerCase()) continue;
-      var st = stIdx >= 0 ? String(data[i][stIdx]||'').toLowerCase() : '';
-      if (st !== 'matched' && st !== 'confirmed' && st !== 'จับคู่แล้ว') continue;
       if (dIdx >= 0 && data[i][dIdx]) {
         var dt = data[i][dIdx] instanceof Date ? data[i][dIdx] : new Date(data[i][dIdx]);
         if (!isNaN(dt.getTime())) {
