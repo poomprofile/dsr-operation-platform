@@ -184,15 +184,13 @@ function handleOAuthCallback_(code, state) {
   var sessionToken = Utilities.getUuid();
   cache.put('sess_' + sessionToken, JSON.stringify(user), CONFIG.SESSION_TTL_SEC);
 
-  // Redirect กลับไป app พร้อม session token (meta refresh — works in GAS sandbox)
-  var portalUrl = appUrl + '?token=' + sessionToken;
-  return HtmlService.createHtmlOutput(
-    '<!DOCTYPE html><html><head>' +
-    '<meta http-equiv="refresh" content="0;url=' + portalUrl + '">' +
-    '</head><body>' +
-    '<p>กำลังเข้าสู่ระบบ... <a href="' + portalUrl + '">คลิกที่นี่ถ้าไม่ redirect อัตโนมัติ</a></p>' +
-    '</body></html>'
-  );
+  // Serve index.html โดยตรง — ไม่ต้อง redirect (ไม่มีหน้า intermediate)
+  var tmpl = HtmlService.createTemplateFromFile('index');
+  tmpl.userToken   = sessionToken;
+  tmpl.userProfile = JSON.stringify(user);
+  return tmpl.evaluate()
+    .setTitle('DSR Portal — Nice Center Oil')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function doPost(e) {

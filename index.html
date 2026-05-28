@@ -1674,9 +1674,6 @@ body.no-overnight .stl-ov-col { display: none; }
     <div class="login-title">DSR Portal</div>
     <div class="login-desc">ระบบจัดการงานขายและเก็บเงิน<br>สำหรับทีม DSR สุพรรณบุรี–นครสวรรค์</div>
 
-    <button class="btn-google" onclick="doLogin()">
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="vertical-align:middle;margin-right:8px"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="white" opacity=".9"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18L12.048 13.56C11.242 14.1 10.211 14.42 9 14.42c-2.392 0-4.414-1.612-5.136-3.78H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="white" opacity=".9"/><path d="M3.864 10.64A5.403 5.403 0 0 1 3.581 9c0-.563.097-1.11.283-1.64V5.028H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.041l2.907-2.332Z" fill="white" opacity=".9"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 5.027L3.864 7.36C4.585 5.192 6.608 3.58 9 3.58Z" fill="white" opacity=".9"/></svg>เข้าสู่ระบบด้วย Google
-    </button>
 
     <div class="login-note">
       ใช้ Gmail ที่ลงทะเบียนกับระบบเท่านั้น<br>หากเข้าไม่ได้ ติดต่อภูมิ หรือเฟิร์น
@@ -2573,7 +2570,6 @@ let currentUser    = null;
 let currentPage    = 'home';
 let debtData       = [];
 let dsrRosterData  = [];
-let _sessionToken  = null;
 
 // ─── PWA: SERVICE WORKER ─────────────────────────────────────
 if ('serviceWorker' in navigator) {
