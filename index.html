@@ -8,8 +8,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-
 
 <style>
 :root {
@@ -434,11 +432,11 @@ body.no-overnight .stl-ov-col { display: none; }
   color: var(--ink3);
   letter-spacing: .08em;
   text-transform: uppercase;
-  padding: 4px 10px 6px;
-  margin-top: 10px;
+  padding: 4px 10px 4px;
+  margin-top: 8px;
 }
 .sidebar > .sidebar-section-label:first-of-type {
-  margin-top: 6px;
+  margin-top: 8px;
 }
 .sidebar-item {
   display: flex;
@@ -457,6 +455,11 @@ body.no-overnight .stl-ov-col { display: none; }
 .sidebar-item.active {
   background: var(--o-lite);
   color: var(--o-dark);
+}
+/* ป้องกัน tap-highlight และ text-selection เมื่อคลิก */
+.sidebar-item {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 .sidebar-item.active svg path,
 .sidebar-item.active svg rect,
@@ -2552,8 +2555,9 @@ body.no-overnight .stl-ov-col { display: none; }
 <script>
 'use strict';
 
-// GIS Client ID ฝังมาจาก doGet() template scriptlet (Execute as: Me owner)
-var _gsiClientId = '<?= gsiClientId ?>';
+// Session token + profile ฝังมาจาก doGet() (server-side OAuth flow)
+var _sessionToken   = '<?= userToken ?>';
+var _initialProfile = <?!= userProfile ?>;
 
 // ─── CONFIG ──────────────────────────────────────────────────
 // แทนค่าสองอย่างนี้หลัง deploy Apps Script:
@@ -2603,32 +2607,19 @@ function showInstallPrompt() {
 window.addEventListener('offline', () => showToast('📴 ออฟไลน์ — บันทึกข้อมูลได้ จะส่งเมื่อมีเน็ต', 'warning'));
 window.addEventListener('online',  () => showToast('✅ กลับมาออนไลน์แล้ว', 'success'));
 
-// ─── AUTH — Google Identity Services (GIS) ──────────────────────
-function doLogin() {
-  if (!_gsiClientId) {
-    showToast('GSI_CLIENT_ID ยังไม่ตั้งค่า — ติดต่อ Admin', 'error');
-    return;
+// ─── AUTH — server-side OAuth redirect (no client-side JS needed) ────────
+// index.html จะถูก serve ก็ต่อเมื่อ doGet() verify session token แล้วเท่านั้น
+// ดังนั้น _initialProfile มีอยู่เสมอ — auto-init ตอน page load
+window.addEventListener('DOMContentLoaded', function() {
+  if (_initialProfile && _sessionToken) {
+    sessionStorage.setItem('nco_token', _sessionToken);
+    onProfileLoaded(_initialProfile);
   }
-  var btn = document.querySelector('.btn-google');
-  if (btn) { btn.disabled = true; btn.style.opacity = '.7'; }
-  google.accounts.id.initialize({
-    client_id: _gsiClientId,
-    callback: onGisCredential,
-    auto_select: true,
-  });
-  google.accounts.id.prompt();
-}
+});
 
-function onGisCredential(response) {
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (!res || !res.token) { resetLoginBtn(); showToast('เข้าสู่ระบบไม่สำเร็จ', 'error'); return; }
-      _sessionToken = res.token;
-      sessionStorage.setItem('nco_token', res.token);
-      onProfileLoaded(res.profile);
-    })
-    .withFailureHandler(onAuthError)
-    .initSession(response.credential);
+function doLogin() {
+  // fallback: ถ้าไม่มี session → redirect กลับหน้า login
+  window.top.location.href = window.top.location.href.split('?')[0];
 }
 
 function onProfileLoaded(profile) {
@@ -2641,6 +2632,31 @@ function onProfileLoaded(profile) {
   sessionStorage.setItem('nco_session', JSON.stringify(profile));
   enterApp(profile);
   applyRoleUI(profile.role);
+  // SIDEBAR DIAGNOSTIC — remove after bug is identified
+  setTimeout(function() {
+    var sb = document.getElementById('sidebar');
+    if (!sb) return;
+    console.log('[SIDEBAR DEBUG] role=' + profile.role + ' innerHTML:', sb.innerHTML);
+    var children = sb.children;
+    for (var i = 0; i < children.length; i++) {
+      var el = children[i];
+      var rect = el.getBoundingClientRect();
+      var cs = window.getComputedStyle(el);
+      console.log('[SIDEBAR CHILD ' + i + ']', {
+        tagName: el.tagName,
+        className: el.className,
+        id: el.id || '',
+        onclick: (el.getAttribute('onclick') || '').substring(0, 40),
+        display: cs.display,
+        height: Math.round(rect.height),
+        top: Math.round(rect.top),
+        bgColor: cs.backgroundColor,
+        border: cs.borderTopWidth + 'px ' + cs.borderTopStyle,
+        marginTop: cs.marginTop,
+        innerHTML: el.innerHTML.substring(0, 80).replace(/\s+/g,' ')
+      });
+    }
+  }, 500);
   // [TASK 5] DSR ที่ไม่มีสิทธิค้างคืน: ซ่อน column ที่พัก/เบี้ยเลี้ยงในตาราง settlement
   if (profile.allow_overnight === false) {
     document.body.classList.add('no-overnight');
@@ -5635,6 +5651,7 @@ function applyRoleUI(role) {
     "navTo('home')":        ['admin','specialist','dsr'],
     "navTo('admin-dsrs')":  ['admin','specialist'],
     "navTo('mileage')":     ['admin','dsr'],
+    "navTo('milagebot')":   ['admin','dsr'],
     "navTo('collection')":  ['admin','specialist','dsr'],
     "navTo('settlement')":  ['admin','specialist','dsr'],
     "navTo('import')":      ['admin'],

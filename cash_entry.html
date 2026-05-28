@@ -52,6 +52,7 @@ body{
 .btn:active{transform:scale(.97);box-shadow:none;}
 .btn:disabled{opacity:.45;cursor:default;transform:none;box-shadow:none;}
 .btn-hist {background:#EDE7F6;color:#4527A0;}
+.btn-save {background:var(--g);color:#fff;}
 .btn-print{background:var(--blue);color:#fff;}
 
 /* ── TABLE WRAPPER ── */
@@ -344,6 +345,7 @@ input.invalid{background:#FFF0F0!important;border:1px solid var(--r)!important;b
     <input type="date" id="inp-date" class="meta-inp">
     <label>ชื่อ DSR:</label>
     <input type="text" id="inp-dsr" class="meta-inp" readonly placeholder="กำลังโหลด...">
+    <button class="btn btn-save no-print" id="btn-save" onclick="doSave()">บันทึก</button>
     <button class="btn btn-print no-print" onclick="printDoc()">พิมพ์</button>
   </div>
 </div>
@@ -949,6 +951,69 @@ function printDoc() {
       dsrEmail:     '',
       selectedDate: date,
       rows:         pdfRows,
+    });
+}
+
+// ════════════════════════════════════════════
+//  SAVE — เรียก SAVE_CASH_ENTRY_DATE (delete+insert by date)
+// ════════════════════════════════════════════
+function doSave() {
+  var date = document.getElementById('inp-date').value;
+  if (!date) { showToast('กรุณาเลือกวันที่ก่อน', 'err'); return; }
+
+  var rows = [];
+  for (var i = 1; i <= TOTAL_ROWS; i++) {
+    var cashAmt = getRaw('cash-' + i);
+    var cheqAmt = getRaw('cheq-' + i);
+    if (!cashAmt && !cheqAmt) continue;
+    var ccEl  = document.getElementById('cc-' + i);
+    var nmEl  = document.getElementById('nm-' + i);
+    var invEl = document.getElementById('inv-' + i);
+    var ntEl  = document.getElementById('nt-' + i);
+    var cdEl  = document.getElementById('cd-' + i);
+    var cnEl  = document.getElementById('cn-' + i);
+    var bkSel = document.getElementById('bk-' + i);
+    var bkOth = document.getElementById('bk-o-' + i);
+    var brSel = document.getElementById('br-' + i);
+    var brOth = document.getElementById('br-o-' + i);
+    var bankVal   = (bkSel && bkSel.value === '__other__') ? (bkOth ? bkOth.value : '') : (bkSel ? bkSel.value : '');
+    var branchVal = (brSel && brSel.value === '__other__') ? (brOth ? brOth.value : '') : (brSel ? brSel.value : '');
+    var base = {
+      customer_code: (ccEl  ? ccEl.value  : '') || '-',
+      customer_name: (nmEl  ? nmEl.value  : '') || '',
+      invoice_no:    (invEl ? invEl.value : '') || '-',
+      note:          (ntEl  ? ntEl.value  : '') || '',
+    };
+    if (cashAmt > 0) rows.push(Object.assign({}, base, { type: 'cash', amount: cashAmt }));
+    if (cheqAmt > 0) rows.push(Object.assign({}, base, {
+      type: 'cheque', amount: cheqAmt,
+      cheque_date:  cdEl ? cdEl.value : '',
+      cheque_no:    cnEl ? cnEl.value : '',
+      bank_name:    bankVal,
+      branch_name:  branchVal,
+    }));
+  }
+
+  if (!rows.length) { showToast('ยังไม่มีรายการที่จะบันทึก', 'err'); return; }
+
+  var btn = document.getElementById('btn-save');
+  btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.disabled = false; btn.textContent = 'บันทึก';
+      var n = (res && res.inserted != null) ? res.inserted : rows.length;
+      showToast('บันทึกสำเร็จ ' + n + ' รายการ', 'ok');
+      _histLoaded = false; // force reload history ครั้งถัดไป
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false; btn.textContent = 'บันทึก';
+      showToast('บันทึกไม่สำเร็จ: ' + (err && err.message ? err.message : ''), 'err');
+    })
+    .handleApiCall('SAVE_CASH_ENTRY_DATE', {
+      date:         date,
+      rows:         rows,
+      _callerEmail: _callerEmail,
     });
 }
 

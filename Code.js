@@ -54,27 +54,136 @@ function prop(key) {
   return PropertiesService.getScriptProperties().getProperty(key) || '';
 }
 
+// รัน function นี้ใน Apps Script Editor เพื่อตรวจสอบว่า property อ่านได้ไหม
+function testReadProperties() {
+  var sp = PropertiesService.getScriptProperties();
+  var gsiId = sp.getProperty('GSI_CLIENT_ID');
+  var all   = sp.getKeys();
+  Logger.log('GSI_CLIENT_ID = ' + gsiId);
+  Logger.log('All keys: ' + all.join(', '));
+  return { gsiClientId: gsiId, allKeys: all };
+}
+
+// รันครั้งเดียวเพื่อ set GSI_CLIENT_ID ให้ถูกต้อง (ใช้แทน UI ที่ silent fail)
+function setCorrectGSIClientId() {
+  PropertiesService.getScriptProperties()
+    .setProperty('GSI_CLIENT_ID',
+      '766193809418-hjk1o1087ciuj6bcedo3uhi8qftsrrm4.apps.googleusercontent.com');
+  var saved = PropertiesService.getScriptProperties().getProperty('GSI_CLIENT_ID');
+  Logger.log('GSI_CLIENT_ID set to: ' + saved);
+  return saved;
+}
+
 // ─────────────────────────────────────────────────────────────────────
 //  SECTION 2 │ WEB APP ENTRY POINTS
 // ─────────────────────────────────────────────────────────────────────
 
 function doGet(e) {
-  if (e && e.parameter) {
-    var page = e.parameter.page;
-    // Route: ?page=dsr-review&email=xxx
-    if (page === 'dsr-review')         return serveDsrReviewPage(e.parameter.email || '');
-    // Route: ?page=cash-entry&email=xxx
-    if (page === 'cash-entry')         return serveCashEntryPage(e.parameter.email || '');
-    // Route: ?page=print-cash-cheque&email=xxx&week=YY
-    if (page === 'print-cash-cheque')  return servePrintCashChequePage(e.parameter.email || '', e.parameter.week || '');
-    // Route: ?page=print-transfer&email=xxx&week=YY
-    if (page === 'print-transfer')     return servePrintTransferPage(e.parameter.email || '', e.parameter.week || '');
+  var p = (e && e.parameter) ? e.parameter : {};
+
+  // ── Sub-page routes (no session required) ────────────────────────────
+  if (p.page === 'dsr-review')        return serveDsrReviewPage(p.email || '');
+  if (p.page === 'cash-entry')        return serveCashEntryPage(p.email || '');
+  if (p.page === 'print-cash-cheque') return servePrintCashChequePage(p.email || '', p.week || '');
+  if (p.page === 'print-transfer')    return servePrintTransferPage(p.email || '', p.week || '');
+
+  // ── OAuth callback: Google redirects back with ?code=&state= ─────────
+  if (p.code && p.state) return handleOAuthCallback_(p.code, p.state);
+
+  // ── Valid session token in URL (?token=) ─────────────────────────────
+  if (p.token) {
+    var cached = CacheService.getScriptCache().get('sess_' + p.token);
+    if (cached) {
+      try {
+        var user = JSON.parse(cached);
+        var tmpl = HtmlService.createTemplateFromFile('index');
+        tmpl.userToken   = p.token;
+        tmpl.userProfile = JSON.stringify(user);
+        return tmpl.evaluate()
+          .setTitle('DSR Portal — Nice Center Oil')
+          .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+      } catch (_) {}
+    }
   }
-  var tmpl = HtmlService.createTemplateFromFile('index');
-  tmpl.gsiClientId = prop('GSI_CLIENT_ID') || '';
-  return tmpl.evaluate()
-    .setTitle('DSR Portal — Nice Center Oil')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+
+  // ── Not authenticated → show login page ──────────────────────────────
+  return serveLoginPage_();
+}
+
+function serveLoginPage_() {
+  var state = Utilities.getUuid();
+  CacheService.getScriptCache().put('oauth_state_' + state, '1', 600);
+  var appUrl   = ScriptApp.getService().getUrl();
+  var oauthUrl = 'https://accounts.google.com/o/oauth2/v2/auth'
+    + '?client_id='    + encodeURIComponent(prop('GSI_CLIENT_ID'))
+    + '&redirect_uri=' + encodeURIComponent(appUrl)
+    + '&response_type=code'
+    + '&scope='        + encodeURIComponent('email profile')
+    + '&state='        + encodeURIComponent(state)
+    + '&prompt=select_account';
+  var tmpl = HtmlService.createTemplateFromFile('login');
+  tmpl.oauthUrl = oauthUrl;
+  return tmpl.evaluate().setTitle('DSR Portal — เข้าสู่ระบบ');
+}
+
+function handleOAuthCallback_(code, state) {
+  var cache  = CacheService.getScriptCache();
+  var appUrl = ScriptApp.getService().getUrl();
+
+  if (!cache.get('oauth_state_' + state)) {
+    return HtmlService.createHtmlOutput('<p>Session หมดอายุ — <a href="' + appUrl + '">ลองใหม่</a></p>');
+  }
+  cache.remove('oauth_state_' + state);
+
+  // แลก authorization code → access token
+  var tokenRes = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post',
+    payload: {
+      code:          code,
+      client_id:     prop('GSI_CLIENT_ID'),
+      client_secret: prop('GSI_CLIENT_SECRET'),
+      redirect_uri:  appUrl,
+      grant_type:    'authorization_code',
+    },
+    muteHttpExceptions: true,
+  });
+  if (tokenRes.getResponseCode() !== 200) {
+    return HtmlService.createHtmlOutput('<p>Token exchange ล้มเหลว — <a href="' + appUrl + '">ลองใหม่</a></p>');
+  }
+
+  // ดึง email จาก userinfo API (server-side — ปลอดภัย)
+  var accessToken = JSON.parse(tokenRes.getContentText()).access_token;
+  var info = JSON.parse(UrlFetchApp.fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: 'Bearer ' + accessToken },
+    muteHttpExceptions: true,
+  }).getContentText());
+
+  if (!info.email || String(info.email_verified) !== 'true') {
+    return HtmlService.createHtmlOutput('<p>ยืนยัน email ไม่ได้ — <a href="' + appUrl + '">ลองใหม่</a></p>');
+  }
+  if (!isAllowedEmail(info.email)) {
+    return HtmlService.createHtmlOutput('<p>ไม่พบบัญชีในระบบ (' + info.email + ') — ติดต่อภูมิ หรือเฟิร์น</p>');
+  }
+  var profile = findUserByEmail(info.email);
+  if (!profile || String(profile.active).toUpperCase() !== 'TRUE') {
+    return HtmlService.createHtmlOutput('<p>บัญชีนี้ถูกระงับ — ติดต่อภูมิ หรือเฟิร์น</p>');
+  }
+
+  var user = {
+    email:         info.email,
+    display_name:  profile.display_name,
+    role:          profile.role,
+    user_id:       profile.user_id,
+    province_zone: profile.province_zone,
+  };
+  var sessionToken = Utilities.getUuid();
+  cache.put('sess_' + sessionToken, JSON.stringify(user), CONFIG.SESSION_TTL_SEC);
+
+  // Redirect กลับไป app พร้อม session token
+  return HtmlService.createHtmlOutput(
+    '<script>window.top.location.href="' + appUrl + '?token=' + sessionToken + '";</script>'
+    + '<p>กำลังเข้าสู่ระบบ... <a href="' + appUrl + '?token=' + sessionToken + '">คลิกที่นี่ถ้าไม่ redirect</a></p>'
+  );
 }
 
 function doPost(e) {
@@ -202,8 +311,52 @@ function getUserProfile(emailFromClient) {
   console.log('NOT FOUND:', userEmail);
   throw new Error('Email not allowed: ' + userEmail);
 }
-// ─── SESSION TOKEN API (สำหรับ Execute as: Me (owner) deployment) ──────
-// initSession: ตรวจสอบ GIS ID token แล้วคืน UUID session token
+// ─── SESSION TOKEN API (Execute as: USER_ACCESSING) ──────────────────────
+// autoLogin: ดึง email จาก Session (Google บังคับ login ก่อนเข้าหน้าเว็บอยู่แล้ว)
+function autoLogin() {
+  var email = Session.getActiveUser().getEmail();
+  if (!email) throw new Error('ไม่สามารถระบุ Google account — กรุณา login ใหม่');
+  if (!isAllowedEmail(email)) throw new Error('ไม่พบบัญชีในระบบ — ติดต่อภูมิ หรือเฟิร์น');
+  var profile = findUserByEmail(email);
+  if (!profile || String(profile.active).toUpperCase() !== 'TRUE') return null;
+  var token = Utilities.getUuid();
+  var user = {
+    email:          email,
+    display_name:   profile.display_name,
+    role:           profile.role,
+    user_id:        profile.user_id,
+    province_zone:  profile.province_zone,
+  };
+  CacheService.getScriptCache().put('sess_' + token, JSON.stringify(user), CONFIG.SESSION_TTL_SEC);
+  return { token: token, profile: user };
+}
+
+// verifyAndLogin: รับ access token จาก client → verify กับ Google server-side → คืน session
+// ปลอดภัย: server ดึง email เองจาก Google ไม่ trust email ที่ client ส่งมา
+function verifyAndLogin(accessToken) {
+  var res = UrlFetchApp.fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: 'Bearer ' + accessToken },
+    muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() !== 200) throw new Error('ยืนยัน token ไม่ได้ — กรุณา login ใหม่');
+  var info = JSON.parse(res.getContentText());
+  if (!info.email || String(info.email_verified) !== 'true') throw new Error('ยืนยัน email ไม่ได้');
+  if (!isAllowedEmail(info.email)) throw new Error('ไม่พบบัญชีในระบบ — ติดต่อภูมิ หรือเฟิร์น');
+  var profile = findUserByEmail(info.email);
+  if (!profile || String(profile.active).toUpperCase() !== 'TRUE') return null;
+  var token = Utilities.getUuid();
+  var user = {
+    email:          info.email,
+    display_name:   profile.display_name,
+    role:           profile.role,
+    user_id:        profile.user_id,
+    province_zone:  profile.province_zone,
+  };
+  CacheService.getScriptCache().put('sess_' + token, JSON.stringify(user), CONFIG.SESSION_TTL_SEC);
+  return { token: token, profile: user };
+}
+
+// initSession: เก็บไว้ (ไม่ได้ใช้แล้ว) เผื่อ rollback
 function initSession(idToken) {
   var user = authenticateRequest(idToken);
   if (!user) throw new Error('ยืนยันตัวตนไม่ได้ — กรุณา login ใหม่');
@@ -239,37 +392,42 @@ function handleApiCall(action, payload) {
 
 
 // ── Email whitelist check ──────────────────────────────────────────
-// [FIXED] อ่านจาก USERS sheet โดยตรง (single source of truth)
-// case-insensitive + trim — ไม่พึ่ง ALLOWED_EMAILS Script Property อีกต่อไป
-// active check ถูก comment ออกระหว่าง debug
+// ด่าน 1: ALLOWED_EMAILS Script Property (fast, ไม่ต้องเปิด Spreadsheet)
+// ด่าน 2: USERS sheet (single source of truth)
+// active check: ยังปิดอยู่ — เปิดเมื่อ seed data ในชีทครบ
 function isAllowedEmail(email) {
   if (!email) return false;
   var norm = email.toString().trim().toLowerCase();
 
+  // ด่าน 1: ตรวจ ALLOWED_EMAILS Script Property ก่อน (fast path)
+  if (CONFIG.ALLOWED_EMAILS.indexOf(norm) >= 0) return true;
+
+  // ด่าน 2: ตรวจ USERS sheet
+  if (!CONFIG.SPREADSHEET_ID) {
+    console.log('isAllowedEmail: SPREADSHEET_ID ไม่ได้ตั้งค่า');
+    return false;
+  }
   try {
     var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     var sheet = ss.getSheetByName('USERS');
-    if (!sheet) { console.log('ERROR: USERS sheet not found'); return false; }
+    if (!sheet) { console.log('isAllowedEmail: ไม่พบ USERS sheet'); return false; }
 
     var rows    = sheet.getDataRange().getValues();
     var headers = rows[0].map(function(h) { return h.toString().trim().toLowerCase(); });
-    var emailCol  = headers.indexOf('email');
-    var activeCol = headers.indexOf('active');
-    console.log('isAllowedEmail emailCol:', emailCol, 'activeCol:', activeCol);
+    var emailCol = headers.indexOf('email');
+    if (emailCol < 0) { console.log('isAllowedEmail: ไม่พบคอลัมน์ email ใน USERS sheet'); return false; }
 
     for (var i = 1; i < rows.length; i++) {
       var rowEmail = rows[i][emailCol].toString().trim().toLowerCase();
-      var isActive = rows[i][activeCol];
-      console.log('checking row', i + 1, ':', rowEmail, 'active:', isActive);
       if (rowEmail === norm) {
-        console.log('FOUND match at row', i + 1, 'active:', isActive);
-        return true;  // active check ปิดไว้ระหว่าง debug
+        console.log('isAllowedEmail: พบ row', i + 1, 'active:', rows[i][headers.indexOf('active')]);
+        return true;
       }
     }
-    console.log('NOT FOUND in USERS sheet:', norm);
+    console.log('isAllowedEmail: ไม่พบ', norm, 'ใน USERS sheet และ ALLOWED_EMAILS');
     return false;
   } catch (e) {
-    console.log('isAllowedEmail error:', e.message);
+    console.log('isAllowedEmail sheet error:', e.message);
     return false;
   }
 }
@@ -2960,6 +3118,7 @@ function buildCoverSheetHtmlV15(rows, dsrName, today, total, weekLabel, billAmou
       if (af.hasNext()) { var bb=af.next().getBlob(); logoHtml='<img src="data:'+bb.getContentType()+';base64,'+Utilities.base64Encode(bb.getBytes())+'" style="height:44px;object-fit:contain;"'+onerr+'>'; break; }
     }
   } catch(e) { console.log('[logo] '+e.message); }
+  if (!logoHtml) { try { logoHtml = getLogoHtml(); } catch(_) {} }
   if (!logoHtml) logoHtml='<div style="text-align:right;line-height:1.4"><span style="font-size:14px;font-weight:700;color:#E8631A">NICE CENTER</span><br><span style="font-size:12px;color:#C8102E">x CASTROL</span></div>';
 
   function trimInv(inv){if(!inv)return'';var s=String(inv).trim();return /^[A-Za-z]{2}\d{2}/.test(s)?s.slice(4):s;}
