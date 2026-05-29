@@ -2037,6 +2037,12 @@ body.no-overnight .stl-ov-col { display: none; }
                 <input type="text" id="inp-dsr" class="meta-inp" readonly placeholder="กำลังโหลด...">
                 <button class="ce-btn ce-btn-save" onclick="ceSaveAndPrint()">💾 บันทึก+พิมพ์</button>
                 <button class="ce-btn ce-btn-load" onclick="ceLoadByDate()">📥 โหลด</button>
+                <div id="ce-doc-nav" style="display:inline-flex;align-items:center;gap:4px;margin:0 2px;">
+                  <button class="ce-btn" style="padding:0 7px;min-width:26px;" onclick="cePrevDoc()" title="ใบก่อนหน้า">◀</button>
+                  <span id="ce-doc-label" style="font-size:12px;white-space:nowrap;min-width:60px;text-align:center;">ใบที่ 1 / 1</span>
+                  <button class="ce-btn" style="padding:0 7px;min-width:26px;" onclick="ceNextDoc()" title="ใบถัดไป">▶</button>
+                  <button class="ce-btn" style="background:var(--g);color:#fff;font-size:11px;padding:0 7px;" onclick="ceNewDoc()">+ ใบใหม่</button>
+                </div>
                 <button class="ce-btn" style="background:var(--surface);color:var(--ink2);border:1.5px solid var(--border);" onclick="ceClearTable()">🗑 ล้างข้อมูล</button>
               </div>
             </div>
@@ -2196,15 +2202,6 @@ body.no-overnight .stl-ov-col { display: none; }
             <div class="stl-net-row">
               <span class="stl-net-label">ยอดนำส่งสุทธิ (เงินสด)</span>
               <span class="stl-net-amount pos" id="stl-s-net">—</span>
-            </div>
-            <div class="stl-sum-divider" style="border-color:var(--border);margin-top:10px;"></div>
-            <div class="stl-sum-row" style="color:var(--ink3);font-size:12px;margin-top:4px;" id="stl-s-cheque-row">
-              <span>โอน/เช็ค <span style="font-size:11px;">(ส่งแยก)</span></span>
-              <span class="stl-sum-val" id="stl-s-cheque">—</span>
-            </div>
-            <div class="stl-sum-row" style="color:var(--ink3);font-size:12px;" id="stl-s-slip-row">
-              <span>Slip2Go <span style="font-size:11px;">(ส่งแยก)</span></span>
-              <span class="stl-sum-val" id="stl-s-slip">—</span>
             </div>
           </div>
 
@@ -2905,7 +2902,7 @@ function renderDebtList() {
       </div>
       <div class="debt-info">
         <div class="debt-customer">${d.customer_name||''}</div>
-        <div class="debt-invoice">${d.invoice_no||''} · ครบ ${d.due_date||''}</div>
+        <div class="debt-invoice">${formatBillNo(d.invoice_no)} · ครบ ${d.due_date||''}</div>
       </div>
       <div>
         <div class="debt-amount" style="color:${d.status==='collected'?'var(--g)':'var(--ink)'};">${parseFloat(d.amount||0).toLocaleString('th-TH')} ฿</div>
@@ -3589,14 +3586,10 @@ function stlRecalc() {
 
   function setTxt(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
   setTxt('stl-s-cash',  stlFmtAlways(totCash) + ' ฿');
-  setTxt('stl-s-slip',  stlFmtAlways(slipAmt) + ' ฿');
   setTxt('stl-s-fuel',  '− ' + stlFmtAlways(totFuel)  + ' ฿');
   setTxt('stl-s-hotel', '− ' + stlFmtAlways(totHotel) + ' ฿');
   setTxt('stl-s-allow', '− ' + stlFmtAlways(totAllow) + ' ฿');
   setTxt('stl-s-depr',  '− ' + stlFmtAlways(totDepr)  + ' ฿');
-  setTxt('stl-s-cheque', stlFmtAlways(totCheque) + ' ฿');
-
-  // slip and cheque rows always visible
 
   var netEl = document.getElementById('stl-s-net');
   if (netEl) {
@@ -4082,6 +4075,8 @@ var _dsrLabel = '';
 var _billCache = {};
 var _savedInvoices = {};
 var _codeTimers = {};
+var _ceDocNumber = 1;   // current doc being edited
+var _ceDocList   = [1]; // all doc numbers for selected date
 
 function todayISO() { return new Date().toLocaleDateString('en-CA'); }
 
@@ -4226,6 +4221,7 @@ function populateBillDropdown(n, res) {
   updateFooter();
 }
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function formatBillNo(billNo) { if (!billNo) return '—'; var s = String(billNo).trim(); return s.length > 9 ? s.slice(-9) : s; }
 function escJs(s)   { return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 function onBankChange(n) {
   var bank  = document.getElementById('bk-'    + n).value;
@@ -4383,7 +4379,7 @@ function ceRenderHistBody() {
     if (_histTab==='cheq' && r.cheque_no)
       extra = '<br><span>เช็ค ' + escHtml(r.cheque_no) + (r.bank_name?' ('+escHtml(r.bank_name)+')':'') + '</span>';
     html += '<div class="hist-row"><div class="hist-info"><strong>' + escHtml(r.customer_name||r.customer_code||'') + '</strong>'
-      + '<span>' + d + ' · ' + escHtml(r.invoice_no||'') + '</span>' + extra + '</div>'
+      + '<span>' + d + ' · ' + escHtml(formatBillNo(r.invoice_no)) + '</span>' + extra + '</div>'
       + '<div class="hist-right"><span class="hist-amt ' + clr + '">' + fmtInt(r.amount) + ' ฿</span>'
       + '<button class="hist-del" data-type="' + _histTab + '" data-id="' + escHtml(r.log_id) + '" onclick="ceDeleteHistRow(this)" title="ลบ">🗑</button>'
       + '</div></div>';
@@ -4491,6 +4487,13 @@ function ceCashInit() {
   window.addEventListener('scroll', closeAllInvDd);
   window.addEventListener('resize', closeAllInvDd);
 
+  // reset doc state when date changes
+  function onCeDateChange() { _ceDocNumber = 1; _ceDocList = [1]; ceUpdateDocLabel(); }
+  var dayEl2  = document.getElementById('inp-day');
+  var monEl2  = document.getElementById('inp-month');
+  if (dayEl2)  dayEl2.addEventListener('change',  onCeDateChange);
+  if (monEl2)  monEl2.addEventListener('change',  onCeDateChange);
+
   // event delegation — updateFooter when any input in the table changes
   var ceTable = document.getElementById('ce-table');
   if (ceTable) {
@@ -4568,7 +4571,7 @@ async function ceSaveAndPrint() {
   console.log('[ceSaveAndPrint] date=%s rows=%s payload=%s', dateStr, rows.length, JSON.stringify(rows.map(function(r){ return {type:r.type, amount:r.amount, customer_code:r.customer_code}; })));
   ceShowToast('⏳ กำลังบันทึก ' + rows.length + ' รายการ...', '');
   // TASK 2B: use SAVE_CASH_ENTRY_DATE (upsert) instead of batch append
-  var result = await apiCall('SAVE_CASH_ENTRY_DATE', { date: dateStr, rows: rows });
+  var result = await apiCall('SAVE_CASH_ENTRY_DATE', { date: dateStr, rows: rows, docNumber: _ceDocNumber });
   if (result != null) {
     rows.forEach(function(r){ if (r.invoice_no) _savedInvoices[r.invoice_no] = true; });
     ceShowToast('✅ บันทึกแล้ว ' + (result.inserted||0) + ' รายการ (ลบเดิม ' + (result.deleted||0) + ')', 'success');
@@ -4608,11 +4611,11 @@ async function ceSaveAndPrint() {
   }
 }
 
-// TASK 2: Load rows for selected date — loads BOTH cash AND cheque entries
+// TASK 2: Load rows for selected date + docNumber
 async function ceLoadByDate() {
   var dateStr = getCeSelectedDate();
-  ceShowToast('⏳ กำลังโหลดข้อมูล ' + dateStr + '...', '');
-  var rows = await apiCall('GET_CASH_CHEQUE_BY_DATE', { dateStr: dateStr });
+  ceShowToast('⏳ กำลังโหลดข้อมูล ' + dateStr + ' ใบที่ ' + _ceDocNumber + '...', '');
+  var rows = await apiCall('GET_CASH_CHEQUE_BY_DATE', { dateStr: dateStr, docNumber: _ceDocNumber });
   if (!rows) return;
   if (!rows.length) { ceShowToast('ไม่มีข้อมูลวันที่ ' + dateStr, ''); return; }
   initRows(); // reset table
@@ -4658,6 +4661,41 @@ async function ceLoadByDate() {
   if (tbody) { tbody.classList.remove('fade-in-up'); void tbody.offsetWidth; tbody.classList.add('fade-in-up'); }
   updateFooter();
   ceShowToast('โหลด ' + rows.length + ' รายการสำเร็จ', 'success');
+}
+
+function ceUpdateDocLabel() {
+  var el = document.getElementById('ce-doc-label');
+  if (el) el.textContent = 'ใบที่ ' + _ceDocNumber + ' / ' + _ceDocList.length;
+}
+
+async function ceRefreshDocList() {
+  var dateStr = getCeSelectedDate();
+  var list = await apiCall('LIST_DOCS_FOR_DATE', { dateStr: dateStr });
+  _ceDocList = (list && list.length) ? list : [1];
+  if (_ceDocList.indexOf(_ceDocNumber) < 0) _ceDocNumber = _ceDocList[0];
+  ceUpdateDocLabel();
+}
+
+async function cePrevDoc() {
+  await ceRefreshDocList();
+  var idx = _ceDocList.indexOf(_ceDocNumber);
+  if (idx > 0) { _ceDocNumber = _ceDocList[idx - 1]; ceUpdateDocLabel(); ceLoadByDate(); }
+}
+
+async function ceNextDoc() {
+  await ceRefreshDocList();
+  var idx = _ceDocList.indexOf(_ceDocNumber);
+  if (idx < _ceDocList.length - 1) { _ceDocNumber = _ceDocList[idx + 1]; ceUpdateDocLabel(); ceLoadByDate(); }
+}
+
+async function ceNewDoc() {
+  await ceRefreshDocList();
+  var maxDoc = Math.max.apply(null, _ceDocList);
+  _ceDocNumber = maxDoc + 1;
+  _ceDocList.push(_ceDocNumber);
+  ceUpdateDocLabel();
+  initRows();
+  ceShowToast('เปิดใบที่ ' + _ceDocNumber + ' (ใหม่)', 'success');
 }
 
 function ceClearTable() {
@@ -5281,7 +5319,7 @@ function csStaticRow(r,i){
     +'<td class="cs-muted" style="white-space:nowrap">'+fmtD_cs(r['วันที่ส่งสลิป']||r['created_at']||'')+'</td>'
     +'<td class="cs-val">'+csEsc((r['รหัสลูกค้า']||'').toString().trim())+'</td>'
     +'<td class="cs-muted" id="cs-shop-'+ri+'" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+csEsc(r['ชื่อร้าน']||'')+'">'+csEsc(r['ชื่อร้าน']||'')+'</td>'
-    +'<td><div class="cs-inv" id="cs-inv-'+ri+'">'+(billVal?csEsc(csTrimInvoice(billVal)):'<span class="cs-muted">—</span>')+'</div></td>'
+    +'<td><div class="cs-inv" id="cs-inv-'+ri+'">'+(billVal?csEsc(formatBillNo(billVal)):'<span class="cs-muted">—</span>')+'</div></td>'
     +'<td class="cs-amt">'+billAmtHtml+'</td>'
     +'<td class="cs-amt">'+(amtT?amtT.toLocaleString('th-TH'):'—')+'</td>'
     +'<td class="cs-muted" style="white-space:nowrap">'+fmtD_cs(r['วันที่โอน'])+'</td>'
@@ -5730,6 +5768,13 @@ function applyRoleUI(role) {
     enterApp(fakeUser);
   });
 })();
+
+// ─── FIX 1: prevent scroll wheel from changing number input values ───────────
+document.addEventListener('wheel', function(e) {
+  if (document.activeElement.type === 'number') {
+    document.activeElement.blur();
+  }
+}, { passive: false });
 
 // ─── BOOT ────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {

@@ -123,6 +123,7 @@
   function fmt(n) {
     return (parseFloat(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  function formatBillNo(billNo) { if (!billNo) return '—'; var s = String(billNo).trim(); return s.length > 9 ? s.slice(-9) : s; }
 
   var _logoHtml = null;
   var _docData  = null;
@@ -138,7 +139,7 @@
       return '<tr><td class="center">' + (i+1) + '</td>' +
         '<td>' + (r.customer_code||'') + '</td>' +
         '<td>' + (r.customer_name||'') + '</td>' +
-        '<td>' + (r.invoice_no||'') + '</td>' +
+        '<td>' + formatBillNo(r.invoice_no) + '</td>' +
         '<td>' + (r.log_date||'') + '</td>' +
         '<td class="num">' + fmt(r.amount) + '</td>' +
         '<td>' + (r.note||'') + '</td></tr>';
@@ -148,7 +149,7 @@
       return '<tr><td class="center">' + (i+1) + '</td>' +
         '<td>' + (r.customer_code||'') + '</td>' +
         '<td>' + (r.customer_name||'') + '</td>' +
-        '<td>' + (r.invoice_no||'') + '</td>' +
+        '<td>' + formatBillNo(r.invoice_no) + '</td>' +
         '<td class="num">' + fmt(r.amount) + '</td>' +
         '<td class="center">' + (r.cheque_date||'') + '</td>' +
         '<td>' + (r.cheque_no||'') + '</td>' +

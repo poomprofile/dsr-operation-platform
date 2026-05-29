@@ -515,7 +515,8 @@ function routeAction(action, payload, user) {
     GET_SUMMARY_DATA:       () => getSummaryData(user, payload.week_number, payload.dsr_email),
     SAVE_CASH_CHEQUE_BATCH: () => saveCashChequeBatch(payload.rows, user),
     GET_CASH_LOG_BY_DATE:     () => getCashLogByDate(payload.dateStr, user.email),
-    GET_CASH_CHEQUE_BY_DATE:  () => getCashChequeByDate(payload.dateStr, user.email),
+    GET_CASH_CHEQUE_BY_DATE:  () => getCashChequeByDate(payload.dateStr, user.email, payload.docNumber),
+    LIST_DOCS_FOR_DATE:       () => listDocsForDate(payload.dateStr, user.email),
     GET_CASH_ENTRY_MASTER:  () => getCashEntryMasterData(user.email),
     GET_WEEKLY_SLIP_TOTAL:  () => {
       var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
@@ -556,7 +557,7 @@ function routeAction(action, payload, user) {
     // Cash entry upsert by date (TASK 2B)
     SAVE_CASH_ENTRY_DATE: () => {
       var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
-      return saveCashEntryForDate(payload.date, em, payload.rows);
+      return saveCashEntryForDate(payload.date, em, payload.rows, payload.docNumber);
     },
     // Cash entry A4 PDF (TASK 2C)
     GENERATE_CASH_ENTRY_PDF:  () => generateCashEntryPDF(payload),
@@ -3916,26 +3917,28 @@ function getCashLogByDate(dateStr, dsrEmail) {
 }
 
 // ─── getCashChequeByDate — returns CASH + CHEQUE rows for a specific date ─
-function getCashChequeByDate(dateStr, dsrEmail) {
-  console.log('[getCashChequeByDate] dateStr=%s dsrEmail=%s', dateStr, dsrEmail);
+function getCashChequeByDate(dateStr, dsrEmail, docNumber) {
+  var docNum = docNumber ? (parseInt(docNumber) || 1) : null; // null = all docs
+  console.log('[getCashChequeByDate] dateStr=%s dsrEmail=%s docNum=%s', dateStr, dsrEmail, docNum);
   ensureCashChequeSheets();
 
-  function filterByDate(rows, label) {
-    var myRows = rows.filter(function(r){ return r.dsr_email === dsrEmail; });
-    myRows.slice(0, 3).forEach(function(r, i) {
-      console.log('[getCashChequeByDate] %s[%s] raw_log_date=%s norm=%s match=%s',
-        label, i, r.log_date, normDateStr(String(r.log_date)), normDateStr(String(r.log_date)) === dateStr);
-    });
-    return myRows.filter(function(r) {
+  function filterByDate(rows) {
+    return rows.filter(function(r) {
+      if (r.dsr_email !== dsrEmail) return false;
       var raw = r.log_date;
-      var d = (raw instanceof Date)
+      var d   = (raw instanceof Date)
         ? Utilities.formatDate(raw, 'Asia/Bangkok', 'yyyy-MM-dd')
         : normDateStr(String(raw));
-      return d === dateStr;
+      if (d !== dateStr) return false;
+      if (docNum !== null) {
+        var rdn = parseInt(r.doc_number) || 1;
+        return rdn === docNum;
+      }
+      return true;
     });
   }
 
-  var cashRows = filterByDate(sheetToObjects(SH_CC.CASH), 'CASH').map(function(r) {
+  var cashRows = filterByDate(sheetToObjects(SH_CC.CASH)).map(function(r) {
     return {
       type:          'cash',
       customer_code: r.customer_code || '',
@@ -3943,10 +3946,11 @@ function getCashChequeByDate(dateStr, dsrEmail) {
       invoice_no:    r.invoice_no    || '',
       amount:        parseFloat(r.amount) || 0,
       note:          r.note          || '',
+      doc_number:    parseInt(r.doc_number) || 1,
     };
   });
 
-  var cheqRows = filterByDate(sheetToObjects(SH_CC.CHEQUE), 'CHEQ').map(function(r) {
+  var cheqRows = filterByDate(sheetToObjects(SH_CC.CHEQUE)).map(function(r) {
     return {
       type:          'cheque',
       customer_code: r.customer_code || '',
@@ -3958,6 +3962,7 @@ function getCashChequeByDate(dateStr, dsrEmail) {
       bank_name:     r.bank_name     || '',
       branch_name:   r.branch_name   || '',
       note:          r.note          || '',
+      doc_number:    parseInt(r.doc_number) || 1,
     };
   });
 
@@ -4235,20 +4240,22 @@ function getWeeklySlipSummary(weekStart, dsrEmail) {
   return { rows: rows, grandTotal: r2(grandTotal) };
 }
 
-// ─── saveCashEntryForDate — upsert CASH_LOG by date+email (TASK 2B) ────
-function saveCashEntryForDate(date, dsrEmail, rows) {
-  console.log('[saveCashEntryForDate] SAVE key=date:%s dsrEmail:%s rows:%s', date, dsrEmail, (rows||[]).length);
+// ─── saveCashEntryForDate — upsert CASH_LOG by date+email+docNumber ────
+function saveCashEntryForDate(date, dsrEmail, rows, docNumber) {
+  var docNum = parseInt(docNumber) || 1;
+  console.log('[saveCashEntryForDate] date:%s email:%s doc:%s rows:%s', date, dsrEmail, docNum, (rows||[]).length);
   ensureCashChequeSheets();
   var ss         = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   var cashSheet  = ss.getSheetByName(SH_CC.CASH);
   var cheqSheet  = ss.getSheetByName(SH_CC.CHEQUE);
 
-  // ลบแถวเดิมของวันนั้น (loop จากล่างขึ้นบน)
-  function deleteByDateEmail(sheet) {
-    var vals = sheet.getDataRange().getValues();
-    var h    = vals[0];
-    var dCol = h.indexOf('log_date');
-    var eCol = h.indexOf('dsr_email');
+  // ลบเฉพาะแถวที่ตรงกับ email+date+docNumber
+  function deleteByDateEmailDoc(sheet) {
+    var vals  = sheet.getDataRange().getValues();
+    var h     = vals[0];
+    var dCol  = h.indexOf('log_date');
+    var eCol  = h.indexOf('dsr_email');
+    var dnCol = h.indexOf('doc_number');
     if (dCol < 0 || eCol < 0 || vals.length < 2) return 0;
     var deleted = 0;
     for (var i = vals.length - 1; i >= 1; i--) {
@@ -4257,36 +4264,60 @@ function saveCashEntryForDate(date, dsrEmail, rows) {
       var rowDate  = (rawDate instanceof Date)
         ? Utilities.formatDate(rawDate, 'Asia/Bangkok', 'yyyy-MM-dd')
         : normDateStr(String(rawDate));
-      if (rowEmail === dsrEmail && rowDate === date) {
+      // backward compat: rows without doc_number column → treat as 1
+      var rowDoc = dnCol >= 0 ? (parseInt(vals[i][dnCol]) || 1) : 1;
+      if (rowEmail === dsrEmail && rowDate === date && rowDoc === docNum) {
         sheet.deleteRow(i + 1);
         deleted++;
       }
     }
     return deleted;
   }
-  var delCash = deleteByDateEmail(cashSheet);
-  var delCheq = deleteByDateEmail(cheqSheet);
+  var delCash = deleteByDateEmailDoc(cashSheet);
+  var delCheq = deleteByDateEmailDoc(cheqSheet);
   console.log('[saveCashEntryForDate] deleted cash=%s cheq=%s', delCash, delCheq);
 
-  // Insert แถวใหม่
+  // Insert แถวใหม่พร้อม doc_number
   var fakeUser = { email: dsrEmail };
   var inserted = 0, skipped = 0;
   (rows || []).forEach(function(r, idx) {
     var amt = parseFloat(r.amount);
-    console.log('[saveCashEntryForDate] row['+idx+'] type='+r.type+' code='+r.customer_code+' inv='+r.invoice_no+' amt='+amt);
-    if (!amt || amt <= 0) { skipped++; console.log('[saveCashEntryForDate] skip row['+idx+']: amount='+amt); return; }
-    r.log_date = date;
-    r.invoice_no   = r.invoice_no   || '-';
-    r.customer_code = r.customer_code || '-'; // validate() throws on empty
+    if (!amt || amt <= 0) { skipped++; return; }
+    r.log_date      = date;
+    r.invoice_no    = r.invoice_no    || '-';
+    r.customer_code = r.customer_code || '-';
+    r.doc_number    = docNum;
     try {
       if (r.type === 'cheque') { saveCheque(r, fakeUser); }
       else                     { saveCash(r, fakeUser); }
       inserted++;
-      console.log('[saveCashEntryForDate] wrote row['+idx+'] type='+r.type+' dsrEmail='+fakeUser.email);
     } catch(e) { skipped++; console.error('[saveCashEntryForDate] skip row['+idx+']: ' + e.message); }
   });
   console.log('[saveCashEntryForDate] inserted=%s skipped=%s', inserted, skipped);
   return { deleted: delCash + delCheq, inserted: inserted, skipped: skipped };
+}
+
+// ─── listDocsForDate — รายการ doc_number ทั้งหมดของ email+date ──────────
+function listDocsForDate(dateStr, dsrEmail) {
+  ensureCashChequeSheets();
+  var docSet = {};
+  function scan(sheetName) {
+    var rows = sheetToObjects(sheetName);
+    rows.forEach(function(r) {
+      if (r.dsr_email !== dsrEmail) return;
+      var raw = r.log_date;
+      var d   = (raw instanceof Date)
+        ? Utilities.formatDate(raw, 'Asia/Bangkok', 'yyyy-MM-dd')
+        : normDateStr(String(raw));
+      if (d !== dateStr) return;
+      var dn = parseInt(r.doc_number) || 1;
+      docSet[dn] = true;
+    });
+  }
+  scan(SH_CC.CASH);
+  scan(SH_CC.CHEQUE);
+  var list = Object.keys(docSet).map(Number).sort(function(a,b){return a-b;});
+  return list.length ? list : [1];
 }
 
 // ─── generateCashEntryPDF — A4 print form (TASK 2C) ──────────────────
@@ -4584,6 +4615,10 @@ function saveSettlementExpenses(data, user) {
   });
 
   console.log('[saveSettlementExpenses] inserted=%s', inserted);
+
+  // bust cache so next load gets fresh data
+  try { CacheService.getScriptCache().remove('stl_' + targetEmail + '_' + data.weekStart); } catch(_) {}
+
   return { saved: inserted };
 }
 

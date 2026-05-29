@@ -28,6 +28,7 @@ function saveCash(data, user) {
     amount:        parseFloat(data.amount) || 0,
     note:          data.note || '',
     week_number:   weekNum(new Date(date)),
+    doc_number:    parseInt(data.doc_number) || 1,
     created_at:    ts(),
   };
   appendSheetRow(SH_CC.CASH, row);
@@ -61,6 +62,7 @@ function saveCheque(data, user) {
     branch_name:   data.branch_name || '',
     note:          data.note || '',
     week_number:   weekNum(new Date(date)),
+    doc_number:    parseInt(data.doc_number) || 1,
     created_at:    ts(),
   };
   appendSheetRow(SH_CC.CHEQUE, row);
@@ -245,7 +247,7 @@ function ensureCashChequeSheets() {
     cs.appendRow([
       'log_id','dsr_id','dsr_email','log_date',
       'customer_code','customer_name','invoice_no',
-      'amount','note','week_number','created_at',
+      'amount','note','week_number','doc_number','created_at',
     ]);
     cs.setFrozenRows(1);
   }
@@ -256,8 +258,27 @@ function ensureCashChequeSheets() {
       'log_id','dsr_id','dsr_email','log_date',
       'customer_code','customer_name','invoice_no','amount',
       'cheque_date','cheque_no','bank_name','branch_name',
-      'note','week_number','created_at',
+      'note','week_number','doc_number','created_at',
     ]);
     qs.setFrozenRows(1);
+  }
+
+  // add doc_number column to existing sheets if missing
+  _ensureDocNumberCol(ss, SH_CC.CASH);
+  _ensureDocNumberCol(ss, SH_CC.CHEQUE);
+}
+
+function _ensureDocNumberCol(ss, sheetName) {
+  var sh = ss.getSheetByName(sheetName);
+  if (!sh || sh.getLastRow() < 1) return;
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  if (headers.indexOf('doc_number') >= 0) return;
+  var newCol = sh.getLastColumn() + 1;
+  sh.getRange(1, newCol).setValue('doc_number');
+  // backfill existing rows with 1
+  if (sh.getLastRow() > 1) {
+    var fill = [];
+    for (var i = 1; i < sh.getLastRow(); i++) fill.push([1]);
+    sh.getRange(2, newCol, fill.length, 1).setValues(fill);
   }
 }
