@@ -5312,7 +5312,11 @@ function csStaticRow(r,i){
     cls=isEmpty?'cs-pend':((st==='เรียบร้อย'||st==='จับคู่แล้ว')?'cs-ok':(st==='ยอดไม่ตรง'||st==='รอระบุ')?'cs-warn':'cs-err');
   }
   var amtT=parseFloat(r['ยอดเงิน'])||0;
-  var billAmtHtml=(billVal&&!isPending)?'<span class="cs-shimmer" id="cs-billamt-'+ri+'"></span>':'<span class="cs-muted" id="cs-billamt-'+ri+'">—</span>';
+  var preloadedAmt=parseFloat(r['ยอดบิล'])||parseFloat(r['_billAmt'])||0;
+  var billAmtHtml=preloadedAmt
+    ?'<span class="cs-amt" id="cs-billamt-'+ri+'">'+preloadedAmt.toLocaleString('th-TH')+'</span>'
+    :billVal?'<span class="cs-shimmer" id="cs-billamt-'+ri+'"></span>'
+    :'<span class="cs-muted" id="cs-billamt-'+ri+'">—</span>';
   var trClass=isPending?'cs-pending-row':'';
   return '<tr id="cs-sr-'+ri+'" class="'+trClass+'">'
     +'<td class="cs-muted">'+(i+1)+(isPending?'&nbsp;<span class="cs-pending-badge">PENDING</span>':'')+'</td>'

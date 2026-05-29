@@ -3505,6 +3505,63 @@ function getBillsForCustomerCode(customerCode) {
       console.log('[store lookup] '+storeErr.message);
     }
 
+    // ── ค้นจาก com_debt-initial (Castrol) ──────────────────────────
+    try {
+      var CASTROL_SS_ID = '1j969ymKjtLWQAgRf_kSEaQQLrpHvDfk1KBswquw4WDI';
+      var castrolSs2 = SpreadsheetApp.openById(CASTROL_SS_ID);
+      var castrolSh2 = castrolSs2.getSheetByName('com_debt-initial');
+      if (castrolSh2) {
+        var cData = castrolSh2.getDataRange().getValues();
+        var ch    = cData.length ? cData[0] : [];
+        function castrolColLocal(names) {
+          for (var ni=0; ni<names.length; ni++)
+            for (var hi=0; hi<ch.length; hi++)
+              if (String(ch[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi;
+          return -1;
+        }
+        console.log('[getBillsForCustomerCode] com_debt-initial headers: '+JSON.stringify(ch));
+        var cKey  = castrolColLocal(['customer_code','รหัสลูกค้า','custcode','cust_code','customer','รหัสหลัก','taxno','TaxNo']);
+        var cInv  = castrolColLocal(['invoice_no','invoiceno','เลขที่บิล','DocNo','InvoiceNo']);
+        var cAmt  = castrolColLocal(['amount','ยอดคงเหลือ','ยอดบิล','Amount','outstanding','balance']);
+        var cDue  = castrolColLocal(['due_date','duedate','DueDate','วันครบกำหนด','ถึงกำหนดชำระ']);
+        var cName = castrolColLocal(['customer_name','ชื่อลูกค้า','name','customername','distributor_name']);
+        console.log('[getBillsForCustomerCode] com_debt-initial cKey='+cKey+' cInv='+cInv+' rows='+(cData.length-1)+' searching cust='+customerCode);
+        if (cKey >= 0 && cInv >= 0 && cData.length > 1) {
+          for (var cr=1; cr<cData.length; cr++) {
+            if (String(cData[cr][cKey]||'').trim() !== customerCode) continue;
+            var cInvoice = String(cData[cr][cInv]||'').trim().split('/')[0].trim();
+            if (!cInvoice) continue;
+            if (!shopName && cName>=0) shopName = String(cData[cr][cName]||'').trim();
+            var cAmount = cAmt>=0 ? parseFloat(String(cData[cr][cAmt]||0).replace(/[^0-9.\-]/g,''))||0 : 0;
+            var cDueDate=null, cOverdue=null;
+            if (cDue>=0 && cData[cr][cDue]) {
+              var cRaw = cData[cr][cDue];
+              var cDt  = (cRaw instanceof Date)?cRaw:new Date(cRaw);
+              if (!isNaN(cDt.getTime())) {
+                cDt.setHours(0,0,0,0);
+                cDueDate = cDt.toISOString().slice(0,10);
+                cOverdue = Math.floor((today-cDt)/86400000);
+              }
+            }
+            var cNorm = cInvoice.toLowerCase();
+            var cAlreadyIn = false;
+            for (var bi2=0; bi2<bills.length; bi2++) {
+              var bNorm2 = bills[bi2].invoiceNo.toLowerCase();
+              var bSuf2  = bNorm2.split('-').pop();
+              var cSuf2  = cNorm.split('-').pop();
+              if (bNorm2===cNorm || (cSuf2.length>=4 && bSuf2===cSuf2)) { cAlreadyIn=true; break; }
+            }
+            if (!cAlreadyIn) {
+              bills.push({ invoiceNo:cInvoice, amount:cAmount, dueDate:cDueDate, overdueDays:cOverdue, source:'castrol' });
+            }
+          }
+          console.log('[getBillsForCustomerCode] com_debt-initial matched bills total='+bills.length);
+        }
+      }
+    } catch(castrolErr) {
+      console.log('[getBillsForCustomerCode] com_debt-initial error: '+castrolErr.message);
+    }
+
     return { ok:true, bills:bills, shopName:shopName, storeInvSet:storeInvSet };
 
   } catch(err) {
@@ -3675,6 +3732,7 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
     var iShop   = pCol(['sender_name']); // fallback ใช้ชื่อผู้โอน
     var iXDate  = pCol(['transfer_date']);
     var iUserId = pCol(['user_id']);
+    var iStatus = pCol(['status']);
 
     // ── build DSR territory: customer codes from ALL-TIME SLIPS history ──
     // + LINE user IDs as secondary match (production: DSR submitted their own)
@@ -3734,6 +3792,8 @@ function getDsrWeekSlipsWithPendingRows(email, monISO, sunISO) {
       var rowDate = iDate>=0 ? new Date(data[r][iDate]) : null;
       if (!rowDate||isNaN(rowDate)) continue;
       if (rowDate<mon||rowDate>sun) continue;
+      // กรองเฉพาะ status='pending' — ไม่แสดง 'processed' หรือสถานะอื่น
+      if (iStatus >= 0 && String(data[r][iStatus]).trim() !== 'pending') continue;
 
       // filter for DSR view: show if cust_code in territory OR submitted by own LINE ID
       // unmatched slips (no cust_code) are admin-only
@@ -5008,11 +5068,13 @@ function getCoverSheetBatch(payload) {
             if (String(h[hi]).trim().toLowerCase() === names[ni].toLowerCase()) return hi;
         return -1;
       }
-      var iKey  = castrolCol(['customer_code']);
+      console.log('[getCoverSheetBatch] com_debt-initial headers: '+JSON.stringify(h));
+      var iKey  = castrolCol(['customer_code','รหัสลูกค้า','custcode','cust_code','customer','รหัสหลัก','taxno','TaxNo']);
       var iName = castrolCol(['customer_name','ชื่อลูกค้า','name','customername','distributor_name']);
       var iInv  = castrolCol(['invoice_no','invoiceno','เลขที่บิล','DocNo','InvoiceNo']);
       var iAmt  = castrolCol(['amount','ยอดคงเหลือ','ยอดบิล','Amount','outstanding','balance']);
       var iDue  = castrolCol(['due_date','duedate','DueDate','วันครบกำหนด','ถึงกำหนดชำระ']);
+      console.log('[getCoverSheetBatch] com_debt-initial iKey='+iKey+' iInv='+iInv+' iAmt='+iAmt);
 
       if (iKey >= 0 && data.length > 1) {
         for (var r = 1; r < data.length; r++) {
