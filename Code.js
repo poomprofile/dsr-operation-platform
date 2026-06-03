@@ -5232,3 +5232,142 @@ function getCoverSheetBatch(payload) {
   console.log('[getCoverSheetBatch] BATCH done: ' + (Date.now() - t0) + 'ms custs=' + uniqueCusts.length);
   return result;
 }
+
+
+// ─────────────────────────────────────────────────────────────────────
+//  HISTORY LOOKUP
+// ─────────────────────────────────────────────────────────────────────
+
+function getCurrentWeekNumber_() {
+  var d      = new Date();
+  var utc    = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  var dayNo  = (utc.getUTCDay() + 6) % 7;
+  utc.setUTCDate(utc.getUTCDate() - dayNo + 3);
+  var firstThu = new Date(Date.UTC(utc.getUTCFullYear(), 0, 4));
+  return 1 + Math.round((utc - firstThu) / 604800000);
+}
+
+function _findCol(headers, candidates) {
+  var lower = headers.map(function(h) { return String(h).toLowerCase().trim(); });
+  for (var i = 0; i < candidates.length; i++) {
+    var idx = lower.indexOf(candidates[i].toLowerCase());
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function _getSheetRows(ss, sheetName, email, weekNumber) {
+  var sheet;
+  if (sheetName === SH.SLIPS) {
+    try { sheet = SpreadsheetApp.openById(prop('SPREADSHEET_ID_SLIP')).getSheetByName(sheetName); }
+    catch(e) { console.log('[_getSheetRows] SLIPS open failed: ' + e.message); return []; }
+  } else {
+    sheet = ss.getSheetByName(sheetName);
+  }
+  if (!sheet) { console.log('[_getSheetRows] sheet not found: ' + sheetName); return []; }
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var headers  = data[0].map(function(h) { return String(h).toLowerCase().trim(); });
+  var emailIdx = _findCol(headers, ['dsremail', 'email', 'dsr_email', 'อีเมล']);
+  var weekIdx  = _findCol(headers, ['weeknumber', 'week', 'week_number', 'สัปดาห์']);
+
+  if (emailIdx < 0 && sheetName === SH.SLIPS) emailIdx = 11; // col L fallback
+
+  var results = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (emailIdx >= 0 && String(row[emailIdx]).toLowerCase().trim() !== email.toLowerCase()) continue;
+    if (weekIdx  >= 0 && String(row[weekIdx]).trim() !== String(weekNumber)) continue;
+    var obj = {};
+    headers.forEach(function(h, ci) { obj[h] = row[ci]; });
+    results.push(obj);
+  }
+  console.log('[_getSheetRows] ' + sheetName + ' → ' + results.length + ' rows for ' + email + ' wk' + weekNumber);
+  return results;
+}
+
+function getHistoryData(targetEmail, weekNumber, callerEmail, callerRole) {
+  try {
+    var currentWeek = getCurrentWeekNumber_();
+    if (callerRole !== 'admin' && callerEmail !== targetEmail) {
+      return { success: false, error: 'Access denied' };
+    }
+    if (callerRole !== 'admin' && (currentWeek - weekNumber) > 9) {
+      return { success: false, error: 'ดูได้เฉพาะ 9 สัปดาห์ย้อนหลัง' };
+    }
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    return {
+      success: true,
+      data: {
+        cash:        _getSheetRows(ss, SH.CASH_LOG,    targetEmail, weekNumber),
+        cheque:      _getSheetRows(ss, SH.CHEQUE_LOG,  targetEmail, weekNumber),
+        slips:       _getSheetRows(ss, SH.SLIPS,       targetEmail, weekNumber),
+        fuel:        _getSheetRows(ss, SH.FUEL,        targetEmail, weekNumber),
+        allowance:   _getSheetRows(ss, SH.ALLOWANCE,   targetEmail, weekNumber),
+        maintenance: _getSheetRows(ss, SH.MAINTENANCE, targetEmail, weekNumber),
+        settlement:  _getSheetRows(ss, SH.SETTLE_EXP,  targetEmail, weekNumber),
+      },
+    };
+  } catch (err) {
+    console.log('[getHistoryData] error: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+function getAvailableWeeks(targetEmail, callerRole) {
+  try {
+    var currentWeek = getCurrentWeekNumber_();
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(SH.CASH_LOG);
+    if (!sheet) return { success: true, data: [] };
+    var data    = sheet.getDataRange().getValues();
+    if (data.length < 2) return { success: true, data: [] };
+    var headers  = data[0].map(function(h) { return String(h).toLowerCase().trim(); });
+    var emailIdx = _findCol(headers, ['dsremail', 'email', 'dsr_email', 'อีเมล']);
+    var weekIdx  = _findCol(headers, ['weeknumber', 'week', 'week_number', 'สัปดาห์']);
+    var seen = {};
+    for (var i = 1; i < data.length; i++) {
+      if (emailIdx >= 0 && String(data[i][emailIdx]).toLowerCase().trim() !== targetEmail.toLowerCase()) continue;
+      if (weekIdx < 0) continue;
+      var wk = parseInt(data[i][weekIdx]);
+      if (isNaN(wk)) continue;
+      if (callerRole !== 'admin' && (currentWeek - wk) > 9) continue;
+      seen[wk] = true;
+    }
+    var weeks = Object.keys(seen).map(Number).sort(function(a, b) { return b - a; });
+    return { success: true, data: weeks };
+  } catch (err) {
+    console.log('[getAvailableWeeks] error: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+function getDSRList() {
+  try {
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(SH.USERS);
+    if (!sheet) return { success: true, data: [] };
+    var data    = sheet.getDataRange().getValues();
+    if (data.length < 2) return { success: true, data: [] };
+    var headers  = data[0].map(function(h) { return String(h).toLowerCase().trim(); });
+    var emailIdx = _findCol(headers, ['email', 'dsremail', 'dsr_email', 'อีเมล']);
+    var nameIdx  = _findCol(headers, ['display_name', 'name', 'ชื่อ', 'dsrname']);
+    var roleIdx  = _findCol(headers, ['role', 'บทบาท', 'สิทธิ์']);
+    var activeIdx= _findCol(headers, ['active', 'สถานะ']);
+    var result = [];
+    for (var i = 1; i < data.length; i++) {
+      var role = roleIdx >= 0 ? String(data[i][roleIdx]).toLowerCase().trim() : 'dsr';
+      if (roleIdx >= 0 && role !== 'dsr') continue;
+      if (activeIdx >= 0 && String(data[i][activeIdx]).toUpperCase() !== 'TRUE') continue;
+      var email = emailIdx >= 0 ? String(data[i][emailIdx]).trim() : '';
+      var name  = nameIdx  >= 0 ? String(data[i][nameIdx]).trim()  : email;
+      if (!email) continue;
+      result.push({ email: email, name: name || email });
+    }
+    return { success: true, data: result };
+  } catch (err) {
+    console.log('[getDSRList] error: ' + err.message);
+    return { success: false, error: err.message };
+  }
+}

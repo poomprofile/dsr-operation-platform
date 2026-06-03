@@ -1665,6 +1665,26 @@ body.no-overnight .stl-ov-col { display: none; }
 .ce-action-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .ce-wrap .ce-btn-save { background: #2E7D32; color: #fff; }
 .ce-wrap .ce-btn-load { background: var(--surface); color: var(--ink1); border: 1.5px solid var(--border); }
+
+/* ─── History Lookup ──────────────────────────────────────────── */
+.filter-bar { display:flex; flex-wrap:wrap; gap:12px; padding:14px 16px; background:#f8f9fa; border-radius:var(--radius-sm); margin-bottom:16px; align-items:center; }
+.hist-tabs { display:flex; border-bottom:2px solid var(--border2); margin-bottom:16px; overflow-x:auto; gap:0; }
+.hist-tab { padding:10px 16px; font-size:13px; font-weight:500; color:var(--ink3); cursor:pointer; white-space:nowrap; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color 150ms,border-color 150ms; }
+.hist-tab.active { color:#1a73e8; border-bottom-color:#1a73e8; }
+.hist-table { width:100%; border-collapse:collapse; font-size:13px; }
+.hist-table th { background:#f1f3f4; padding:8px 10px; text-align:left; font-weight:600; border-bottom:1px solid var(--border); white-space:nowrap; position:sticky; top:0; }
+.hist-table td { padding:8px 10px; border-bottom:1px solid var(--border); }
+.hist-table tbody tr:hover td { background:#f9f9f9; }
+.hist-table .total-row td { font-weight:700; background:#e8f0fe; border-top:2px solid #1a73e8; }
+.hist-table .hist-subtotal-row td { font-weight:600; background:#f0f4ff; border-top:1px solid #c5d3f0; color:#1a73e8; }
+.hist-table .hist-section-label td { font-size:11px; font-weight:600; color:var(--ink3); background:#f8f9fa; text-transform:uppercase; letter-spacing:.5px; padding:6px 10px; }
+.admin-dsr-badge { display:inline-block; padding:4px 12px; background:#e8f0fe; color:#1a73e8; border-radius:20px; font-size:13px; font-weight:600; }
+.hist-empty { padding:40px 16px; text-align:center; color:var(--ink3); font-size:14px; }
+@media print {
+  .sidebar, .top-nav, .bottom-nav, .filter-bar, .hist-tabs, #admin-badge-wrap { display:none !important; }
+  .hist-tab-content { display:block !important; }
+  #admin-layout-wrap { padding:0 !important; }
+}
 </style>
 </head>
 <body>
@@ -1793,6 +1813,16 @@ body.no-overnight .stl-ov-col { display: none; }
           <div class="sidebar-item sidebar-admin-section" onclick="navTo('print')" data-label="สรุปใบโอน">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M3 9h10v5H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             <span class="sidebar-label">สรุปใบโอน Slip2Go</span>
+          </div>
+
+          <div class="sidebar-section-label">ประวัติ</div>
+          <div class="sidebar-item" onclick="navTo('history')" data-label="ประวัติของฉัน">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <span class="sidebar-label">ประวัติของฉัน</span>
+          </div>
+          <div class="sidebar-item sidebar-admin-section" onclick="navTo('adminLookup')" data-label="ตรวจสอบ DSR">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4" stroke="currentColor" stroke-width="1.4"/><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <span class="sidebar-label">ตรวจสอบ DSR</span>
           </div>
         </div>
 
@@ -2344,7 +2374,72 @@ body.no-overnight .stl-ov-col { display: none; }
           </div><!-- /cs-shared -->
           </div><!-- /cs-slot-print -->
         </div>
-        
+
+        <!-- ─── ประวัติของฉัน (DSR) ─── -->
+        <div class="page" id="page-history">
+          <div class="section-header">
+            <div class="section-title">🕐 ประวัติของฉัน</div>
+            <button class="btn btn-secondary" onclick="window.print()" style="font-size:12px;padding:6px 12px;">🖨 พิมพ์</button>
+          </div>
+          <div class="filter-bar">
+            <select id="histWeekSelect" class="form-input" style="flex:1;min-width:180px;">
+              <option>— กำลังโหลด... —</option>
+            </select>
+            <button class="btn btn-primary" onclick="loadHistory()" style="white-space:nowrap;">ดูข้อมูล</button>
+          </div>
+          <div id="hist-loading" style="display:none;" class="hist-empty">⏳ กำลังโหลด...</div>
+          <div id="hist-empty"   style="display:none;" class="hist-empty">ไม่มีข้อมูลสำหรับสัปดาห์นี้</div>
+          <div id="hist-content" style="display:none;">
+            <div class="hist-tabs">
+              <div class="hist-tab active" onclick="switchHistTab('cash')">💵 บันทึกเงิน</div>
+              <div class="hist-tab"        onclick="switchHistTab('slips')">🧾 สรุปใบโอน</div>
+              <div class="hist-tab"        onclick="switchHistTab('expenses')">📋 ค่าใช้จ่าย</div>
+              <div class="hist-tab"        onclick="switchHistTab('settlement')">📊 ยอดนำส่ง</div>
+            </div>
+            <div class="card" style="padding:0;overflow:auto;">
+              <div id="histTab-cash"       class="hist-tab-content"></div>
+              <div id="histTab-slips"      class="hist-tab-content" style="display:none;"></div>
+              <div id="histTab-expenses"   class="hist-tab-content" style="display:none;"></div>
+              <div id="histTab-settlement" class="hist-tab-content" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── ตรวจสอบข้อมูล DSR (Admin) ─── -->
+        <div class="page" id="page-adminLookup">
+          <div class="section-header">
+            <div class="section-title">🔍 ตรวจสอบข้อมูล DSR</div>
+            <button class="btn btn-secondary" onclick="window.print()" style="font-size:12px;padding:6px 12px;">🖨 พิมพ์</button>
+          </div>
+          <div class="filter-bar">
+            <select id="adminDSRSelect" class="form-input" style="flex:1;min-width:160px;" onchange="onAdminDSRChange()">
+              <option value="">— เลือก DSR —</option>
+            </select>
+            <select id="adminWeekSelect" class="form-input" style="flex:1;min-width:160px;">
+              <option value="">— เลือกสัปดาห์ —</option>
+            </select>
+            <button class="btn btn-primary" onclick="loadAdminLookup()" style="white-space:nowrap;">ดูข้อมูล</button>
+          </div>
+          <div id="admin-badge-wrap" style="margin-bottom:12px;display:none;">
+            <span class="admin-dsr-badge" id="adminDSRBadge"></span>
+          </div>
+          <div id="admin-loading" style="display:none;" class="hist-empty">⏳ กำลังโหลด...</div>
+          <div id="admin-empty"   style="display:none;" class="hist-empty">ไม่มีข้อมูล</div>
+          <div id="admin-content" style="display:none;">
+            <div class="hist-tabs">
+              <div class="hist-tab active" onclick="switchAdminTab('cash')">💵 บันทึกเงิน</div>
+              <div class="hist-tab"        onclick="switchAdminTab('slips')">🧾 สรุปใบโอน</div>
+              <div class="hist-tab"        onclick="switchAdminTab('expenses')">📋 ค่าใช้จ่าย</div>
+              <div class="hist-tab"        onclick="switchAdminTab('settlement')">📊 ยอดนำส่ง</div>
+            </div>
+            <div class="card" style="padding:0;overflow:auto;">
+              <div id="adminTab-cash"       class="hist-tab-content"></div>
+              <div id="adminTab-slips"      class="hist-tab-content" style="display:none;"></div>
+              <div id="adminTab-expenses"   class="hist-tab-content" style="display:none;"></div>
+              <div id="adminTab-settlement" class="hist-tab-content" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
 
       </div>
     </div>
@@ -4028,7 +4123,9 @@ function navTo(page) {
     }
     csLoad();
   }
-  if (page === 'settlement') { stlBuildWeekOptions(); stlLoadSettlement(); }
+  if (page === 'settlement')  { stlBuildWeekOptions(); stlLoadSettlement(); }
+  if (page === 'history')     initHistorySection();
+  if (page === 'adminLookup') initAdminLookupSection();
 }
 
 // ─── DEBT SUB-TABS ─────────────────────────────────────────────
@@ -5738,8 +5835,10 @@ function applyRoleUI(role) {
     "navTo('milagebot')":   ['admin','dsr'],
     "navTo('collection')":  ['admin','specialist','dsr'],
     "navTo('settlement')":  ['admin','specialist','dsr'],
-    "navTo('import')":      ['admin'],
-    "navTo('print')":       ['admin'],
+    "navTo('import')":       ['admin'],
+    "navTo('print')":        ['admin'],
+    "navTo('history')":      ['admin','dsr'],
+    "navTo('adminLookup')":  ['admin'],
   };
   document.querySelectorAll('.sidebar-item').forEach(el => {
     const onclick = el.getAttribute('onclick') || '';
@@ -5776,6 +5875,250 @@ function applyRoleUI(role) {
       if (el.textContent.includes('+')) el.style.display = 'none';
     });
   }
+}
+
+// ─── HISTORY LOOKUP ──────────────────────────────────────────────
+
+function initHistorySection() {
+  var sel = document.getElementById('histWeekSelect');
+  if (!sel || !currentUser) return;
+  sel.innerHTML = '<option>— กำลังโหลด... —</option>';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || !res.success || !res.data.length) {
+        sel.innerHTML = '<option value="">— ไม่มีข้อมูล —</option>'; return;
+      }
+      sel.innerHTML = res.data.map(function(w) {
+        return '<option value="'+w+'">สัปดาห์ที่ '+w+'</option>';
+      }).join('');
+    })
+    .withFailureHandler(function(err) {
+      sel.innerHTML = '<option value="">— ข้อผิดพลาด —</option>';
+      handleSessionError(err);
+    })
+    .getAvailableWeeks(currentUser.email, currentUser.role);
+}
+
+function loadHistory() {
+  var sel  = document.getElementById('histWeekSelect');
+  var week = sel ? parseInt(sel.value) : NaN;
+  if (isNaN(week) || !currentUser) return;
+  document.getElementById('hist-loading').style.display = '';
+  document.getElementById('hist-content').style.display = 'none';
+  document.getElementById('hist-empty').style.display   = 'none';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      document.getElementById('hist-loading').style.display = 'none';
+      if (!res || !res.success) { document.getElementById('hist-empty').style.display = ''; return; }
+      renderHistoryTabs('hist', res.data);
+      document.getElementById('hist-content').style.display = '';
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('hist-loading').style.display = 'none';
+      document.getElementById('hist-empty').style.display   = '';
+      handleSessionError(err);
+    })
+    .getHistoryData(currentUser.email, week, currentUser.email, currentUser.role);
+}
+
+function initAdminLookupSection() {
+  var sel = document.getElementById('adminDSRSelect');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— กำลังโหลด... —</option>';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || !res.success) { sel.innerHTML = '<option value="">— ไม่มีข้อมูล —</option>'; return; }
+      sel.innerHTML = '<option value="">— เลือก DSR —</option>' +
+        res.data.map(function(d) { return '<option value="'+d.email+'">'+d.name+'</option>'; }).join('');
+    })
+    .withFailureHandler(function(err) { handleSessionError(err); })
+    .getDSRList();
+}
+
+function onAdminDSRChange() {
+  var dsrSel  = document.getElementById('adminDSRSelect');
+  var weekSel = document.getElementById('adminWeekSelect');
+  if (!dsrSel || !weekSel) return;
+  if (!dsrSel.value) { weekSel.innerHTML = '<option value="">— เลือกสัปดาห์ —</option>'; return; }
+  weekSel.innerHTML = '<option>— กำลังโหลด... —</option>';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || !res.success || !res.data.length) {
+        weekSel.innerHTML = '<option value="">— ไม่มีข้อมูล —</option>'; return;
+      }
+      weekSel.innerHTML = '<option value="">— เลือกสัปดาห์ —</option>' +
+        res.data.map(function(w) { return '<option value="'+w+'">สัปดาห์ที่ '+w+'</option>'; }).join('');
+    })
+    .withFailureHandler(function(err) { handleSessionError(err); })
+    .getAvailableWeeks(dsrSel.value, 'admin');
+}
+
+function loadAdminLookup() {
+  var dsrSel  = document.getElementById('adminDSRSelect');
+  var weekSel = document.getElementById('adminWeekSelect');
+  if (!dsrSel || !dsrSel.value || !weekSel || !weekSel.value) {
+    showToast('กรุณาเลือก DSR และสัปดาห์', 'warning'); return;
+  }
+  var targetEmail = dsrSel.value;
+  var week        = parseInt(weekSel.value);
+  var dsrName     = dsrSel.options[dsrSel.selectedIndex].text;
+
+  var badge = document.getElementById('adminDSRBadge');
+  if (badge) badge.textContent = dsrName + ' — สัปดาห์ที่ ' + week;
+  document.getElementById('admin-badge-wrap').style.display = '';
+  document.getElementById('admin-loading').style.display = '';
+  document.getElementById('admin-content').style.display = 'none';
+  document.getElementById('admin-empty').style.display   = 'none';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      document.getElementById('admin-loading').style.display = 'none';
+      if (!res || !res.success) { document.getElementById('admin-empty').style.display = ''; return; }
+      renderHistoryTabs('admin', res.data);
+      document.getElementById('admin-content').style.display = '';
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('admin-loading').style.display = 'none';
+      document.getElementById('admin-empty').style.display   = '';
+      handleSessionError(err);
+    })
+    .getHistoryData(targetEmail, week, currentUser.email, 'admin');
+}
+
+function switchHistTab(tab) {
+  ['cash','slips','expenses','settlement'].forEach(function(t) {
+    document.getElementById('histTab-' + t).style.display = t === tab ? '' : 'none';
+  });
+  document.querySelectorAll('#page-history .hist-tab').forEach(function(el) {
+    el.classList.toggle('active', (el.getAttribute('onclick') || '').indexOf("'"+tab+"'") >= 0);
+  });
+}
+function switchAdminTab(tab) {
+  ['cash','slips','expenses','settlement'].forEach(function(t) {
+    document.getElementById('adminTab-' + t).style.display = t === tab ? '' : 'none';
+  });
+  document.querySelectorAll('#page-adminLookup .hist-tab').forEach(function(el) {
+    el.classList.toggle('active', (el.getAttribute('onclick') || '').indexOf("'"+tab+"'") >= 0);
+  });
+}
+
+function renderHistoryTabs(prefix, data) {
+  var pageId = prefix === 'hist' ? 'history' : 'adminLookup';
+  document.getElementById(prefix+'Tab-cash').innerHTML       = renderCashTable(data.cash || [], data.cheque || []);
+  document.getElementById(prefix+'Tab-slips').innerHTML      = renderSlipsTable(data.slips || []);
+  document.getElementById(prefix+'Tab-expenses').innerHTML   = renderExpensesTable(data.fuel || [], data.allowance || [], data.maintenance || []);
+  document.getElementById(prefix+'Tab-settlement').innerHTML = renderSettlementTable(data.settlement || []);
+  // Reset to first tab
+  ['cash','slips','expenses','settlement'].forEach(function(t) {
+    document.getElementById(prefix+'Tab-'+t).style.display = t === 'cash' ? '' : 'none';
+  });
+  document.querySelectorAll('#page-'+pageId+' .hist-tab').forEach(function(el) {
+    el.classList.toggle('active', (el.getAttribute('onclick') || '').indexOf("'cash'") >= 0);
+  });
+}
+
+// ─── RENDER HELPERS ───────────────────────────────────────────────────
+function _fmtDate(v) {
+  if (!v) return '—';
+  try {
+    var d = (v instanceof Date) ? v : new Date(String(v));
+    if (isNaN(d.getTime())) return String(v);
+    return d.getDate() + '/' + (d.getMonth()+1) + '/' + (d.getFullYear()+543);
+  } catch(_) { return String(v); }
+}
+function _fmtAmt(v) {
+  var n = parseFloat(v);
+  if (isNaN(n)) return '—';
+  return n.toLocaleString('th-TH', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+function _pick(obj, keys) {
+  var lowerKeys = keys.map(function(k) { return k.toLowerCase(); });
+  for (var i = 0; i < lowerKeys.length; i++) {
+    for (var ok in obj) {
+      if (ok.toLowerCase() === lowerKeys[i] && obj[ok] !== undefined && obj[ok] !== '') return obj[ok];
+    }
+  }
+  return '';
+}
+function _hv(v) { return (v === null || v === undefined || v === '') ? '—' : String(v); }
+
+function renderCashTable(cashRows, chequeRows) {
+  var rows = cashRows.map(function(r) { return Object.assign({}, r, { _type: 'เงินสด' }); })
+    .concat(chequeRows.map(function(r) { return Object.assign({}, r, { _type: 'เช็ค' }); }));
+  if (!rows.length) return '<div class="hist-empty">ไม่มีรายการ</div>';
+  var total = 0;
+  var body = rows.map(function(r) {
+    var amt = parseFloat(_pick(r, ['amount','จำนวนเงิน','จำนวน'])) || 0;
+    total += amt;
+    return '<tr><td>'+r._type+'</td><td>'+_fmtDate(_pick(r,['date','วันที่']))+'</td>' +
+      '<td>'+_hv(_pick(r,['customer_name','custname','ลูกค้า','customer']))+'</td>' +
+      '<td>'+_hv(_pick(r,['invoice_no','invoiceno','เลขบิล','invoice']))+'</td>' +
+      '<td style="text-align:right;">'+_fmtAmt(amt)+'</td></tr>';
+  }).join('');
+  return '<table class="hist-table"><thead><tr><th>ประเภท</th><th>วันที่</th><th>ลูกค้า</th><th>เลขบิล</th><th>จำนวน (฿)</th></tr></thead>' +
+    '<tbody>'+body+'<tr class="total-row"><td colspan="4">รวมทั้งหมด</td><td style="text-align:right;">'+_fmtAmt(total)+'</td></tr></tbody></table>';
+}
+
+function renderSlipsTable(rows) {
+  if (!rows.length) return '<div class="hist-empty">ไม่มีรายการ</div>';
+  var total = 0;
+  var body = rows.map(function(r) {
+    var amt = parseFloat(_pick(r,['amount','จำนวนเงิน','จำนวน'])) || 0;
+    total += amt;
+    return '<tr><td>'+_fmtDate(_pick(r,['วันที่ส่งสลิป','วันที่ส่ง','date','created_at']))+'</td>' +
+      '<td>'+_hv(_pick(r,['ลูกค้า','customer_name','customer']))+'</td>' +
+      '<td>'+_hv(_pick(r,['invoice_no','เลขบิล','invoiceno']))+'</td>' +
+      '<td>'+_hv(_pick(r,['bank','ธนาคาร']))+'</td>' +
+      '<td style="text-align:right;">'+_fmtAmt(amt)+'</td></tr>';
+  }).join('');
+  return '<table class="hist-table"><thead><tr><th>วันที่</th><th>ลูกค้า</th><th>เลขบิล</th><th>ธนาคาร</th><th>ยอด (฿)</th></tr></thead>' +
+    '<tbody>'+body+'<tr class="total-row"><td colspan="4">รวมทั้งหมด</td><td style="text-align:right;">'+_fmtAmt(total)+'</td></tr></tbody></table>';
+}
+
+function renderExpensesTable(fuelRows, allowanceRows, maintenanceRows) {
+  if (!fuelRows.length && !allowanceRows.length && !maintenanceRows.length) return '<div class="hist-empty">ไม่มีรายการ</div>';
+  var grandTotal = 0;
+
+  function section(label, rows, dateKeys, detailKeys, amtKeys) {
+    var sub  = 0;
+    var body = rows.map(function(r) {
+      var amt = parseFloat(_pick(r, amtKeys)) || 0; sub += amt;
+      return '<tr><td>'+_fmtDate(_pick(r,dateKeys))+'</td><td>'+_hv(_pick(r,detailKeys))+'</td><td style="text-align:right;">'+_fmtAmt(amt)+'</td></tr>';
+    }).join('');
+    if (!rows.length) body = '<tr><td colspan="3" style="text-align:center;color:var(--ink3);">ไม่มีข้อมูล</td></tr>';
+    grandTotal += sub;
+    return '<tr class="hist-section-label"><td colspan="3">'+label+'</td></tr>' + body +
+      (rows.length ? '<tr class="hist-subtotal-row"><td colspan="2">รวม</td><td style="text-align:right;">'+_fmtAmt(sub)+'</td></tr>' : '');
+  }
+
+  return '<table class="hist-table"><thead><tr><th>วันที่</th><th>รายละเอียด</th><th>จำนวน (฿)</th></tr></thead><tbody>' +
+    section('⛽ เชื้อเพลิง',     fuelRows,        ['date','วันที่'], ['detail','description','รายละเอียด','fuel_type'], ['amount','cost','จำนวน']) +
+    section('🏨 ที่พัก-เบี้ยเลี้ยง', allowanceRows, ['date','วันที่'], ['note','province','รายละเอียด','detail'],         ['amount','hotel_cost','ค่าที่พัก','allowance']) +
+    section('🔧 ซ่อมบำรุง',     maintenanceRows, ['date','วันที่'], ['description','type','รายละเอียด','detail'],      ['amount','cost','จำนวน']) +
+    '<tr class="total-row"><td colspan="2" style="color:var(--r);">รวมค่าใช้จ่ายทั้งหมด</td><td style="text-align:right;color:var(--r);">'+_fmtAmt(grandTotal)+'</td></tr>' +
+    '</tbody></table>';
+}
+
+function renderSettlementTable(rows) {
+  if (!rows.length) return '<div class="hist-empty">ไม่มีรายการ</div>';
+  var t = { fuel:0, hotel:0, allowance:0, manual_transfer:0 };
+  rows.forEach(function(r) {
+    t.fuel            += parseFloat(_pick(r,['fuel','ค่าน้ำมัน']))               || 0;
+    t.hotel           += parseFloat(_pick(r,['hotel','ค่าที่พัก']))               || 0;
+    t.allowance       += parseFloat(_pick(r,['allowance','เบี้ยเลี้ยง']))         || 0;
+    t.manual_transfer += parseFloat(_pick(r,['manual_transfer','โอนเงิน'])) || 0;
+  });
+  var totalExp = t.fuel + t.hotel + t.allowance;
+  var fields = [
+    { label:'ค่าน้ำมัน (รวมสัปดาห์)',       v: t.fuel },
+    { label:'ค่าที่พัก (รวมสัปดาห์)',         v: t.hotel },
+    { label:'เบี้ยเลี้ยง (รวมสัปดาห์)',      v: t.allowance },
+    { label:'โอนเงิน Manual (รวมสัปดาห์)',   v: t.manual_transfer },
+  ];
+  var body = fields.map(function(f) {
+    return '<tr><td>'+f.label+'</td><td style="text-align:right;">'+_fmtAmt(f.v)+'</td></tr>';
+  }).join('');
+  body += '<tr class="total-row"><td>รวมค่าใช้จ่ายที่หักได้</td><td style="text-align:right;">'+_fmtAmt(totalExp)+'</td></tr>';
+  return '<table class="hist-table" style="max-width:400px;"><thead><tr><th>รายการ</th><th>จำนวน (฿)</th></tr></thead><tbody>'+body+'</tbody></table>';
 }
 
 // ─── DEV MODE: ?devRole=admin|specialist|dsr ──────────────────
