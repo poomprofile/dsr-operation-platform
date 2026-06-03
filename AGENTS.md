@@ -60,3 +60,63 @@ template variables (`_sessionToken`, `_initialProfile`) injected server-side.
 
 **Do NOT redeclare these with `let`** — `var` declaration must remain at top of script block,
 above the `// ─── STATE ───` block.
+
+---
+
+## Session Management (Updated)
+
+### Session TTL = 28800 seconds (8 hours)
+- `CONFIG.SESSION_TTL_SEC = 28800` — session lasts 8 hours
+- TTL is refreshed on every call via `getSessionUser()` and `getUserEmailFromToken()`
+- No need for client-side keepalive pings
+
+### Session expired → auto-redirect to login
+```javascript
+// CORRECT — all withFailureHandler must use handleSessionError
+.withFailureHandler(function(err) {
+  handleSessionError(err);  // redirects if "Session expired", shows toast otherwise
+})
+
+// WRONG — shows confusing toast instead of redirecting
+.withFailureHandler(function(err) {
+  showToast('⚠️ ' + err.message, 'error');
+})
+```
+
+### Direct server functions (bypass handleApiCall)
+Use `getUserEmailFromToken(sessionToken)` as the first call in any new direct GAS function:
+```javascript
+// CORRECT
+function saveExpenses(sessionToken, weekStart, expenses) {
+  var email = getUserEmailFromToken(sessionToken); // throws 'Session expired' if invalid
+  // ...
+}
+
+// WRONG — Session.getActiveUser() returns empty in web app context
+function saveExpenses(weekStart, expenses) {
+  var email = Session.getActiveUser().getEmail(); // always empty!
+}
+```
+
+### Never use Session.getActiveUser()
+`Session.getActiveUser()` returns empty string in web apps deployed as "Execute as: Me".
+Always authenticate via `getUserEmailFromToken(token)` or `getSessionUser(token)`.
+
+### window.open() for print pages
+Must happen inside `withSuccessHandler` callback (after getting HTML from server):
+```javascript
+// CORRECT — window.open after async call completes
+google.script.run
+  .withSuccessHandler(function(htmlContent) {
+    var w = window.open('', '_blank');
+    if (!w) { showToast('กรุณา allow popup แล้วลองใหม่', 'error'); return; }
+    w.document.write(htmlContent);
+    w.document.close();
+    w.focus();
+  })
+  .getCoverSheetHtml(...);
+
+// WRONG — window.open before getting HTML (opens blank tab)
+var w = window.open('', '_blank');
+google.script.run.withSuccessHandler(function(html) { w.document.write(html); })...
+```

@@ -23,7 +23,7 @@ const CONFIG = {
                         .filter(Boolean),
   MAX_ACCOMMODATION:  500,    // ฿/night cap
   DAILY_ALLOWANCE:    200,    // ฿/provincial overnight
-  SESSION_TTL_SEC:    3600,   // token cache TTL
+  SESSION_TTL_SEC:    28800,  // token cache TTL (8 hours)
   RATE_LIMIT_PER_MIN: 60,
   VERSION:            '2.1.0',
 };
@@ -198,6 +198,17 @@ function doPost(e) {
   try {
     var _body = JSON.parse(e.postData.contents);
     if (_body && Array.isArray(_body.events) && _body.destination !== undefined) {
+      // [TEMP DEBUG] log all events from MILEAGE_GROUP_ID → sheet "Debug"
+      try {
+        var _groupId = prop('MILEAGE_GROUP_ID');
+        if (_groupId) {
+          _body.events.forEach(function(_ev) {
+            if (_ev.source && _ev.source.groupId === _groupId) {
+              debugLogMileageEvent(_ev);
+            }
+          });
+        }
+      } catch (_de) { console.warn('[Debug] log err: ' + _de.message); }
       return handleMileageBotWebhook(e);
     }
   } catch (_) {}
@@ -372,12 +383,27 @@ function initSession(idToken) {
   return { token: token, profile: user };
 }
 
-// getSessionUser: ดึง user object จาก session token
+// getSessionUser: ดึง user object จาก session token + refresh TTL ทุกครั้งที่ใช้
 function getSessionUser(token) {
   if (!token) return null;
-  var json = CacheService.getScriptCache().get('sess_' + token);
+  var cache = CacheService.getScriptCache();
+  var json = cache.get('sess_' + token);
   if (!json) return null;
-  try { return JSON.parse(json); } catch (_) { return null; }
+  try {
+    var user = JSON.parse(json);
+    cache.put('sess_' + token, json, CONFIG.SESSION_TTL_SEC); // refresh TTL
+    return user;
+  } catch (_) { return null; }
+}
+
+// getUserEmailFromToken: ดึง email จาก session token — throw ถ้า expired
+// ใช้กับ direct function calls (saveExpenses, loadExpenses ฯลฯ)
+function getUserEmailFromToken(token) {
+  var cache = CacheService.getScriptCache();
+  var json = cache.get('sess_' + token);
+  if (!json) throw new Error('Session expired');
+  cache.put('sess_' + token, json, CONFIG.SESSION_TTL_SEC); // refresh TTL
+  try { return JSON.parse(json).email; } catch (_) { throw new Error('Session expired'); }
 }
 
 // ─── PUBLIC API HANDLER — เรียกจาก google.script.run ────────
@@ -4680,6 +4706,20 @@ function saveSettlementExpenses(data, user) {
   try { CacheService.getScriptCache().remove('stl_' + targetEmail + '_' + data.weekStart); } catch(_) {}
 
   return { saved: inserted };
+}
+
+// saveExpenses: direct call (sessionToken เป็น param แรก — ไม่ผ่าน handleApiCall)
+function saveExpenses(sessionToken, weekStart, expenses) {
+  var email = getUserEmailFromToken(sessionToken);
+  var user  = getSessionUser(sessionToken);
+  if (!user) throw new Error('Session expired');
+  return saveSettlementExpenses({ weekStart: weekStart, expenses: expenses, dsrEmail: email }, user);
+}
+
+// loadExpenses: direct call (sessionToken เป็น param แรก — ไม่ผ่าน handleApiCall)
+function loadExpenses(sessionToken, weekStart) {
+  var email = getUserEmailFromToken(sessionToken);
+  return getSettlementExpenses(weekStart, email);
 }
 
 // ─── getSettlementPageData — batch loader for settlement page ─────────────

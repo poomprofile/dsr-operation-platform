@@ -40,13 +40,15 @@
 
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { height: 100%; -webkit-text-size-adjust: 100%; }
+html { height: 100%; overflow: hidden; -webkit-text-size-adjust: 100%; }
 body {
   font-family: var(--font-body);
   background: var(--surface);
   color: var(--ink);
   height: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   -webkit-font-smoothing: antialiased;
 }
 button { font-family: var(--font-body); cursor: pointer; border: none; background: none; }
@@ -402,31 +404,43 @@ body.no-overnight .stl-ov-col { display: none; }
   .bottom-nav { display: none; }
   .main-content { padding-top: var(--nav-h); padding-bottom: 24px; }
   .admin-layout {
-    display: grid;
-    grid-template-columns: var(--sidebar-w) 1fr;
+    padding-left: var(--sidebar-w);
     min-height: calc(100vh - var(--nav-h));
-    transition: grid-template-columns 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: padding-left 250ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .admin-layout.sb-collapsed { grid-template-columns: var(--sidebar-collapsed-w) 1fr; }
+  .admin-layout.sb-collapsed { padding-left: var(--sidebar-collapsed-w); }
   .main-content { min-width: 0; overflow-x: hidden; }
   .sidebar {
     display: flex !important;
     flex-direction: column;
     background: var(--card);
     border-right: 1px solid var(--border);
-    padding: 20px 12px;
-    position: sticky;
+    padding: 0;
+    position: fixed;
     top: var(--nav-h);
+    left: 0;
     height: calc(100vh - var(--nav-h));
+    overflow: hidden;
+    width: var(--sidebar-w);
+    z-index: 99;
+    transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sidebar.collapsed { width: var(--sidebar-collapsed-w); }
+  .sb-menu-scroll {
+    flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    width: var(--sidebar-w);
-    transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1), padding 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 20px 12px 8px;
+    scrollbar-width: none;
   }
-  .sidebar.collapsed {
-    width: var(--sidebar-collapsed-w);
-    padding: 20px 8px;
+  .sb-menu-scroll::-webkit-scrollbar { display: none; }
+  .sb-logout-wrap {
+    flex-shrink: 0;
+    padding: 8px 12px 16px;
+    border-top: 1px solid var(--border);
   }
+  .sidebar.collapsed .sb-menu-scroll { padding: 20px 8px 8px; }
+  .sidebar.collapsed .sb-logout-wrap { padding: 8px 8px 16px; }
 }
 .sidebar { display: none; }
 .sidebar-section-label {
@@ -439,7 +453,12 @@ body.no-overnight .stl-ov-col { display: none; }
   margin-top: 8px;
 }
 .sidebar > .sidebar-section-label:first-of-type {
-  margin-top: 8px;
+  margin-top: 0;
+}
+/* first-section-label: เนื่องจาก :first-of-type ทำงานกับ element tag ไม่ใช่ class
+   ให้ใช้ .sb-first-label แทน เพื่อ remove margin บน section label แรก */
+.sidebar > .sb-first-label {
+  margin-top: 0;
 }
 .sidebar-item {
   display: flex;
@@ -469,19 +488,21 @@ body.no-overnight .stl-ov-col { display: none; }
 .sidebar-item.active svg circle { stroke: var(--o); }
 
 /* ── Collapsible sidebar ── */
+/* FIX: position absolute so toggle doesn't consume vertical flex-column space,
+   eliminating the ~64px gap above the first nav item (Dashboard) */
 .sb-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: absolute;
+  top: 10px;
+  right: 8px;
   width: 28px;
   height: 28px;
   border-radius: 6px;
   border: 1px solid var(--border2);
   background: var(--surface);
   cursor: pointer;
-  margin-bottom: 0;
-  align-self: flex-end;
-  flex-shrink: 0;
   color: var(--ink3);
   transition: background .15s;
 }
@@ -510,7 +531,7 @@ body.no-overnight .stl-ov-col { display: none; }
   pointer-events: none;
   z-index: 200;
 }
-.sidebar.collapsed .sb-toggle { align-self: center; }
+/* collapsed: toggle stays absolute, nothing to override */
 
 .card {
   background: var(--card);
@@ -1735,48 +1756,51 @@ body.no-overnight .stl-ov-col { display: none; }
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
 
-        <div class="sidebar-section-label">ภาพรวม</div>
-        <div class="sidebar-item active" onclick="navTo('home')" data-label="Dashboard">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6L8 2l6 4v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
-          <span class="sidebar-label">Dashboard</span>
-        </div>
-        <div class="sidebar-item" onclick="navTo('admin-dsrs')" data-label="ทีม DSR">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 14c0-2.761 2.239-5 5-5s5 2.239 5 5" stroke="currentColor" stroke-width="1.4"/><path d="M11 7l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          <span class="sidebar-label">ทีม DSR</span>
+        <div class="sb-menu-scroll" id="sb-menu-scroll">
+          <div class="sidebar-section-label sb-first-label">ภาพรวม</div>
+          <div class="sidebar-item active" onclick="navTo('home')" data-label="Dashboard">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6L8 2l6 4v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            <span class="sidebar-label">Dashboard</span>
+          </div>
+          <div class="sidebar-item" onclick="navTo('admin-dsrs')" data-label="ทีม DSR">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 14c0-2.761 2.239-5 5-5s5 2.239 5 5" stroke="currentColor" stroke-width="1.4"/><path d="M11 7l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <span class="sidebar-label">ทีม DSR</span>
+          </div>
+
+          <div class="sidebar-section-label">โมดูล</div>
+          <div class="sidebar-item" onclick="navTo('mileage')" data-label="สรุปเลขไมล์">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 4v4l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <span class="sidebar-label">สรุปเลขไมล์</span>
+          </div>
+          <div class="sidebar-item" onclick="navTo('milagebot')" id="sb-milagebot" data-label="บันทึกไมล์ Bot">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
+            <span class="sidebar-label">บันทึกไมล์ Bot</span>
+          </div>
+          <div class="sidebar-item" onclick="navTo('collection')" data-label="สรุปการเก็บเงิน">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <span class="sidebar-label">สรุปการเก็บเงิน</span>
+          </div>
+          <div class="sidebar-item" onclick="navTo('settlement')" data-label="ยอดนำส่ง">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 9l3 3 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/></svg>
+            <span class="sidebar-label">ยอดนำส่ง</span>
+          </div>
+
+          <div class="sidebar-section-label sidebar-admin-section">ADMIN</div>
+          <div class="sidebar-item sidebar-admin-section" onclick="navTo('import')" data-label="Import CSV">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 10v3h10v-3M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="sidebar-label">Import CSV</span>
+          </div>
+          <div class="sidebar-item sidebar-admin-section" onclick="navTo('print')" data-label="สรุปใบโอน">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M3 9h10v5H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <span class="sidebar-label">สรุปใบโอน Slip2Go</span>
+          </div>
         </div>
 
-        <div class="sidebar-section-label">โมดูล</div>
-        <div class="sidebar-item" onclick="navTo('mileage')" data-label="สรุปเลขไมล์">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 4v4l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          <span class="sidebar-label">สรุปเลขไมล์</span>
-        </div>
-        <div class="sidebar-item" onclick="navTo('milagebot')" id="sb-milagebot" data-label="บันทึกไมล์ Bot">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
-          <span class="sidebar-label">บันทึกไมล์ Bot</span>
-        </div>
-        <div class="sidebar-item" onclick="navTo('collection')" data-label="สรุปการเก็บเงิน">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          <span class="sidebar-label">สรุปการเก็บเงิน</span>
-        </div>
-        <div class="sidebar-item" onclick="navTo('settlement')" data-label="ยอดนำส่ง">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 9l3 3 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/></svg>
-          <span class="sidebar-label">ยอดนำส่ง</span>
-        </div>
-
-        <div class="sidebar-section-label sidebar-admin-section">ADMIN</div>
-        <div class="sidebar-item sidebar-admin-section" onclick="navTo('import')" data-label="Import CSV">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 10v3h10v-3M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span class="sidebar-label">Import CSV</span>
-        </div>
-        <div class="sidebar-item sidebar-admin-section" onclick="navTo('print')" data-label="สรุปใบโอน">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M3 9h10v5H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          <span class="sidebar-label">สรุปใบโอน Slip2Go</span>
-        </div>
-
-        <div style="flex:1;"></div>
-        <div class="sidebar-item" onclick="doLogout()" data-label="ออกจากระบบ" style="margin-top:auto;">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 11l3-3-3-3M13 8H6M7 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span class="sidebar-label">ออกจากระบบ</span>
+        <div class="sb-logout-wrap">
+          <div class="sidebar-item" onclick="doLogout()" data-label="ออกจากระบบ">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 11l3-3-3-3M13 8H6M7 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="sidebar-label">ออกจากระบบ</span>
+          </div>
         </div>
       </div>
 
@@ -2758,6 +2782,20 @@ function doLogout() {
 }
 
 // ─── API — ใช้ google.script.run (ไม่มี CORS ปัญหา) ──────────
+// handleSessionError: ตรวจ error message — ถ้า session expired → redirect login
+// ถ้าเป็น error อื่น → show toast ตามปกติ
+function handleSessionError(err) {
+  var msg = (err && err.message) ? err.message : 'เกิดข้อผิดพลาด';
+  if (msg.includes('Session expired') || msg.includes('session expired')) {
+    showToast('⏳ Session หมดอายุ — กำลัง redirect...', 'warning');
+    setTimeout(function() {
+      window.top.location.href = window.top.location.href.split('?')[0];
+    }, 1500);
+    return;
+  }
+  showToast('⚠️ ' + msg, 'error');
+}
+
 function apiCall(action, payload) {
   payload = payload || {};
   // ส่ง session token (GIS) หรือ _callerEmail fallback สำหรับ sub-pages
@@ -2777,8 +2815,7 @@ function apiCall(action, payload) {
         resolve(result);
       })
       .withFailureHandler(function(err) {
-        var msg = (err && err.message) ? err.message : 'เกิดข้อผิดพลาด';
-        showToast('⚠️ ' + msg, 'error');
+        handleSessionError(err);
         resolve(null);
       })
       .handleApiCall(action, payload);
@@ -3612,9 +3649,9 @@ function stlRecalc() {
   }
 }
 
-async function stlSaveExpenses() {
+function stlSaveExpenses() {
   var weekStart = stlWeekStart();
-  if (!weekStart || !currentUser) return;
+  if (!weekStart || !currentUser || !_sessionToken) return;
 
   var expenses = [];
   document.querySelectorAll('#stl-exp-body tr[data-date]').forEach(function(tr) {
@@ -3627,19 +3664,23 @@ async function stlSaveExpenses() {
   var btn = document.getElementById('stl-save-btn');
   if (btn) { btn.textContent = '⏳ กำลังบันทึก...'; btn.style.opacity = '.7'; btn.style.pointerEvents = 'none'; }
 
-  var result = await apiCall('SAVE_SETTLEMENT_EXPENSES', {
-    data: { dsrEmail: currentUser.email, weekStart: weekStart, expenses: expenses }
-  });
-
-  if (btn) { btn.textContent = '💾 บันทึกค่าใช้จ่าย'; btn.style.opacity = '1'; btn.style.pointerEvents = ''; }
-  if (result != null) {
-    _stlDirty = false;
-    showToast('✅ บันทึกแล้ว (' + (result.saved || 0) + ' รายการ)', 'success');
-    _stlSavedExp = {};
-    expenses.forEach(function(e) {
-      _stlSavedExp[e.date] = { date: e.date, fuel: e.fuel, hotel: e.hotel, allowance: e.hotel > 0 ? 200 : 0 };
-    });
-  }
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (btn) { btn.textContent = '💾 บันทึกค่าใช้จ่าย'; btn.style.opacity = '1'; btn.style.pointerEvents = ''; }
+      if (result != null) {
+        _stlDirty = false;
+        showToast('✅ บันทึกแล้ว (' + (result.saved || 0) + ' รายการ)', 'success');
+        _stlSavedExp = {};
+        expenses.forEach(function(e) {
+          _stlSavedExp[e.date] = { date: e.date, fuel: e.fuel, hotel: e.hotel, allowance: e.hotel > 0 ? 200 : 0 };
+        });
+      }
+    })
+    .withFailureHandler(function(err) {
+      if (btn) { btn.textContent = '💾 บันทึกค่าใช้จ่าย'; btn.style.opacity = '1'; btn.style.pointerEvents = ''; }
+      handleSessionError(err);
+    })
+    .saveExpenses(_sessionToken, weekStart, expenses);
 }
 
 async function stlPrint() {
@@ -3681,7 +3722,7 @@ async function stlPrint() {
       w.document.close();
     })
     .withFailureHandler(function(err) {
-      showToast('⚠️ ' + ((err && err.message) || 'เกิดข้อผิดพลาด'), 'error');
+      handleSessionError(err);
     })
     .generateSettlementPDF({
       dsrName:        currentUser.display_name || currentUser.email,
@@ -5662,7 +5703,7 @@ function csSave(){
   function doPrint(){
     btn.textContent='กำลังสร้างใบสรุป...';
     google.script.run
-      .withSuccessHandler(function(htmlStr){btn.style.opacity='1';btn.textContent='บันทึก + สร้าง Cover Sheet';if(!htmlStr){showToast('ไม่มีข้อมูล','error');return;}var w=window.open('','_blank');w.document.write(htmlStr);w.document.close();showToast('เปิดหน้าพิมพ์แล้ว','success');})
+      .withSuccessHandler(function(htmlStr){btn.style.opacity='1';btn.textContent='บันทึก + สร้าง Cover Sheet';if(!htmlStr){showToast('ไม่มีข้อมูล','error');return;}var w=window.open('','_blank');if(!w){showToast('กรุณา allow popup แล้วลองใหม่','error');return;}w.document.write(htmlStr);w.document.close();w.focus();showToast('เปิดหน้าพิมพ์แล้ว','success');})
       .withFailureHandler(function(e){btn.style.opacity='1';btn.textContent='บันทึก + สร้าง Cover Sheet';showToast('ERROR: '+e.message,'error');})
       .getCoverSheetHtml(currentUser.email,monStr,sunStr,billAmt,rowOrder);
   }
