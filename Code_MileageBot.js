@@ -108,6 +108,7 @@ function getMileageBotSummary(weekStart, dsrEmail) {
         imageUrl:      eve.imageUrl,
         errorFlag:     eve.errorFlag,
       } : null,
+      zone:             userRow.province_zone || '',
       startMile:        startMile,
       endMile:          endMile,
       distance:         distance,

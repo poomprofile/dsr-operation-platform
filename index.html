@@ -3329,7 +3329,7 @@ async function mbLoad() {
   try {
     _mbRows = await apiCall('GET_BOT_MILEAGE_SUMMARY', { weekStart: _mbWeekStart, dsrEmail: dsrEmail });
     _mbRows = _mbRows || [];
-    mbRenderTable(_mbRows);
+    mbRenderTable(_mbRows, dsrEmail);
     mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
   } catch(err) {
     if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="stl-empty-msg">เกิดข้อผิดพลาด: ' + err.message + '</td></tr>';
@@ -3351,7 +3351,28 @@ function mbFmtMile(session) {
   return String(session.confirmedMile).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-function mbRenderTable(rows) {
+function mbRenderRow(r) {
+  var mornBg   = mbCellBg(r.morning);
+  var eveBg    = mbCellBg(r.evening);
+  var rowStyle = r.errorFlag ? 'border-left:3px solid #E53935;' : '';
+  var mornId   = r.morning ? r.morning.id : '';
+  var eveId    = r.evening ? r.evening.id : '';
+  return '<tr style="' + rowStyle + '">' +
+    '<td>' + (r.dateLabel || r.date) + '</td>' +
+    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + mornId + '\',\'เช้า\',' + (r.morning && r.morning.confirmedMile !== null ? r.morning.confirmedMile : 'null') + ',\'' + (r.morning && r.morning.imageUrl ? r.morning.imageUrl : '') + '\')">' +
+      mbFmtMile(r.morning) +
+    '</td>' +
+    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + eveId + '\',\'เย็น\',' + (r.evening && r.evening.confirmedMile !== null ? r.evening.confirmedMile : 'null') + ',\'' + (r.evening && r.evening.imageUrl ? r.evening.imageUrl : '') + '\')">' +
+      mbFmtMile(r.evening) +
+    '</td>' +
+    '<td class="r">' + (r.distance !== null ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
+    '<td>' + (r.vehicleType === 'personal' ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
+    '<td class="r">' + (r.depreciationCost ? r.depreciationCost.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</td>' +
+    '<td>' + (r.errorFlag ? '<span style="color:#E53935;font-size:11px;">' + r.errorFlag + '</span>' : '<span style="color:var(--g);font-size:11px;">✓</span>') + '</td>' +
+    '</tr>';
+}
+
+function mbRenderTable(rows, filterEmail) {
   var tbody = document.getElementById('mb-body');
   var tfoot = document.getElementById('mb-foot');
   if (!tbody) return;
@@ -3362,32 +3383,37 @@ function mbRenderTable(rows) {
   }
 
   var totDist = 0, totDepr = 0;
-  tbody.innerHTML = rows.map(function(r) {
-    if (r.distance !== null) totDist += r.distance;
-    totDepr += r.depreciationCost || 0;
+  var isAllView = !filterEmail;
+  var html = '';
 
-    var mornBg  = mbCellBg(r.morning);
-    var eveBg   = mbCellBg(r.evening);
-    var rowStyle = r.errorFlag ? 'border-left:3px solid #E53935;' : '';
+  if (isAllView) {
+    // Group by DSR with section header per DSR
+    var groups = {}, groupOrder = [];
+    rows.forEach(function(r) {
+      if (!groups[r.dsrEmail]) { groups[r.dsrEmail] = []; groupOrder.push(r.dsrEmail); }
+      groups[r.dsrEmail].push(r);
+    });
+    groupOrder.forEach(function(email) {
+      var u    = (window._dsrUsers || []).find(function(u) { return u.email === email; }) || {};
+      var name = u.display_name || email;
+      html += '<tr style="background:#EEF2FF;">' +
+        '<td colspan="7" style="font-weight:700;padding:8px 12px;font-size:13px;color:#3730A3;">' + name + '</td>' +
+        '</tr>';
+      groups[email].forEach(function(r) {
+        if (r.distance !== null) totDist += r.distance;
+        totDepr += r.depreciationCost || 0;
+        html += mbRenderRow(r);
+      });
+    });
+  } else {
+    rows.forEach(function(r) {
+      if (r.distance !== null) totDist += r.distance;
+      totDepr += r.depreciationCost || 0;
+      html += mbRenderRow(r);
+    });
+  }
 
-    var mornId  = r.morning  ? r.morning.id  : '';
-    var eveId   = r.evening  ? r.evening.id  : '';
-
-    return '<tr style="' + rowStyle + '">' +
-      '<td>' + (r.dateLabel || r.date) + '</td>' +
-      '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + mornId + '\',\'เช้า\',' + (r.morning && r.morning.confirmedMile !== null ? r.morning.confirmedMile : 'null') + ',\'' + (r.morning && r.morning.imageUrl ? r.morning.imageUrl : '') + '\')">' +
-        mbFmtMile(r.morning) +
-      '</td>' +
-      '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + eveId + '\',\'เย็น\',' + (r.evening && r.evening.confirmedMile !== null ? r.evening.confirmedMile : 'null') + ',\'' + (r.evening && r.evening.imageUrl ? r.evening.imageUrl : '') + '\')">' +
-        mbFmtMile(r.evening) +
-      '</td>' +
-      '<td class="r">' + (r.distance !== null ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
-      '<td>' + (r.vehicleType === 'personal' ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
-      '<td class="r">' + (r.depreciationCost ? r.depreciationCost.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</td>' +
-      '<td>' + (r.errorFlag ? '<span style="color:#E53935;font-size:11px;">' + r.errorFlag + '</span>' : '<span style="color:var(--g);font-size:11px;">✓</span>') + '</td>' +
-      '</tr>';
-  }).join('');
-
+  tbody.innerHTML = html;
   if (tfoot) {
     tfoot.innerHTML = '<tr>' +
       '<td colspan="3" style="font-weight:600;">รวม</td>' +

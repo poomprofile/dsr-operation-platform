@@ -591,16 +591,19 @@ function routeAction(action, payload, user) {
     GENERATE_ALL_REPORTS_PDF: () => generateAllReportsPDF(payload),
     // Mileage Bot (Code_MileageBot.gs)
     GET_BOT_MILEAGE_SUMMARY:   () => {
-      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
-      return getMileageBotSummary(payload.weekStart, em || null);
+      // DSR: forced to own email. Admin: payload.dsrEmail ('' = all DSRs → null)
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || null);
+      return getMileageBotSummary(payload.weekStart, em);
     },
     UPDATE_MILEAGE_RECORD:     () => updateMileageBotRecord(payload.id, payload.confirmedMile, user),
     GET_MILEAGE_WEEKLY_SUMMARY:() => {
-      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      var em = (user.role === ROLES.DSR) ? user.email : payload.dsrEmail;
+      if (!em) return null;
       return getMileageWeeklySummary(em, payload.weekStart);
     },
     SUBMIT_WEEKLY_MILEAGE:     () => {
-      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      var em = (user.role === ROLES.DSR) ? user.email : payload.dsrEmail;
+      if (!em) throw new Error('ต้องเลือก DSR ก่อนส่งสรุป');
       return submitWeeklyMileageSummary(em, payload.weekStart, user);
     },
   };
