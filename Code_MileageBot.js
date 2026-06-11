@@ -29,14 +29,22 @@ var MB_STATUS_COLS = ['id', 'dsrEmail', 'weekStart', 'submittedAt'];
 //  dsrEmail: filter to one DSR; pass '' for admin (all DSRs)
 // ─────────────────────────────────────────────────────────────────────
 function getMileageBotSummary(weekStart, dsrEmail) {
-  console.log('[getMileageBotSummary] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
+  console.log('[getMileageBotSummary] weekStart=%s dsrEmail=%s SPREADSHEET_ID=%s',
+    weekStart, dsrEmail, prop('SPREADSHEET_ID'));
   ensureMileageSheet();
   var sheet = getMileageSheet();
-  if (!sheet) return [];
+  if (!sheet) {
+    console.warn('[getMileageBotSummary] Mileage sheet NOT FOUND in spreadsheet');
+    return [];
+  }
 
   var data = sheet.getDataRange().getValues();
+  console.log('[getMileageBotSummary] total rows (excl header): %s', data.length - 1);
   if (data.length < 2) return [];
   var headers = data[0];
+  var _dIdx = headers.indexOf('date'), _eIdx = headers.indexOf('dsrEmail');
+  console.log('[getMileageBotSummary] sample[1] date=%j(%s) email=%j(%s)',
+    data[1][_dIdx], typeof data[1][_dIdx], data[1][_eIdx], typeof data[1][_eIdx]);
 
   var start = new Date(weekStart + 'T00:00:00');
   var end   = new Date(weekStart + 'T00:00:00');
@@ -56,6 +64,7 @@ function getMileageBotSummary(weekStart, dsrEmail) {
     if (r.session === 'morning') map[key].morning = r;
     if (r.session === 'evening') map[key].evening = r;
   });
+  console.log('[getMileageBotSummary] map entries after filter: %s', Object.keys(map).length);
 
   var thaiDay = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
   var result  = Object.values(map).map(function(day) {
