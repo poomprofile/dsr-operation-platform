@@ -1792,11 +1792,7 @@ body.no-overnight .stl-ov-col { display: none; }
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 4v4l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             <span class="sidebar-label">สรุปเลขไมล์</span>
           </div>
-          <div class="sidebar-item" onclick="navTo('milagebot')" id="sb-milagebot" data-label="บันทึกไมล์ Bot">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
-            <span class="sidebar-label">บันทึกไมล์ Bot</span>
-          </div>
-          <div class="sidebar-item" onclick="navTo('collection')" data-label="สรุปการเก็บเงิน">
+<div class="sidebar-item" onclick="navTo('collection')" data-label="สรุปการเก็บเงิน">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             <span class="sidebar-label">สรุปการเก็บเงิน</span>
           </div>
@@ -1937,43 +1933,7 @@ body.no-overnight .stl-ov-col { display: none; }
         
         <div class="page" id="page-mileage">
           <div class="section-header">
-            <div class="section-title">สรุปไมล์รถ</div>
-          </div>
-
-          <div class="stl-week-bar">
-            <select id="ml-week-sel" class="stl-week-sel" onchange="mileageLoad()">
-              <!-- populated by mileageBuildWeekOptions() -->
-            </select>
-          </div>
-
-          <div class="card mb-16" id="ml-summary-card">
-            <div class="card-title">🚗 ระยะทางรายวัน</div>
-            <div style="overflow-x:auto;">
-              <table class="stl-table">
-                <thead>
-                  <tr>
-                    <th>วันที่</th>
-                    <th>เขต/จังหวัด</th>
-                    <th class="r">ระยะทาง (กม.)</th>
-                    <th>ประเภทรถ</th>
-                    <th class="r">ค่าเสื่อม (฿)</th>
-                  </tr>
-                </thead>
-                <tbody id="ml-body">
-                  <tr><td colspan="5" class="stl-empty-msg">กำลังโหลด...</td></tr>
-                </tbody>
-                <tfoot id="ml-foot"></tfoot>
-              </table>
-            </div>
-          </div>
-        </div>
-        
-
-
-        <!-- ── page-milagebot ── บันทึกไมล์ Bot ── -->
-        <div class="page" id="page-milagebot">
-          <div class="section-header">
-            <div class="section-title">บันทึกไมล์ Bot</div>
+            <div class="section-title">สรุปเลขไมล์</div>
           </div>
 
           <!-- Admin: DSR selector -->
@@ -2395,12 +2355,14 @@ body.no-overnight .stl-ov-col { display: none; }
               <div class="hist-tab"        onclick="switchHistTab('slips')">🧾 สรุปใบโอน</div>
               <div class="hist-tab"        onclick="switchHistTab('expenses')">📋 ค่าใช้จ่าย</div>
               <div class="hist-tab"        onclick="switchHistTab('settlement')">📊 ยอดนำส่ง</div>
+              <div class="hist-tab"        onclick="switchHistTab('mileage')">🚗 ไมล์รถ</div>
             </div>
             <div class="card" style="padding:0;overflow:auto;">
               <div id="histTab-cash"       class="hist-tab-content"></div>
               <div id="histTab-slips"      class="hist-tab-content" style="display:none;"></div>
               <div id="histTab-expenses"   class="hist-tab-content" style="display:none;"></div>
               <div id="histTab-settlement" class="hist-tab-content" style="display:none;"></div>
+              <div id="histTab-mileage"    class="hist-tab-content" style="display:none;"></div>
             </div>
           </div>
         </div>
@@ -2431,12 +2393,14 @@ body.no-overnight .stl-ov-col { display: none; }
               <div class="hist-tab"        onclick="switchAdminTab('slips')">🧾 สรุปใบโอน</div>
               <div class="hist-tab"        onclick="switchAdminTab('expenses')">📋 ค่าใช้จ่าย</div>
               <div class="hist-tab"        onclick="switchAdminTab('settlement')">📊 ยอดนำส่ง</div>
+              <div class="hist-tab"        onclick="switchAdminTab('mileage')">🚗 ไมล์รถ</div>
             </div>
             <div class="card" style="padding:0;overflow:auto;">
               <div id="adminTab-cash"       class="hist-tab-content"></div>
               <div id="adminTab-slips"      class="hist-tab-content" style="display:none;"></div>
               <div id="adminTab-expenses"   class="hist-tab-content" style="display:none;"></div>
               <div id="adminTab-settlement" class="hist-tab-content" style="display:none;"></div>
+              <div id="adminTab-mileage"    class="hist-tab-content" style="display:none;"></div>
             </div>
           </div>
         </div>
@@ -3215,63 +3179,6 @@ async function saveFuel() {
 async function confirmSettlement() {
   const result = await apiCall('CONFIRM_SETTLEMENT', { week_number: getCurrentWeekNumber() });
   if (result) showToast('✅ ยืนยันยอดนำส่งแล้ว — รอส่งวันเสาร์', 'success');
-}
-
-// ─── MILEAGE SUMMARY (Task 4) ─────────────────────────────────
-function mileageBuildWeekOptions() {
-  var sel = document.getElementById('ml-week-sel');
-  if (!sel || sel.options.length > 0) return;
-  var today  = new Date();
-  var monday = stlGetMonday(today);
-  for (var i = 0; i < 9; i++) {
-    var mon = new Date(monday);
-    mon.setDate(monday.getDate() - i * 7);
-    var opt = document.createElement('option');
-    opt.value       = stlDateISO(mon);
-    opt.textContent = (i === 0 ? '▶ ' : '') + stlWeekLabel(mon);
-    sel.appendChild(opt);
-  }
-}
-
-async function mileageLoad() {
-  var sel = document.getElementById('ml-week-sel');
-  var weekStart = sel ? sel.value : '';
-  if (!weekStart || !currentUser) return;
-
-  var tbody = document.getElementById('ml-body');
-  var tfoot = document.getElementById('ml-foot');
-  if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="5" class="stl-empty-msg">⏳ กำลังโหลด...</td></tr>';
-  if (tfoot) tfoot.innerHTML = '';
-
-  var rows = await apiCall('GET_MILEAGE_SUMMARY', { weekStart: weekStart, dsrEmail: currentUser.email });
-  rows = rows || [];
-
-  if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="stl-empty-msg">ไม่มีข้อมูลไมล์อาทิตย์นี้</td></tr>';
-    return;
-  }
-
-  var totDist = 0, totDepr = 0;
-  tbody.innerHTML = rows.map(function(r) {
-    totDist += parseFloat(r.distance) || 0;
-    totDepr += parseFloat(r.depreciation) || 0;
-    return '<tr>' +
-      '<td>' + (r.dateLabel || r.date) + '</td>' +
-      '<td>' + (r.zone || '—') + '</td>' +
-      '<td class="r">' + stlFmtAlways(r.distance || 0) + '</td>' +
-      '<td>' + (r.vehicleType === 'personal' ? '🚙 รถส่วนตัว' : '🚗 รถบริษัท') + '</td>' +
-      '<td class="r">' + stlFmt(r.depreciation) + '</td>' +
-      '</tr>';
-  }).join('');
-  if (tfoot) {
-    tfoot.innerHTML = '<tr>' +
-      '<td colspan="2">รวม</td>' +
-      '<td class="r" style="font-weight:600">' + stlFmtAlways(totDist) + ' กม.</td>' +
-      '<td></td>' +
-      '<td class="r" style="font-weight:600">' + stlFmtAlways(totDepr) + ' ฿</td>' +
-      '</tr>';
-  }
 }
 
 // ─── MILEAGE BOT MODULE ──────────────────────────────────────────
@@ -4139,8 +4046,7 @@ function navTo(page) {
       updateTabIndicator(btn);
     });
   }
-  if (page === 'mileage')    { mileageBuildWeekOptions(); mileageLoad(); }
-  if (page === 'milagebot')  { mbBuildWeekOptions(); mbBuildDsrOptions(); mbLoad(); }
+  if (page === 'mileage')    { mbBuildWeekOptions(); mbBuildDsrOptions(); mbLoad(); }
   if (page === 'print') {
     var shared = document.getElementById('cs-shared');
     var slot   = document.getElementById('cs-slot-print');
@@ -5858,7 +5764,6 @@ function applyRoleUI(role) {
     "navTo('home')":        ['admin','specialist','dsr'],
     "navTo('admin-dsrs')":  ['admin','specialist'],
     "navTo('mileage')":     ['admin','dsr'],
-    "navTo('milagebot')":   ['admin','dsr'],
     "navTo('collection')":  ['admin','specialist','dsr'],
     "navTo('settlement')":  ['admin','specialist','dsr'],
     "navTo('import')":       ['admin'],
@@ -6011,7 +5916,7 @@ function loadAdminLookup() {
 }
 
 function switchHistTab(tab) {
-  ['cash','slips','expenses','settlement'].forEach(function(t) {
+  ['cash','slips','expenses','settlement','mileage'].forEach(function(t) {
     document.getElementById('histTab-' + t).style.display = t === tab ? '' : 'none';
   });
   document.querySelectorAll('#page-history .hist-tab').forEach(function(el) {
@@ -6019,7 +5924,7 @@ function switchHistTab(tab) {
   });
 }
 function switchAdminTab(tab) {
-  ['cash','slips','expenses','settlement'].forEach(function(t) {
+  ['cash','slips','expenses','settlement','mileage'].forEach(function(t) {
     document.getElementById('adminTab-' + t).style.display = t === tab ? '' : 'none';
   });
   document.querySelectorAll('#page-adminLookup .hist-tab').forEach(function(el) {
@@ -6033,13 +5938,40 @@ function renderHistoryTabs(prefix, data) {
   document.getElementById(prefix+'Tab-slips').innerHTML      = renderSlipsTable(data.slips || []);
   document.getElementById(prefix+'Tab-expenses').innerHTML   = renderExpensesTable(data.fuel || [], data.allowance || [], data.maintenance || []);
   document.getElementById(prefix+'Tab-settlement').innerHTML = renderSettlementTable(data.settlement || []);
+  document.getElementById(prefix+'Tab-mileage').innerHTML    = renderMileageHistTable(data.mileage || []);
   // Reset to first tab
-  ['cash','slips','expenses','settlement'].forEach(function(t) {
+  ['cash','slips','expenses','settlement','mileage'].forEach(function(t) {
     document.getElementById(prefix+'Tab-'+t).style.display = t === 'cash' ? '' : 'none';
   });
   document.querySelectorAll('#page-'+pageId+' .hist-tab').forEach(function(el) {
     el.classList.toggle('active', (el.getAttribute('onclick') || '').indexOf("'cash'") >= 0);
   });
+}
+
+function renderMileageHistTable(rows) {
+  if (!rows || !rows.length) return '<div class="hist-empty">ไม่มีข้อมูลไมล์สัปดาห์นี้</div>';
+  var totDist = 0;
+  var body = rows.map(function(r) {
+    var dist = parseFloat(r.distance) || 0;
+    totDist += dist;
+    var isPending = (r.morning && r.morning.pendingFill) || (r.evening && r.evening.pendingFill);
+    var bg = r.errorFlag ? 'background:#FFCDD2;' : (isPending ? 'background:#FFF9C4;' : '');
+    var mornMile = r.morning && r.morning.confirmedMile !== null ? _fmtAmt(r.morning.confirmedMile) : '—';
+    var eveMile  = r.evening && r.evening.confirmedMile !== null ? _fmtAmt(r.evening.confirmedMile) : '—';
+    return '<tr style="' + bg + '">' +
+      '<td>' + _hv(r.dateLabel || r.date) + '</td>' +
+      '<td class="r">' + mornMile + '</td>' +
+      '<td class="r">' + eveMile + '</td>' +
+      '<td class="r">' + (dist ? _fmtAmt(dist) + ' กม.' : '—') + '</td>' +
+      '<td>' + (r.vehicleType === 'personal' ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
+      '<td>' + (r.errorFlag ? '<span style="color:#c62828;font-size:11px;">' + _hv(r.errorFlag) + '</span>' : '✓') + '</td>' +
+      '</tr>';
+  }).join('');
+  return '<table class="hist-table">' +
+    '<thead><tr><th>วันที่</th><th>ไมล์เช้า</th><th>ไมล์เย็น</th><th>ระยะทาง</th><th>รถ</th><th>สถานะ</th></tr></thead>' +
+    '<tbody>' + body +
+    '<tr class="total-row"><td colspan="3">รวมระยะทาง</td><td>' + _fmtAmt(totDist) + ' กม.</td><td colspan="2"></td></tr>' +
+    '</tbody></table>';
 }
 
 // ─── RENDER HELPERS ───────────────────────────────────────────────────

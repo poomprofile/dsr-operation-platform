@@ -5250,6 +5250,22 @@ function getCurrentWeekNumber_() {
   return 1 + Math.round((utc - firstThu) / 604800000);
 }
 
+// แปลง ISO week number → วันจันทร์ต้นสัปดาห์ (YYYY-MM-DD) ใช้ร่วมกับ weekNum()
+function weekNumberToMondayISO(weekNumber) {
+  var now  = new Date();
+  var cur  = getCurrentWeekNumber_();
+  // weekNumber สูงกว่าปัจจุบัน > 26 สัปดาห์ → เป็น week ของปีก่อน (ช่วง Dec ปลายปี)
+  var year = (weekNumber > cur + 26) ? now.getFullYear() - 1 : now.getFullYear();
+  var jan4  = new Date(Date.UTC(year, 0, 4));
+  var dayNo = (jan4.getUTCDay() + 6) % 7;
+  var mon   = new Date(Date.UTC(year, 0, 4 - dayNo + (weekNumber - 1) * 7));
+  var iso   = mon.getUTCFullYear() + '-' +
+    String(mon.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(mon.getUTCDate()).padStart(2, '0');
+  console.log('[weekNumberToMondayISO] wk' + weekNumber + ' (' + year + ') → ' + iso);
+  return iso;
+}
+
 function _findCol(headers, candidates) {
   var lower = headers.map(function(h) { return String(h).toLowerCase().trim(); });
   for (var i = 0; i < candidates.length; i++) {
@@ -5300,6 +5316,7 @@ function getHistoryData(targetEmail, weekNumber, callerEmail, callerRole) {
       return { success: false, error: 'ดูได้เฉพาะ 9 สัปดาห์ย้อนหลัง' };
     }
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var weekStart = weekNumberToMondayISO(weekNumber);
     return {
       success: true,
       data: {
@@ -5310,6 +5327,7 @@ function getHistoryData(targetEmail, weekNumber, callerEmail, callerRole) {
         allowance:   _getSheetRows(ss, SH.ALLOWANCE,   targetEmail, weekNumber),
         maintenance: _getSheetRows(ss, SH.MAINTENANCE, targetEmail, weekNumber),
         settlement:  _getSheetRows(ss, SH.SETTLE_EXP,  targetEmail, weekNumber),
+        mileage:     getMileageBotSummary(weekStart, targetEmail),
       },
     };
   } catch (err) {
@@ -5321,24 +5339,52 @@ function getHistoryData(targetEmail, weekNumber, callerEmail, callerRole) {
 function getAvailableWeeks(targetEmail, callerRole) {
   try {
     var currentWeek = getCurrentWeekNumber_();
-    var ss    = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName(SH.CASH_LOG);
-    if (!sheet) return { success: true, data: [] };
-    var data    = sheet.getDataRange().getValues();
-    if (data.length < 2) return { success: true, data: [] };
-    var headers  = data[0].map(function(h) { return String(h).toLowerCase().trim(); });
-    var emailIdx = _findCol(headers, ['dsremail', 'email', 'dsr_email', 'อีเมล']);
-    var weekIdx  = _findCol(headers, ['weeknumber', 'week', 'week_number', 'สัปดาห์']);
+    var ss   = SpreadsheetApp.openById(prop('SPREADSHEET_ID'));
     var seen = {};
-    for (var i = 1; i < data.length; i++) {
-      if (emailIdx >= 0 && String(data[i][emailIdx]).toLowerCase().trim() !== targetEmail.toLowerCase()) continue;
-      if (weekIdx < 0) continue;
-      var wk = parseInt(data[i][weekIdx]);
-      if (isNaN(wk)) continue;
-      if (callerRole !== 'admin' && (currentWeek - wk) > 9) continue;
-      seen[wk] = true;
+    var tgt  = targetEmail.toLowerCase();
+
+    // Pass 1: CASH_LOG (week_number column)
+    var cashSheet = ss.getSheetByName(SH.CASH_LOG);
+    if (cashSheet) {
+      var cData = cashSheet.getDataRange().getValues();
+      if (cData.length > 1) {
+        var ch     = cData[0].map(function(h) { return String(h).toLowerCase().trim(); });
+        var cEmail = _findCol(ch, ['dsremail', 'email', 'dsr_email', 'อีเมล']);
+        var cWeek  = _findCol(ch, ['weeknumber', 'week', 'week_number', 'สัปดาห์']);
+        for (var i = 1; i < cData.length; i++) {
+          if (cEmail >= 0 && String(cData[i][cEmail]).toLowerCase().trim() !== tgt) continue;
+          if (cWeek < 0) continue;
+          var wk = parseInt(cData[i][cWeek]);
+          if (!isNaN(wk)) seen[wk] = true;
+        }
+      }
     }
-    var weeks = Object.keys(seen).map(Number).sort(function(a, b) { return b - a; });
+
+    // Pass 2: Mileage Bot sheet (date column → weekNum)
+    var mbSheet = ss.getSheetByName(MB.SHEET);
+    if (mbSheet) {
+      var mbData = mbSheet.getDataRange().getValues();
+      if (mbData.length > 1) {
+        var mh     = mbData[0].map(function(h) { return String(h).toLowerCase().trim(); });
+        var mEmail = _findCol(mh, ['dsremail', 'email']);
+        var mDate  = _findCol(mh, ['date']);
+        for (var j = 1; j < mbData.length; j++) {
+          if (mEmail >= 0 && String(mbData[j][mEmail]).toLowerCase().trim() !== tgt) continue;
+          if (mDate < 0) continue;
+          var dv = mbData[j][mDate];
+          var d  = dv instanceof Date ? dv : new Date(String(dv) + 'T00:00:00');
+          if (isNaN(d.getTime())) continue;
+          var mwk = weekNum(d);
+          if (!isNaN(mwk)) seen[mwk] = true;
+        }
+      }
+    }
+
+    var weeks = Object.keys(seen).map(Number).filter(function(wk) {
+      return callerRole === 'admin' || (currentWeek - wk) <= 9;
+    }).sort(function(a, b) { return b - a; });
+
+    console.log('[getAvailableWeeks] ' + targetEmail + ' → ' + weeks.length + ' weeks');
     return { success: true, data: weeks };
   } catch (err) {
     console.log('[getAvailableWeeks] error: ' + err.message);
