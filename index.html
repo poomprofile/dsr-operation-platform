@@ -3236,6 +3236,10 @@ async function mbLoad() {
   try {
     _mbRows = await apiCall('GET_BOT_MILEAGE_SUMMARY', { weekStart: _mbWeekStart, dsrEmail: dsrEmail });
     _mbRows = _mbRows || [];
+    if (_mbRows.length > 0) {
+      console.log('[mbLoad] first row:', JSON.stringify(_mbRows[0]));
+      console.log('[mbLoad] mode:', dsrEmail || 'ALL', 'total rows:', _mbRows.length);
+    }
     mbRenderTable(_mbRows, dsrEmail);
     mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
   } catch(err) {
@@ -3254,7 +3258,7 @@ function mbCellBg(session) {
 
 function mbFmtMile(session) {
   if (!session) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
-  if (session.confirmedMile === null) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
+  if (!isFinite(session.confirmedMile)) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
   return String(session.confirmedMile).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
@@ -3266,15 +3270,15 @@ function mbRenderRow(r) {
   var eveId    = r.evening ? r.evening.id : '';
   return '<tr style="' + rowStyle + '">' +
     '<td>' + (r.dateLabel || r.date) + '</td>' +
-    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + mornId + '\',\'เช้า\',' + (r.morning && r.morning.confirmedMile !== null ? r.morning.confirmedMile : 'null') + ',\'' + (r.morning && r.morning.imageUrl ? r.morning.imageUrl : '') + '\')">' +
+    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + mornId + '\',\'เช้า\',' + (r.morning && isFinite(r.morning.confirmedMile) ? r.morning.confirmedMile : 'null') + ',\'' + (r.morning && r.morning.imageUrl ? r.morning.imageUrl : '') + '\')">' +
       mbFmtMile(r.morning) +
     '</td>' +
-    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + eveId + '\',\'เย็น\',' + (r.evening && r.evening.confirmedMile !== null ? r.evening.confirmedMile : 'null') + ',\'' + (r.evening && r.evening.imageUrl ? r.evening.imageUrl : '') + '\')">' +
+    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + eveId + '\',\'เย็น\',' + (r.evening && isFinite(r.evening.confirmedMile) ? r.evening.confirmedMile : 'null') + ',\'' + (r.evening && r.evening.imageUrl ? r.evening.imageUrl : '') + '\')">' +
       mbFmtMile(r.evening) +
     '</td>' +
-    '<td class="r">' + (r.distance !== null ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
+    '<td class="r">' + (isFinite(r.distance) ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
     '<td>' + (r.vehicleType === 'personal' ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
-    '<td class="r">' + (r.depreciationCost ? r.depreciationCost.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</td>' +
+    '<td class="r">' + (isFinite(r.depreciationCost) && r.depreciationCost ? r.depreciationCost.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</td>' +
     '<td>' + (r.errorFlag ? '<span style="color:#E53935;font-size:11px;">' + r.errorFlag + '</span>' : '<span style="color:var(--g);font-size:11px;">✓</span>') + '</td>' +
     '</tr>';
 }
@@ -3307,15 +3311,15 @@ function mbRenderTable(rows, filterEmail) {
         '<td colspan="7" style="font-weight:700;padding:8px 12px;font-size:13px;color:#3730A3;">' + name + '</td>' +
         '</tr>';
       groups[email].forEach(function(r) {
-        if (r.distance !== null) totDist += r.distance;
-        totDepr += r.depreciationCost || 0;
+        if (isFinite(r.distance)) totDist += r.distance;
+        if (isFinite(r.depreciationCost)) totDepr += r.depreciationCost;
         html += mbRenderRow(r);
       });
     });
   } else {
     rows.forEach(function(r) {
-      if (r.distance !== null) totDist += r.distance;
-      totDepr += r.depreciationCost || 0;
+      if (isFinite(r.distance)) totDist += r.distance;
+      if (isFinite(r.depreciationCost)) totDepr += r.depreciationCost;
       html += mbRenderRow(r);
     });
   }
@@ -3324,9 +3328,9 @@ function mbRenderTable(rows, filterEmail) {
   if (tfoot) {
     tfoot.innerHTML = '<tr>' +
       '<td colspan="3" style="font-weight:600;">รวม</td>' +
-      '<td class="r" style="font-weight:700;">' + totDist.toLocaleString() + ' กม.</td>' +
+      '<td class="r" style="font-weight:700;">' + Number(totDist || 0).toLocaleString() + ' กม.</td>' +
       '<td></td>' +
-      '<td class="r" style="font-weight:700;">' + totDepr.toLocaleString('th-TH', {minimumFractionDigits:2}) + ' ฿</td>' +
+      '<td class="r" style="font-weight:700;">' + Number(totDepr || 0).toLocaleString('th-TH', {minimumFractionDigits:2}) + ' ฿</td>' +
       '<td></td>' +
       '</tr>';
   }
@@ -3421,6 +3425,15 @@ function weekNumFE(date) {
   d.setUTCDate(d.getUTCDate() - dayNo + 3);
   var firstThu = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
   return 1 + Math.round((d - firstThu) / 604800000);
+}
+
+function weekNumToMondayFE(weekNumber) {
+  var now    = new Date();
+  var cur    = weekNumFE(now);
+  var year   = (weekNumber > cur + 26) ? now.getFullYear() - 1 : now.getFullYear();
+  var jan4   = new Date(year, 0, 4);
+  var dayOff = (jan4.getDay() + 6) % 7;
+  return new Date(year, 0, 4 - dayOff + (weekNumber - 1) * 7);
 }
 
 function stlGetMonday(d) {
@@ -5820,7 +5833,8 @@ function initHistorySection() {
         sel.innerHTML = '<option value="">— ไม่มีข้อมูล —</option>'; return;
       }
       sel.innerHTML = res.data.map(function(w) {
-        return '<option value="'+w+'">สัปดาห์ที่ '+w+'</option>';
+        var mon = weekNumToMondayFE(w);
+        return '<option value="'+w+'">'+stlWeekLabel(mon)+'</option>';
       }).join('');
     })
     .withFailureHandler(function(err) {
@@ -5878,7 +5892,7 @@ function onAdminDSRChange() {
         weekSel.innerHTML = '<option value="">— ไม่มีข้อมูล —</option>'; return;
       }
       weekSel.innerHTML = '<option value="">— เลือกสัปดาห์ —</option>' +
-        res.data.map(function(w) { return '<option value="'+w+'">สัปดาห์ที่ '+w+'</option>'; }).join('');
+        res.data.map(function(w) { var mon = weekNumToMondayFE(w); return '<option value="'+w+'">'+stlWeekLabel(mon)+'</option>'; }).join('');
     })
     .withFailureHandler(function(err) { handleSessionError(err); })
     .getAvailableWeeks(dsrSel.value, 'admin');
@@ -5952,12 +5966,12 @@ function renderMileageHistTable(rows) {
   if (!rows || !rows.length) return '<div class="hist-empty">ไม่มีข้อมูลไมล์สัปดาห์นี้</div>';
   var totDist = 0;
   var body = rows.map(function(r) {
-    var dist = parseFloat(r.distance) || 0;
+    var dist = isFinite(r.distance) ? r.distance : 0;
     totDist += dist;
     var isPending = (r.morning && r.morning.pendingFill) || (r.evening && r.evening.pendingFill);
     var bg = r.errorFlag ? 'background:#FFCDD2;' : (isPending ? 'background:#FFF9C4;' : '');
-    var mornMile = r.morning && r.morning.confirmedMile !== null ? _fmtAmt(r.morning.confirmedMile) : '—';
-    var eveMile  = r.evening && r.evening.confirmedMile !== null ? _fmtAmt(r.evening.confirmedMile) : '—';
+    var mornMile = r.morning && isFinite(r.morning.confirmedMile) ? _fmtAmt(r.morning.confirmedMile) : '—';
+    var eveMile  = r.evening && isFinite(r.evening.confirmedMile) ? _fmtAmt(r.evening.confirmedMile) : '—';
     return '<tr style="' + bg + '">' +
       '<td>' + _hv(r.dateLabel || r.date) + '</td>' +
       '<td class="r">' + mornMile + '</td>' +

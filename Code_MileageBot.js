@@ -67,6 +67,12 @@ function getMileageBotSummary(weekStart, dsrEmail) {
   console.log('[getMileageBotSummary] map entries after filter: %s', Object.keys(map).length);
 
   var thaiDay = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+
+  // อ่าน USERS ครั้งเดียวแล้ว build lookup map (ป้องกัน N×sheetRead bottleneck)
+  var usersArr = sheetToObjects('USERS');
+  var userMap  = {};
+  usersArr.forEach(function(u) { if (u.email) userMap[u.email] = u; });
+
   var result  = Object.values(map).map(function(day) {
     var morn = day.morning;
     var eve  = day.evening;
@@ -77,7 +83,7 @@ function getMileageBotSummary(weekStart, dsrEmail) {
     var distance  = (startMile !== null && endMile !== null) ? endMile - startMile : null;
 
     // Depreciation cost (personal vehicles only)
-    var userRow  = sheetToObjects('USERS').find(function(u) { return u.email === day.dsrEmail; }) || {};
+    var userRow  = userMap[day.dsrEmail] || {};
     var deprRate = parseFloat(userRow.depreciation_rate);
     if (isNaN(deprRate)) deprRate = 0;
     var vType      = (morn || eve || {}).vehicleType || userRow.defaultVehicleType || 'company';
