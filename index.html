@@ -3255,31 +3255,42 @@ function mbCellBg(session) {
   if (session.sourceFlag === 'manual')            return '#E8F5E9'; // light green
   return '#F7F5F2';
 }
+function mbMileCellBg(mileVal, isAbnormal) {
+  if (!isFinite(mileVal)) return '#FFF9C4'; // yellow: ยังไม่กรอก
+  if (isAbnormal)          return '#FFCDD2'; // red: ผิดปกติ
+  return '#E8F5E9';                          // green: ok
+}
 
-function mbFmtMile(session) {
-  if (!session) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
-  if (!isFinite(session.confirmedMile)) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
-  return String(session.confirmedMile).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+function mbFmtMile(mile) {
+  if (!isFinite(mile)) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
+  return Number(mile).toLocaleString();
 }
 
 function mbRenderRow(r) {
-  var mornBg   = mbCellBg(r.morning);
-  var eveBg    = mbCellBg(r.evening);
-  var rowStyle = r.errorFlag ? 'border-left:3px solid #E53935;' : '';
-  var mornId   = r.morning ? r.morning.id : '';
-  var eveId    = r.evening ? r.evening.id : '';
+  var isAbnormal = r.status === 'abnormal';
+  var mornBg   = mbMileCellBg(r.morningMile, isAbnormal);
+  var eveBg    = mbMileCellBg(r.eveningMile, isAbnormal);
+  var rowStyle = (r.status === 'abnormal' || r.status === 'no_morning')
+    ? 'border-left:3px solid #E53935;'
+    : (r.status !== 'complete' ? 'border-left:3px solid #F9A825;' : '');
+  var statusHtml;
+  if      (r.status === 'complete')   statusHtml = '<span style="color:var(--g);font-size:11px;">✓ ครบ</span>';
+  else if (r.status === 'no_evening') statusHtml = '<span style="color:#F9A825;font-size:11px;">⏳ รอกรอกเย็น</span>';
+  else if (r.status === 'no_morning') statusHtml = '<span style="color:#E53935;font-size:11px;">⚠️ ไม่มีเช้า</span>';
+  else if (r.status === 'abnormal')   statusHtml = '<span style="color:#E53935;font-size:11px;">⚠️ ผิดปกติ</span>';
+  else                                statusHtml = '<span style="color:var(--ink3);font-size:11px;">— ยังไม่มี</span>';
   return '<tr style="' + rowStyle + '">' +
     '<td>' + (r.dateLabel || r.date) + '</td>' +
-    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + mornId + '\',\'เช้า\',' + (r.morning && isFinite(r.morning.confirmedMile) ? r.morning.confirmedMile : 'null') + ',\'' + (r.morning && r.morning.imageUrl ? r.morning.imageUrl : '') + '\')">' +
-      mbFmtMile(r.morning) +
+    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.morningId||'') + '\',\'เช้า\',' + (isFinite(r.morningMile) ? r.morningMile : 'null') + ',\'' + (r.morningImageUrl||'') + '\')">' +
+      mbFmtMile(r.morningMile) +
     '</td>' +
-    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + eveId + '\',\'เย็น\',' + (r.evening && isFinite(r.evening.confirmedMile) ? r.evening.confirmedMile : 'null') + ',\'' + (r.evening && r.evening.imageUrl ? r.evening.imageUrl : '') + '\')">' +
-      mbFmtMile(r.evening) +
+    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.eveningId||'') + '\',\'เย็น\',' + (isFinite(r.eveningMile) ? r.eveningMile : 'null') + ',\'' + (r.eveningImageUrl||'') + '\')">' +
+      mbFmtMile(r.eveningMile) +
     '</td>' +
     '<td class="r">' + (isFinite(r.distance) ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
     '<td>' + (r.vehicleType === 'personal' ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
     '<td class="r">' + (isFinite(r.depreciationCost) && r.depreciationCost ? r.depreciationCost.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</td>' +
-    '<td>' + (r.errorFlag ? '<span style="color:#E53935;font-size:11px;">' + r.errorFlag + '</span>' : '<span style="color:var(--g);font-size:11px;">✓</span>') + '</td>' +
+    '<td>' + statusHtml + '</td>' +
     '</tr>';
 }
 
@@ -5968,10 +5979,10 @@ function renderMileageHistTable(rows) {
   var body = rows.map(function(r) {
     var dist = isFinite(r.distance) ? r.distance : 0;
     totDist += dist;
-    var isPending = (r.morning && r.morning.pendingFill) || (r.evening && r.evening.pendingFill);
-    var bg = r.errorFlag ? 'background:#FFCDD2;' : (isPending ? 'background:#FFF9C4;' : '');
-    var mornMile = r.morning && isFinite(r.morning.confirmedMile) ? _fmtAmt(r.morning.confirmedMile) : '—';
-    var eveMile  = r.evening && isFinite(r.evening.confirmedMile) ? _fmtAmt(r.evening.confirmedMile) : '—';
+    var isPending = r.status === 'no_evening' || r.status === 'empty';
+    var bg = (r.status === 'abnormal' || r.status === 'no_morning') ? 'background:#FFCDD2;' : (isPending ? 'background:#FFF9C4;' : '');
+    var mornMile = isFinite(r.morningMile) ? _fmtAmt(r.morningMile) : '—';
+    var eveMile  = isFinite(r.eveningMile) ? _fmtAmt(r.eveningMile) : '—';
     return '<tr style="' + bg + '">' +
       '<td>' + _hv(r.dateLabel || r.date) + '</td>' +
       '<td class="r">' + mornMile + '</td>' +

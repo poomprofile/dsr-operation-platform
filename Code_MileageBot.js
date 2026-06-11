@@ -54,7 +54,15 @@ function getMileageBotSummary(weekStart, dsrEmail) {
   var map = {};
   data.slice(1).forEach(function(row) {
     var r = {};
-    headers.forEach(function(h, i) { r[h] = String(row[i] !== undefined ? row[i] : ''); });
+    headers.forEach(function(h, i) {
+      var v = row[i];
+      // Date objects (Google Sheets) → ISO string in Bangkok TZ ป้องกัน "undefined.NaN"
+      if (v instanceof Date) {
+        r[h] = Utilities.formatDate(v, 'Asia/Bangkok', 'yyyy-MM-dd');
+      } else {
+        r[h] = (v !== undefined && v !== null) ? String(v) : '';
+      }
+    });
     if (!r.date) return;
     if (dsrEmail && r.dsrEmail !== dsrEmail) return;
     var dt = new Date(r.date + 'T00:00:00');
@@ -66,66 +74,77 @@ function getMileageBotSummary(weekStart, dsrEmail) {
   });
   console.log('[getMileageBotSummary] map entries after filter: %s', Object.keys(map).length);
 
-  var thaiDay = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  var thaiDay    = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  var thaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
   // อ่าน USERS ครั้งเดียวแล้ว build lookup map (ป้องกัน N×sheetRead bottleneck)
   var usersArr = sheetToObjects('USERS');
   var userMap  = {};
   usersArr.forEach(function(u) { if (u.email) userMap[u.email] = u; });
 
-  var result  = Object.values(map).map(function(day) {
+  var result = Object.values(map).map(function(day) {
     var morn = day.morning;
     var eve  = day.evening;
     var d    = new Date(day.date + 'T00:00:00');
+    var userRow = userMap[day.dsrEmail] || {};
 
-    var startMile = morn && morn.confirmedMile ? parseFloat(morn.confirmedMile) : null;
-    var endMile   = eve  && eve.confirmedMile  ? parseFloat(eve.confirmedMile)  : null;
-    var distance  = (startMile !== null && endMile !== null) ? endMile - startMile : null;
+    // อ่านไมล์จาก column ที่ถูกต้องตาม session structure จริง
+    // morning row → startMile column; evening row → endMile column
+    var mornMileRaw = morn ? parseFloat(morn.startMile) : NaN;
+    var eveMileRaw  = eve  ? parseFloat(eve.endMile)    : NaN;
+    var morningMile = (isFinite(mornMileRaw) && mornMileRaw > 0) ? mornMileRaw : null;
+    var eveningMile = (isFinite(eveMileRaw)  && eveMileRaw  > 0) ? eveMileRaw  : null;
 
-    // Depreciation cost (personal vehicles only)
-    var userRow  = userMap[day.dsrEmail] || {};
-    var deprRate = parseFloat(userRow.depreciation_rate);
+    // Re-compute status + distance จากค่าจริง (อย่าเชื่อ errorFlag ดิบใน sheet)
+    var status, distance = null;
+    if (morningMile !== null && eveningMile !== null) {
+      var diff = eveningMile - morningMile;
+      if (diff < 0 || diff > MB.MAX_DIST_KM) {
+        status = 'abnormal'; // evening < morning หรือต่างเกินปกติ
+      } else {
+        status   = 'complete';
+        distance = Math.round(diff * 100) / 100;
+      }
+    } else if (morningMile !== null) {
+      status = 'no_evening';
+    } else if (eveningMile !== null) {
+      status = 'no_morning';
+    } else {
+      status = 'empty';
+    }
+
+    // Depreciation (personal vehicle only)
+    var deprRate   = parseFloat(userRow.depreciation_rate);
     if (isNaN(deprRate)) deprRate = 0;
-    var vType      = (morn || eve || {}).vehicleType || userRow.defaultVehicleType || 'company';
+    var vType      = ((morn || eve || {}).vehicleType) || userRow.defaultVehicleType || 'company';
     var isPersonal = vType === 'personal';
     var deprCost   = (isPersonal && distance !== null) ? Math.round(distance * deprRate * 100) / 100 : 0;
 
-    var errFlag = (eve && eve.errorFlag) || (morn && morn.errorFlag) || '';
+    // dateLabel: "จ. 10 มิ.ย." — ใช้ thaiDay/thaiMonths เหมือน frontend
+    var dateLabel  = thaiDay[d.getDay()] + '. ' + d.getDate() + ' ' + thaiMonths[d.getMonth()];
 
     return {
-      date:     day.date,
-      dateLabel:thaiDay[d.getDay()] + '. ' + d.getDate(),
-      dsrEmail: day.dsrEmail,
-      morning:  morn ? {
-        id:            morn.id,
-        rawMile:       morn.rawMile       ? parseFloat(morn.rawMile)       : null,
-        confirmedMile: morn.confirmedMile ? parseFloat(morn.confirmedMile) : null,
-        sourceFlag:    morn.sourceFlag,
-        pendingFill:   morn.pendingFill === 'TRUE',
-        imageUrl:      morn.imageUrl,
-        errorFlag:     morn.errorFlag,
-      } : null,
-      evening: eve ? {
-        id:            eve.id,
-        rawMile:       eve.rawMile       ? parseFloat(eve.rawMile)       : null,
-        confirmedMile: eve.confirmedMile ? parseFloat(eve.confirmedMile) : null,
-        sourceFlag:    eve.sourceFlag,
-        pendingFill:   eve.pendingFill === 'TRUE',
-        imageUrl:      eve.imageUrl,
-        errorFlag:     eve.errorFlag,
-      } : null,
-      zone:             userRow.province_zone || '',
-      startMile:        startMile,
-      endMile:          endMile,
+      date:             day.date,
+      dateLabel:        dateLabel,
+      dsrEmail:         day.dsrEmail,
+      morningMile:      morningMile,
+      eveningMile:      eveningMile,
+      morningId:        morn ? (morn.id || '') : '',
+      eveningId:        eve  ? (eve.id  || '') : '',
+      morningImageUrl:  morn ? (morn.imageUrl || '') : '',
+      eveningImageUrl:  eve  ? (eve.imageUrl  || '') : '',
       distance:         distance,
       vehicleType:      isPersonal ? 'personal' : 'company',
+      vehicleId:        ((morn || eve || {}).vehicleId) || '',
       depreciationCost: deprCost,
-      errorFlag:        errFlag,
+      status:           status,
+      zone:             userRow.province_zone || '',
     };
   });
 
   result.sort(function(a, b) { return (a.dsrEmail + a.date).localeCompare(b.dsrEmail + b.date); });
-  console.log('[getMileageBotSummary] returned %s day-rows', result.length);
+  if (result.length > 0) console.log('[getMileageBotSummary] sample[0]:', JSON.stringify(result[0]));
+  console.log('[getMileageBotSummary] returned %s rows', result.length);
   return result;
 }
 
@@ -250,9 +269,7 @@ function getMileageWeeklySummary(dsrEmail, weekStart) {
     workDays++;
     if (r.distance !== null) totalDistance += r.distance;
     totalDeprCost += r.depreciationCost || 0;
-    var mornOk = r.morning && !r.morning.pendingFill && r.morning.confirmedMile !== null;
-    var eveOk  = r.evening && !r.evening.pendingFill && r.evening.confirmedMile !== null;
-    if (!mornOk || !eveOk) incompleteDays++;
+    if (r.status !== 'complete') incompleteDays++;
   });
 
   var submitted = false;
