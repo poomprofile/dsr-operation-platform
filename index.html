@@ -5212,6 +5212,11 @@ function openMileageSheet(session) {
 }
 function openModal(id) { document.getElementById(id).classList.add('open'); document.body.style.overflow = 'hidden'; }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); document.body.style.overflow = ''; }
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  var open = document.querySelector('.modal-overlay.open');
+  if (open) closeModal(open.id);
+});
 
 // ─── FORM CALCULATIONS ───────────────────────────────────────
 function calcAllowance() {
