@@ -3256,13 +3256,13 @@ function mbCellBg(session) {
   return '#F7F5F2';
 }
 function mbMileCellBg(mileVal, isAbnormal) {
-  if (!isFinite(mileVal)) return '#FFF9C4'; // yellow: ยังไม่กรอก
-  if (isAbnormal)          return '#FFCDD2'; // red: ผิดปกติ
-  return '#E8F5E9';                          // green: ok
+  if (mileVal == null || !isFinite(mileVal)) return '#FFF9C4'; // yellow: ยังไม่กรอก
+  if (isAbnormal)                             return '#FFCDD2'; // red: ผิดปกติ
+  return '#E8F5E9';                                             // green: ok
 }
 
 function mbFmtMile(mile) {
-  if (!isFinite(mile)) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
+  if (mile == null || !isFinite(mile)) return '<span style="color:var(--ink3);cursor:pointer;">— แตะเพื่อกรอก</span>';
   return Number(mile).toLocaleString();
 }
 
@@ -3281,13 +3281,13 @@ function mbRenderRow(r) {
   else                                statusHtml = '<span style="color:var(--ink3);font-size:11px;">— ยังไม่มี</span>';
   return '<tr style="' + rowStyle + '">' +
     '<td>' + (r.dateLabel || r.date) + '</td>' +
-    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.morningId||'') + '\',\'เช้า\',' + (isFinite(r.morningMile) ? r.morningMile : 'null') + ',\'' + (r.morningImageUrl||'') + '\')">' +
+    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.morningId||'') + '\',\'เช้า\',' + (r.morningMile != null && isFinite(r.morningMile) ? r.morningMile : 'null') + ',\'' + (r.morningImageUrl||'') + '\')">' +
       mbFmtMile(r.morningMile) +
     '</td>' +
-    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.eveningId||'') + '\',\'เย็น\',' + (isFinite(r.eveningMile) ? r.eveningMile : 'null') + ',\'' + (r.eveningImageUrl||'') + '\')">' +
+    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.eveningId||'') + '\',\'เย็น\',' + (r.eveningMile != null && isFinite(r.eveningMile) ? r.eveningMile : 'null') + ',\'' + (r.eveningImageUrl||'') + '\')">' +
       mbFmtMile(r.eveningMile) +
     '</td>' +
-    '<td class="r">' + (isFinite(r.distance) ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
+    '<td class="r">' + (r.distance != null && isFinite(r.distance) ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
     '<td>' + (r.vehicleType === 'personal' ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
     '<td class="r">' + (isFinite(r.depreciationCost) && r.depreciationCost ? r.depreciationCost.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</td>' +
     '<td>' + statusHtml + '</td>' +
@@ -5977,19 +5977,25 @@ function renderMileageHistTable(rows) {
   if (!rows || !rows.length) return '<div class="hist-empty">ไม่มีข้อมูลไมล์สัปดาห์นี้</div>';
   var totDist = 0;
   var body = rows.map(function(r) {
-    var dist = isFinite(r.distance) ? r.distance : 0;
+    var dist = (r.distance != null && isFinite(r.distance)) ? r.distance : 0;
     totDist += dist;
     var isPending = r.status === 'no_evening' || r.status === 'empty';
     var bg = (r.status === 'abnormal' || r.status === 'no_morning') ? 'background:#FFCDD2;' : (isPending ? 'background:#FFF9C4;' : '');
-    var mornMile = isFinite(r.morningMile) ? _fmtAmt(r.morningMile) : '—';
-    var eveMile  = isFinite(r.eveningMile) ? _fmtAmt(r.eveningMile) : '—';
+    var mornMile = _fmtAmt(r.morningMile);
+    var eveMile  = _fmtAmt(r.eveningMile);
+    var statusLbl;
+    if      (r.status === 'complete')   statusLbl = '<span style="color:var(--g);font-size:11px;">✓ ครบ</span>';
+    else if (r.status === 'no_evening') statusLbl = '<span style="color:#F9A825;font-size:11px;">⏳ รอกรอกเย็น</span>';
+    else if (r.status === 'no_morning') statusLbl = '<span style="color:#E53935;font-size:11px;">⚠️ ไม่มีเช้า</span>';
+    else if (r.status === 'abnormal')   statusLbl = '<span style="color:#E53935;font-size:11px;">⚠️ ผิดปกติ</span>';
+    else                                statusLbl = '<span style="color:var(--ink3);font-size:11px;">— ยังไม่มี</span>';
     return '<tr style="' + bg + '">' +
       '<td>' + _hv(r.dateLabel || r.date) + '</td>' +
       '<td class="r">' + mornMile + '</td>' +
       '<td class="r">' + eveMile + '</td>' +
       '<td class="r">' + (dist ? _fmtAmt(dist) + ' กม.' : '—') + '</td>' +
       '<td>' + (r.vehicleType === 'personal' ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
-      '<td>' + (r.errorFlag ? '<span style="color:#c62828;font-size:11px;">' + _hv(r.errorFlag) + '</span>' : '✓') + '</td>' +
+      '<td>' + statusLbl + '</td>' +
       '</tr>';
   }).join('');
   return '<table class="hist-table">' +
