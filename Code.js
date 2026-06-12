@@ -604,7 +604,11 @@ function routeAction(action, payload, user) {
     SUBMIT_WEEKLY_MILEAGE:     () => {
       var em = (user.role === ROLES.DSR) ? user.email : payload.dsrEmail;
       if (!em) throw new Error('ต้องเลือก DSR ก่อนส่งสรุป');
-      return submitWeeklyMileageSummary(em, payload.weekStart, user);
+      return submitWeeklyMileageSummary(em, payload.weekStart, user, payload.fuelRate);
+    },
+    SAVE_MILEAGE_FUEL:         () => {
+      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
+      return saveMileageFuelOnly(em, payload.weekStart, payload.fuelByDate || {});
     },
   };
 
@@ -3902,7 +3906,7 @@ function getMileageSummary(weekStart, dsrEmail) {
   // อ่าน depreciation_rate จาก USERS
   var userRow = sheetToObjects(SH.USERS).find(function(r){ return r.email === dsrEmail; }) || {};
   var deprRate = parseFloat(userRow.depreciation_rate);
-  if (isNaN(deprRate)) deprRate = 2.5; // ค่าเริ่มต้น
+  if (isNaN(deprRate)) deprRate = 0;
   console.log('[getMileageSummary] DEPRECIATION rate: ' + deprRate + ' for ' + dsrEmail);
 
   // อ่าน VEHICLES เพื่อรู้ vehicle_type
@@ -4711,6 +4715,45 @@ function saveSettlementExpenses(data, user) {
   return { saved: inserted };
 }
 
+// saveMileageFuelOnly: targeted upsert ของ fuel column รายวัน — ไม่ delete+reinsert ทั้งสัปดาห์
+function saveMileageFuelOnly(dsrEmail, weekStart, fuelByDate) {
+  ensureSettlementExpensesSheet();
+  var weekNumber = weekNum(new Date(weekStart + 'T00:00:00'));
+  var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(SH.SETTLE_EXP);
+  var vals  = sheet.getDataRange().getValues();
+  var headers  = vals[0];
+  var emailCol = headers.indexOf('dsrEmail');
+  var wkNumCol = headers.indexOf('weekNumber');
+  var dateCol  = headers.indexOf('date');
+  var fuelCol  = headers.indexOf('fuel');
+
+  var updated = 0, inserted = 0;
+  Object.keys(fuelByDate).forEach(function(dateStr) {
+    var fuelAmt = parseFloat(fuelByDate[dateStr]) || 0;
+    var rowIdx  = -1;
+    for (var i = 1; i < vals.length; i++) {
+      if (String(vals[i][emailCol]) !== dsrEmail) continue;
+      if (parseInt(vals[i][wkNumCol]) !== weekNumber) continue;
+      var rowDate = (vals[i][dateCol] instanceof Date)
+        ? Utilities.formatDate(vals[i][dateCol], 'Asia/Bangkok', 'yyyy-MM-dd')
+        : normDateStr(String(vals[i][dateCol]));
+      if (rowDate === dateStr) { rowIdx = i; break; }
+    }
+    if (rowIdx >= 0) {
+      sheet.getRange(rowIdx + 1, fuelCol + 1).setValue(fuelAmt);
+      updated++;
+    } else if (fuelAmt > 0) {
+      sheet.appendRow([dsrEmail, weekNumber, dateStr, fuelAmt, 0, 0, 0, ts()]);
+      inserted++;
+    }
+  });
+
+  console.log('[saveMileageFuelOnly] dsrEmail=%s weekStart=%s updated=%s inserted=%s',
+    dsrEmail, weekStart, updated, inserted);
+  return { updated: updated, inserted: inserted };
+}
+
 // saveExpenses: direct call (sessionToken เป็น param แรก — ไม่ผ่าน handleApiCall)
 function saveExpenses(sessionToken, weekStart, expenses) {
   var email = getUserEmailFromToken(sessionToken);
@@ -4931,7 +4974,7 @@ function generateSettlementPDF(payload) { // TASK 6: accounting style, black/whi
         '<div class="sum-row deduct"><span>หัก จ่ายเงินน้ำมัน/แก๊ส</span><span>− ' + fmtNAlways(totMergedFuel) + ' ฿</span></div>' +
         (allowOvernight ? '<div class="sum-row deduct"><span>หัก ค่าที่พัก</span><span>− ' + fmtNAlways(totMergedHotel) + ' ฿</span></div>' : '') +
         (allowOvernight ? '<div class="sum-row deduct"><span>หัก เบี้ยเลี้ยง</span><span>− ' + fmtNAlways(totMergedAllow) + ' ฿</span></div>' : '') +
-        '<div class="sum-row deduct"><span>หัก ค่าเสื่อมรถ</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div>' +
+        '<div class="sum-row deduct"><span>หัก ค่าน้ำมัน</span><span>− ' + fmtNAlways(totDepr) + ' ฿</span></div>' +
         '<div class="sum-divider"></div>' +
         '<div class="sum-net">' +
           '<span class="sum-net-lbl">ยอดนำส่งสุทธิ (เงินสด)</span>' +

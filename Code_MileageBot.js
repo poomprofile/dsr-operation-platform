@@ -21,7 +21,7 @@ var MB_COLS = [
   'imageUrl', 'submitted', 'timestamp',
 ];
 
-var MB_STATUS_COLS = ['id', 'dsrEmail', 'weekStart', 'submittedAt'];
+var MB_STATUS_COLS = ['id', 'dsrEmail', 'weekStart', 'submittedAt', 'fuelRate', 'fuelCost'];
 
 // ─────────────────────────────────────────────────────────────────────
 //  PORTAL BACKEND — getMileageBotSummary
@@ -82,6 +82,20 @@ function getMileageBotSummary(weekStart, dsrEmail) {
   var userMap  = {};
   usersArr.forEach(function(u) { if (u.email) userMap[u.email] = u; });
 
+  // อ่าน SettlementExpenses เพื่อ pre-fill ค่าน้ำมันรายวัน (บริษัท)
+  var weekNumber = weekNum(new Date(weekStart + 'T00:00:00'));
+  var fuelMap = {};
+  try {
+    sheetToObjects(SH.SETTLE_EXP).forEach(function(r) {
+      if (dsrEmail && r.dsrEmail !== dsrEmail) return;
+      if (parseInt(r.weekNumber) !== weekNumber) return;
+      var dateStr = (r.date instanceof Date)
+        ? Utilities.formatDate(r.date, 'Asia/Bangkok', 'yyyy-MM-dd')
+        : normDateStr(String(r.date));
+      fuelMap[r.dsrEmail + '|' + dateStr] = parseFloat(r.fuel) || 0;
+    });
+  } catch(_) {}
+
   var result = Object.values(map).map(function(day) {
     var morn = day.morning;
     var eve  = day.evening;
@@ -137,6 +151,7 @@ function getMileageBotSummary(weekStart, dsrEmail) {
       vehicleType:      isPersonal ? 'personal' : 'company',
       vehicleId:        ((morn || eve || {}).vehicleId) || '',
       depreciationCost: deprCost,
+      fuelEntry:        fuelMap[day.dsrEmail + '|' + day.date] || 0,
       status:           status,
       zone:             userRow.province_zone || '',
     };
@@ -271,39 +286,80 @@ function getMileageWeeklySummary(dsrEmail, weekStart) {
     totalDeprCost += r.depreciationCost || 0;
     if (r.status !== 'complete') incompleteDays++;
   });
+  totalDistance = Math.round(totalDistance * 100) / 100;
 
-  var submitted = false;
+  // Vehicle type + default rate from USERS
+  var usersArr = sheetToObjects('USERS');
+  var userRow  = usersArr.find(function(u) { return u.email === dsrEmail; }) || {};
+  var vehicleType = userRow.defaultVehicleType || 'company';
+  var defaultRate = parseFloat(userRow.depreciation_rate);
+  if (isNaN(defaultRate)) defaultRate = 0;
+
+  // Read MileageWeekStatus once
+  var allStatusRows = [];
   try {
     ensureMileageWeekStatusSheet();
-    submitted = sheetToObjects(MB.STATUS_SHEET).some(function(r) {
-      return r.dsrEmail === dsrEmail && r.weekStart === weekStart;
+    allStatusRows = sheetToObjects(MB.STATUS_SHEET).filter(function(r) {
+      return r.dsrEmail === dsrEmail;
     });
-  } catch (_) {}
+  } catch(_) {}
+
+  var currentStatusRow = allStatusRows.find(function(r) { return r.weekStart === weekStart; });
+  var submitted = !!currentStatusRow;
+
+  // Previous week's fuelRate (last submitted week before current)
+  var prevRows = allStatusRows.filter(function(r) {
+    return r.weekStart < weekStart && r.fuelRate !== undefined && r.fuelRate !== '';
+  });
+  prevRows.sort(function(a, b) { return b.weekStart.localeCompare(a.weekStart); });
+  var prevFuelRate = prevRows.length > 0 ? (parseFloat(prevRows[0].fuelRate) || 0) : 0;
+
+  var fuelRate, fuelCost;
+  if (submitted) {
+    fuelRate = parseFloat(currentStatusRow.fuelRate) || 0;
+    fuelCost = parseFloat(currentStatusRow.fuelCost) || 0;
+  } else {
+    fuelRate = prevFuelRate || defaultRate;
+    fuelCost = Math.round(totalDistance * fuelRate);
+  }
 
   return {
     dsrEmail:       dsrEmail,
     weekStart:      weekStart,
-    totalDistance:  Math.round(totalDistance * 100) / 100,
+    totalDistance:  totalDistance,
     totalDeprCost:  Math.round(totalDeprCost * 100) / 100,
     workDays:       workDays,
     incompleteDays: incompleteDays,
     submitted:      submitted,
+    vehicleType:    vehicleType,
+    defaultRate:    defaultRate,
+    prevFuelRate:   prevFuelRate,
+    fuelRate:       fuelRate,
+    fuelCost:       fuelCost,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────
 //  PORTAL BACKEND — submitWeeklyMileageSummary
 // ─────────────────────────────────────────────────────────────────────
-function submitWeeklyMileageSummary(dsrEmail, weekStart, user) {
+function submitWeeklyMileageSummary(dsrEmail, weekStart, user, fuelRate) {
   if (user.role === 'dsr' && user.email !== dsrEmail) {
     throw new Error('Access denied — ไม่ใช่ข้อมูลของคุณ');
   }
+
+  var resolvedFuelRate = parseFloat(fuelRate) || 0;
 
   ensureMileageWeekStatusSheet();
   var exists = sheetToObjects(MB.STATUS_SHEET).some(function(r) {
     return r.dsrEmail === dsrEmail && r.weekStart === weekStart;
   });
   if (exists) return { submitted: true, alreadySubmitted: true };
+
+  // Compute totalDistance for fuelCost
+  var weekRows = getMileageBotSummary(weekStart, dsrEmail);
+  var totalDistance = 0;
+  weekRows.forEach(function(r) { if (r.distance !== null) totalDistance += r.distance; });
+  var fuelCost = Math.round(totalDistance * resolvedFuelRate);
 
   // Mark individual Mileage rows as submitted
   var sheet   = getMileageSheet();
@@ -328,9 +384,12 @@ function submitWeeklyMileageSummary(dsrEmail, weekStart, user) {
     dsrEmail:    dsrEmail,
     weekStart:   weekStart,
     submittedAt: ts(),
+    fuelRate:    resolvedFuelRate,
+    fuelCost:    fuelCost,
   });
 
-  console.log('[submitWeeklyMileageSummary] dsrEmail=%s weekStart=%s', dsrEmail, weekStart);
+  console.log('[submitWeeklyMileageSummary] dsrEmail=%s weekStart=%s fuelRate=%s fuelCost=%s',
+    dsrEmail, weekStart, resolvedFuelRate, fuelCost);
   return { submitted: true, alreadySubmitted: false };
 }
 
@@ -365,6 +424,21 @@ function ensureMileageWeekStatusSheet() {
     sheet.getRange(1, 1, 1, MB_STATUS_COLS.length).setFontWeight('bold').setBackground('#F3F4F6');
     console.log('[MileagePortal] created sheet: ' + MB.STATUS_SHEET);
   }
+  ensureMileageStatusColumns();
+}
+
+function ensureMileageStatusColumns() {
+  var ss    = SpreadsheetApp.openById(prop('SPREADSHEET_ID'));
+  var sheet = ss.getSheetByName(MB.STATUS_SHEET);
+  if (!sheet) return;
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  ['fuelRate', 'fuelCost'].forEach(function(col) {
+    if (headers.indexOf(col) < 0) {
+      var next = sheet.getLastColumn() + 1;
+      sheet.getRange(1, next).setValue(col).setFontWeight('bold');
+      console.log('[MileagePortal] added MileageWeekStatus column: ' + col);
+    }
+  });
 }
 
 // Add mileage-related columns to USERS sheet if not present

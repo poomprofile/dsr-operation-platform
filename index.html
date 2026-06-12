@@ -1967,15 +1967,19 @@ body.no-overnight .stl-ov-col { display: none; }
                     <th class="r">ไมล์เย็น</th>
                     <th class="r">ระยะทาง</th>
                     <th>รถ</th>
-                    <th class="r">ค่าเสื่อม</th>
+                    <th class="r" style="font-size:11px;">ค่าน้ำมัน<br>(ส่วนตัว)</th>
+                    <th class="r" style="font-size:11px;">เติมน้ำมัน<br>(บริษัท)</th>
                     <th>สถานะ</th>
                   </tr>
                 </thead>
                 <tbody id="mb-body">
-                  <tr><td colspan="7" class="stl-empty-msg">กำลังโหลด...</td></tr>
+                  <tr><td colspan="8" class="stl-empty-msg">กำลังโหลด...</td></tr>
                 </tbody>
                 <tfoot id="mb-foot"></tfoot>
               </table>
+            </div>
+            <div style="margin-top:8px;text-align:right;" id="mb-fuel-save-wrap">
+              <button class="btn btn-secondary" onclick="mbSaveFuel()" style="font-size:12px;">💾 บันทึกค่าน้ำมัน (บริษัท)</button>
             </div>
           </div>
 
@@ -1985,7 +1989,7 @@ body.no-overnight .stl-ov-col { display: none; }
               <div>
                 <div style="font-size:13px;color:var(--ink2);">รวมสัปดาห์นี้</div>
                 <div style="font-size:20px;font-weight:700;" id="mb-total-dist">— กม.</div>
-                <div style="font-size:13px;color:var(--ink3);" id="mb-total-depr">ค่าเสื่อม —฿</div>
+                <div style="font-size:13px;color:var(--ink3);" id="mb-total-depr">ค่าน้ำมัน —฿</div>
               </div>
               <div>
                 <div style="font-size:13px;color:var(--ink3);" id="mb-incomplete-days"></div>
@@ -2175,7 +2179,7 @@ body.no-overnight .stl-ov-col { display: none; }
                     <th>วันที่</th>
                     <th>เขต</th>
                     <th class="r" style="font-size:11px;">ระยะทาง<br>(กม.)</th>
-                    <th class="r" style="font-size:11px;">ค่าเสื่อม<br>(฿)</th>
+                    <th class="r" style="font-size:11px;">ค่าน้ำมัน<br>(฿)</th>
                     <th style="font-size:11px;">น้ำมัน/<br>แก๊ส (฿)</th>
                     <th class="stl-ov-col" style="font-size:11px;">ที่พัก<br>(฿)</th>
                     <th class="stl-ov-col" style="font-size:11px;text-align:center;">เบี้ย<br>เลี้ยง</th>
@@ -2209,7 +2213,7 @@ body.no-overnight .stl-ov-col { display: none; }
               <span class="stl-sum-val" id="stl-s-allow">—</span>
             </div>
             <div class="stl-sum-row deduct">
-              <span>หัก ค่าเสื่อมรถ</span>
+              <span>หัก ค่าน้ำมัน</span>
               <span class="stl-sum-val" id="stl-s-depr">—</span>
             </div>
             <div class="stl-sum-divider"></div>
@@ -2469,6 +2473,26 @@ body.no-overnight .stl-ov-col { display: none; }
     <div class="sheet-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-mb-edit')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="mbConfirmEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-mb-submit" onclick="if(event.target===this)closeModal('modal-mb-submit')">
+  <div class="bottom-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">ส่งสรุปไมล์สัปดาห์</div>
+    <div class="sheet-body">
+      <div style="font-size:13px;color:var(--ink2);margin-bottom:12px;" id="mb-submit-dist-info"></div>
+      <div class="form-group">
+        <label class="form-label">อัตราค่าน้ำมัน (บาท/กม.)</label>
+        <input type="number" id="mb-submit-rate" class="form-input" min="0" step="0.1"
+          inputmode="decimal" oninput="mbUpdateFuelPreview()" placeholder="0">
+        <div class="form-hint">ค่าน้ำมันโดยประมาณ: <strong id="mb-submit-fuel-preview">0</strong> ฿</div>
+      </div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-mb-submit')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="mbConfirmSubmit()">ยืนยันส่ง</button>
     </div>
   </div>
 </div>
@@ -3243,7 +3267,7 @@ async function mbLoad() {
     mbRenderTable(_mbRows, dsrEmail);
     mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
   } catch(err) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="stl-empty-msg">เกิดข้อผิดพลาด: ' + err.message + '</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="stl-empty-msg">เกิดข้อผิดพลาด: ' + err.message + '</td></tr>';
   }
 }
 
@@ -3279,7 +3303,15 @@ function mbRenderRow(r) {
   else if (r.status === 'no_morning') statusHtml = '<span style="color:#E53935;font-size:11px;">⚠️ ไม่มีเช้า</span>';
   else if (r.status === 'abnormal')   statusHtml = '<span style="color:#E53935;font-size:11px;">⚠️ ผิดปกติ</span>';
   else                                statusHtml = '<span style="color:var(--ink3);font-size:11px;">— ยังไม่มี</span>';
-  return '<tr style="' + rowStyle + '">' +
+  var isPersonal = r.vehicleType === 'personal';
+  var fuelEstCell = isPersonal
+    ? '<td class="r">' + (r.depreciationCost ? Math.round(r.depreciationCost).toLocaleString('th-TH') + ' ฿' : '—') + '</td>'
+    : '<td class="r" style="color:var(--ink3);">—</td>';
+  var compFuelCell = !isPersonal
+    ? '<td class="r"><input type="number" class="stl-input mb-fuel-input" data-date="' + r.date + '" value="' + (r.fuelEntry || '') + '" placeholder="—" min="0" step="1" style="width:60px;"></td>'
+    : '<td class="r" style="color:var(--ink3);">—</td>';
+
+  return '<tr data-date="' + r.date + '" data-dsr="' + r.dsrEmail + '" style="' + rowStyle + '">' +
     '<td>' + (r.dateLabel || r.date) + '</td>' +
     '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.morningId||'') + '\',\'เช้า\',' + (r.morningMile != null && isFinite(r.morningMile) ? r.morningMile : 'null') + ',\'' + (r.morningImageUrl||'') + '\')">' +
       mbFmtMile(r.morningMile) +
@@ -3288,8 +3320,9 @@ function mbRenderRow(r) {
       mbFmtMile(r.eveningMile) +
     '</td>' +
     '<td class="r">' + (r.distance != null && isFinite(r.distance) ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
-    '<td>' + (r.vehicleType === 'personal' ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
-    '<td class="r">' + (isFinite(r.depreciationCost) && r.depreciationCost ? r.depreciationCost.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</td>' +
+    '<td>' + (isPersonal ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
+    fuelEstCell +
+    compFuelCell +
     '<td>' + statusHtml + '</td>' +
     '</tr>';
 }
@@ -3300,7 +3333,7 @@ function mbRenderTable(rows, filterEmail) {
   if (!tbody) return;
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="stl-empty-msg">ยังไม่มีข้อมูลไมล์จาก LINE Bot อาทิตย์นี้</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="stl-empty-msg">ยังไม่มีข้อมูลไมล์จาก LINE Bot อาทิตย์นี้</td></tr>';
     return;
   }
 
@@ -3319,7 +3352,7 @@ function mbRenderTable(rows, filterEmail) {
       var u    = (window._dsrUsers || []).find(function(u) { return u.email === email; }) || {};
       var name = u.display_name || email;
       html += '<tr style="background:#EEF2FF;">' +
-        '<td colspan="7" style="font-weight:700;padding:8px 12px;font-size:13px;color:#3730A3;">' + name + '</td>' +
+        '<td colspan="8" style="font-weight:700;padding:8px 12px;font-size:13px;color:#3730A3;">' + name + '</td>' +
         '</tr>';
       groups[email].forEach(function(r) {
         if (isFinite(r.distance)) totDist += r.distance;
@@ -3341,11 +3374,14 @@ function mbRenderTable(rows, filterEmail) {
       '<td colspan="3" style="font-weight:600;">รวม</td>' +
       '<td class="r" style="font-weight:700;">' + Number(totDist || 0).toLocaleString() + ' กม.</td>' +
       '<td></td>' +
-      '<td class="r" style="font-weight:700;">' + Number(totDepr || 0).toLocaleString('th-TH', {minimumFractionDigits:2}) + ' ฿</td>' +
+      '<td class="r" style="font-weight:700;">' + Math.round(totDepr || 0).toLocaleString('th-TH') + ' ฿</td>' +
+      '<td></td>' +
       '<td></td>' +
       '</tr>';
   }
 }
+
+var _mbWeeklySummary = null;
 
 async function mbLoadWeeklySummary(dsrEmail, weekStart) {
   if (!dsrEmail || !weekStart) return;
@@ -3353,8 +3389,12 @@ async function mbLoadWeeklySummary(dsrEmail, weekStart) {
   try {
     var s = await apiCall('GET_MILEAGE_WEEKLY_SUMMARY', { weekStart: weekStart, dsrEmail: dsrEmail });
     if (!s || !card) return;
+    _mbWeeklySummary = s;
     document.getElementById('mb-total-dist').textContent = (s.totalDistance || 0).toLocaleString() + ' กม.';
-    document.getElementById('mb-total-depr').textContent = 'ค่าเสื่อม ' + (s.totalDeprCost || 0).toLocaleString('th-TH', {minimumFractionDigits:2}) + ' ฿';
+    var fuelLbl = s.vehicleType === 'personal'
+      ? 'ค่าน้ำมัน ~' + Math.round(s.fuelCost || 0).toLocaleString('th-TH') + ' ฿'
+      : 'ค่าน้ำมัน (บริษัทบันทึกเอง)';
+    document.getElementById('mb-total-depr').textContent = fuelLbl;
     var incEl = document.getElementById('mb-incomplete-days');
     if (incEl) incEl.textContent = s.incompleteDays > 0 ? '⚠️ ยังกรอกไม่ครบ ' + s.incompleteDays + ' วัน' : '✅ กรอกครบทุกวัน';
     var submitBtn = document.getElementById('mb-submit-btn');
@@ -3411,11 +3451,74 @@ async function mbSubmitWeek() {
     ? currentUser.email
     : (dSel ? dSel.value : '');
   if (!dsrEmail) { showToast('กรุณาเลือก DSR ก่อนส่ง', 'error'); return; }
+
+  if (_mbWeeklySummary && _mbWeeklySummary.vehicleType === 'personal') {
+    mbOpenSubmitModal();
+    return;
+  }
+
   if (!confirm('ยืนยันส่งสรุปไมล์สัปดาห์นี้?')) return;
-  var result = await apiCall('SUBMIT_WEEKLY_MILEAGE', { weekStart: _mbWeekStart, dsrEmail: dsrEmail });
-  if (result) {
+  try {
+    var result = await apiCall('SUBMIT_WEEKLY_MILEAGE', { weekStart: _mbWeekStart, dsrEmail: dsrEmail, fuelRate: 0 });
     showToast(result.alreadySubmitted ? 'ส่งแล้วก่อนหน้านี้' : '✅ ส่งสรุปสัปดาห์แล้ว', 'success');
     mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
+    if (!result.alreadySubmitted) navTo('settlement');
+  } catch(err) {
+    showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  }
+}
+
+function mbOpenSubmitModal() {
+  if (!_mbWeeklySummary) { showToast('กำลังโหลดข้อมูล...', 'info'); return; }
+  var s = _mbWeeklySummary;
+  document.getElementById('mb-submit-dist-info').textContent =
+    'ระยะทางรวม ' + (s.totalDistance || 0).toLocaleString() + ' กม.';
+  document.getElementById('mb-submit-rate').value = s.fuelRate || s.prevFuelRate || s.defaultRate || 0;
+  mbUpdateFuelPreview();
+  openModal('modal-mb-submit');
+}
+
+function mbUpdateFuelPreview() {
+  if (!_mbWeeklySummary) return;
+  var rate = parseFloat(document.getElementById('mb-submit-rate').value) || 0;
+  var cost = Math.round((_mbWeeklySummary.totalDistance || 0) * rate);
+  document.getElementById('mb-submit-fuel-preview').textContent = cost.toLocaleString('th-TH');
+}
+
+async function mbConfirmSubmit() {
+  var dSel = document.getElementById('mb-dsr-sel');
+  var dsrEmail = currentUser && currentUser.role === 'dsr'
+    ? currentUser.email
+    : (dSel ? dSel.value : '');
+  var fuelRate = parseFloat(document.getElementById('mb-submit-rate').value) || 0;
+  closeModal('modal-mb-submit');
+  try {
+    var result = await apiCall('SUBMIT_WEEKLY_MILEAGE', { weekStart: _mbWeekStart, dsrEmail: dsrEmail, fuelRate: fuelRate });
+    showToast(result.alreadySubmitted ? 'ส่งแล้วก่อนหน้านี้' : '✅ ส่งสรุปสัปดาห์แล้ว', 'success');
+    mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
+    if (!result.alreadySubmitted) navTo('settlement');
+  } catch(err) {
+    showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  }
+}
+
+async function mbSaveFuel() {
+  var dSel = document.getElementById('mb-dsr-sel');
+  var dsrEmail = currentUser && currentUser.role === 'dsr'
+    ? currentUser.email
+    : (dSel ? dSel.value : '');
+  if (!dsrEmail || !_mbWeekStart) { showToast('ไม่พบข้อมูล DSR', 'error'); return; }
+  var fuelByDate = {};
+  document.querySelectorAll('.mb-fuel-input').forEach(function(inp) {
+    var date = inp.getAttribute('data-date');
+    var val  = parseFloat(inp.value) || 0;
+    if (date) fuelByDate[date] = val;
+  });
+  try {
+    await apiCall('SAVE_MILEAGE_FUEL', { dsrEmail: dsrEmail, weekStart: _mbWeekStart, fuelByDate: fuelByDate });
+    showToast('✅ บันทึกค่าน้ำมันแล้ว', 'success');
+  } catch(err) {
+    showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
   }
 }
 
@@ -3479,6 +3582,9 @@ function stlFmt(n) {
 function stlFmtAlways(n) {
   var v = parseFloat(n) || 0;
   return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+function stlFmtMoney(n) {
+  return Math.round(parseFloat(n) || 0).toLocaleString('th-TH');
 }
 
 function stlBuildWeekOptions() {
@@ -3606,7 +3712,7 @@ function stlBuildMergedRows(weekStart) {
     var ml  = mileByDate[iso] || {};
     var zone = ml.zone || '';
     var dist = ml.distance ? stlFmtAlways(ml.distance) : '—';
-    var depr = ml.depreciation ? stlFmtAlways(ml.depreciation) : '—';
+    var depr = ml.depreciation ? stlFmtMoney(ml.depreciation) : '—';
     var dimStyle = 'color:var(--ink3);font-size:12px;';
     html += '<tr data-date="' + iso + '">' +
       '<td>' + lbl + '</td>' +
@@ -3674,15 +3780,15 @@ function stlRecalc() {
   var net = totCash - totFuel - totHotel - totAllow - totDepr;
 
   function setTxt(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
-  setTxt('stl-s-cash',  stlFmtAlways(totCash) + ' ฿');
-  setTxt('stl-s-fuel',  '− ' + stlFmtAlways(totFuel)  + ' ฿');
-  setTxt('stl-s-hotel', '− ' + stlFmtAlways(totHotel) + ' ฿');
-  setTxt('stl-s-allow', '− ' + stlFmtAlways(totAllow) + ' ฿');
-  setTxt('stl-s-depr',  '− ' + stlFmtAlways(totDepr)  + ' ฿');
+  setTxt('stl-s-cash',  stlFmtMoney(totCash) + ' ฿');
+  setTxt('stl-s-fuel',  '− ' + stlFmtMoney(totFuel)  + ' ฿');
+  setTxt('stl-s-hotel', '− ' + stlFmtMoney(totHotel) + ' ฿');
+  setTxt('stl-s-allow', '− ' + stlFmtMoney(totAllow) + ' ฿');
+  setTxt('stl-s-depr',  '− ' + stlFmtMoney(totDepr)  + ' ฿');
 
   var netEl = document.getElementById('stl-s-net');
   if (netEl) {
-    netEl.textContent = stlFmtAlways(net) + ' ฿';
+    netEl.textContent = stlFmtMoney(net) + ' ฿';
     netEl.className   = 'stl-net-amount ' + (net >= 0 ? 'pos' : 'neg');
   }
 
@@ -3693,10 +3799,10 @@ function stlRecalc() {
     tfoot.innerHTML = '<tr>' +
       '<td>รวม</td><td></td>' +
       '<td class="r">' + stlFmtAlways(totDist)  + '</td>' +
-      '<td class="r">' + stlFmtAlways(totDepr)  + '</td>' +
-      '<td>' + stlFmtAlways(totFuel)  + '</td>' +
-      '<td class="stl-ov-col">' + stlFmtAlways(totHotel) + '</td>' +
-      '<td class="stl-ov-col" style="font-size:11px;">' + stlFmtAlways(totAllow) + '</td>' +
+      '<td class="r">' + stlFmtMoney(totDepr)  + '</td>' +
+      '<td>' + stlFmtMoney(totFuel)  + '</td>' +
+      '<td class="stl-ov-col">' + stlFmtMoney(totHotel) + '</td>' +
+      '<td class="stl-ov-col" style="font-size:11px;">' + stlFmtMoney(totAllow) + '</td>' +
       '</tr>';
   }
 }
@@ -6017,7 +6123,7 @@ function _fmtDate(v) {
 function _fmtAmt(v) {
   var n = parseFloat(v);
   if (isNaN(n)) return '—';
-  return n.toLocaleString('th-TH', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  return Math.round(n).toLocaleString('th-TH');
 }
 function _pick(obj, keys) {
   var lowerKeys = keys.map(function(k) { return k.toLowerCase(); });
