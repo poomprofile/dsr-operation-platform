@@ -606,10 +606,6 @@ function routeAction(action, payload, user) {
       if (!em) throw new Error('ต้องเลือก DSR ก่อนส่งสรุป');
       return submitWeeklyMileageSummary(em, payload.weekStart, user, payload.fuelRate);
     },
-    SAVE_MILEAGE_FUEL:         () => {
-      var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || user.email);
-      return saveMileageFuelOnly(em, payload.weekStart, payload.fuelByDate || {});
-    },
   };
 
   if (!routes[action]) throw new Error('Unknown action: ' + action);
@@ -4695,6 +4691,19 @@ function saveSettlementExpenses(data, user) {
     });
   }
 
+  // [E2] personal DSR ใช้ fuelCost จาก Bot sheet — ห้ามเขียน fuel ใน SettlementExpenses ซ้ำ
+  var isPersonalDSR = (function() {
+    try {
+      var weekly = getMileageWeeklySummary(targetEmail, data.weekStart);
+      return weekly.vehicleType === 'personal';
+    } catch(_) { return false; }
+  })();
+  if (isPersonalDSR) {
+    data.expenses = (data.expenses || []).map(function(ex) {
+      return Object.assign({}, ex, { fuel: 0 });
+    });
+  }
+
   var inserted = 0;
   data.expenses.forEach(function(ex) {
     var fuel     = parseFloat(ex.fuel)            || 0;
@@ -4715,45 +4724,6 @@ function saveSettlementExpenses(data, user) {
   return { saved: inserted };
 }
 
-// saveMileageFuelOnly: targeted upsert ของ fuel column รายวัน — ไม่ delete+reinsert ทั้งสัปดาห์
-function saveMileageFuelOnly(dsrEmail, weekStart, fuelByDate) {
-  ensureSettlementExpensesSheet();
-  var weekNumber = weekNum(new Date(weekStart + 'T00:00:00'));
-  var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  var sheet = ss.getSheetByName(SH.SETTLE_EXP);
-  var vals  = sheet.getDataRange().getValues();
-  var headers  = vals[0];
-  var emailCol = headers.indexOf('dsrEmail');
-  var wkNumCol = headers.indexOf('weekNumber');
-  var dateCol  = headers.indexOf('date');
-  var fuelCol  = headers.indexOf('fuel');
-
-  var updated = 0, inserted = 0;
-  Object.keys(fuelByDate).forEach(function(dateStr) {
-    var fuelAmt = parseFloat(fuelByDate[dateStr]) || 0;
-    var rowIdx  = -1;
-    for (var i = 1; i < vals.length; i++) {
-      if (String(vals[i][emailCol]) !== dsrEmail) continue;
-      if (parseInt(vals[i][wkNumCol]) !== weekNumber) continue;
-      var rowDate = (vals[i][dateCol] instanceof Date)
-        ? Utilities.formatDate(vals[i][dateCol], 'Asia/Bangkok', 'yyyy-MM-dd')
-        : normDateStr(String(vals[i][dateCol]));
-      if (rowDate === dateStr) { rowIdx = i; break; }
-    }
-    if (rowIdx >= 0) {
-      sheet.getRange(rowIdx + 1, fuelCol + 1).setValue(fuelAmt);
-      updated++;
-    } else if (fuelAmt > 0) {
-      sheet.appendRow([dsrEmail, weekNumber, dateStr, fuelAmt, 0, 0, 0, ts()]);
-      inserted++;
-    }
-  });
-
-  console.log('[saveMileageFuelOnly] dsrEmail=%s weekStart=%s updated=%s inserted=%s',
-    dsrEmail, weekStart, updated, inserted);
-  return { updated: updated, inserted: inserted };
-}
-
 // saveExpenses: direct call (sessionToken เป็น param แรก — ไม่ผ่าน handleApiCall)
 function saveExpenses(sessionToken, weekStart, expenses) {
   var email = getUserEmailFromToken(sessionToken);
@@ -4768,6 +4738,53 @@ function loadExpenses(sessionToken, weekStart) {
   return getSettlementExpenses(weekStart, email);
 }
 
+// ─── getMileageBotForSettlement — คำนวณ fuelCost รายวันจาก Bot sheet ────────
+function getMileageBotForSettlement(weekStart, dsrEmail) {
+  var botRows = getMileageBotSummary(weekStart, dsrEmail).filter(function(r) {
+    return r.dsrEmail === dsrEmail;
+  });
+  var weekly        = getMileageWeeklySummary(dsrEmail, weekStart);
+  var isPersonal    = weekly.vehicleType === 'personal';
+  var fuelRate      = weekly.fuelRate || 0;
+  var totalFuelCost = weekly.fuelCost || 0;
+
+  var mileage = botRows.map(function(r) {
+    var depr = (isPersonal && r.distance != null) ? Math.round(r.distance * fuelRate) : 0;
+    return {
+      date:         r.date,
+      dateLabel:    r.dateLabel,
+      zone:         r.zone || '',
+      distance:     r.distance || 0,
+      vehicleType:  r.vehicleType,
+      depreciation: depr,
+      isEstimate:   !weekly.submitted,
+    };
+  });
+
+  // รวมรายวันอาจเพี้ยนจาก totalFuelCost เพราะ rounding — ปรับที่วันที่ขับมากสุด
+  if (isPersonal && mileage.length > 0) {
+    var sumDaily = mileage.reduce(function(s, r) { return s + r.depreciation; }, 0);
+    var diff = totalFuelCost - sumDaily;
+    if (diff !== 0) {
+      var maxIdx = 0;
+      mileage.forEach(function(r, i) {
+        if ((r.distance || 0) > (mileage[maxIdx].distance || 0)) maxIdx = i;
+      });
+      mileage[maxIdx].depreciation += diff;
+    }
+  }
+
+  return {
+    rows: mileage,
+    mileageMeta: {
+      vehicleType:   weekly.vehicleType,
+      fuelRate:      fuelRate,
+      totalFuelCost: totalFuelCost,
+      isSubmitted:   weekly.submitted,
+    },
+  };
+}
+
 // ─── getSettlementPageData — batch loader for settlement page ─────────────
 function getSettlementPageData(weekStart, dsrEmail) {
   console.log('[getSettlementPageData] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
@@ -4780,12 +4797,75 @@ function getSettlementPageData(weekStart, dsrEmail) {
   }
   var income    = getSettlementIncome(weekStart, dsrEmail);
   var expenses  = getSettlementExpenses(weekStart, dsrEmail);
-  var mileage   = getMileageSummary(weekStart, dsrEmail);
+  var botData   = getMileageBotForSettlement(weekStart, dsrEmail);
+  var mileage   = botData.rows;
+  var mileageMeta = botData.mileageMeta;
   var slipTotal  = getWeeklySlipTotal(weekStart, dsrEmail);
-  var slipByDate = getWeeklySlipByDate(weekStart, dsrEmail); // {date → amount} per-day Slip2Go
-  var result = { income: income, expenses: expenses, mileage: mileage, slipTotal: slipTotal, slipByDate: slipByDate };
+  var slipByDate = getWeeklySlipByDate(weekStart, dsrEmail);
+  var result = { income: income, expenses: expenses, mileage: mileage, mileageMeta: mileageMeta, slipTotal: slipTotal, slipByDate: slipByDate };
   try { cache.put(cacheKey, JSON.stringify(result), 180); } catch(_) {}
   return result;
+}
+
+// ─── listStalePersonalFuel — ตรวจสอบแถวใน SettlementExpenses ที่ personal DSR บันทึก fuel ไว้ ─────
+// admin ใช้ run ใน Apps Script editor เพื่อตรวจก่อน clearStalePersonalFuel()
+function listStalePersonalFuel() {
+  ensureSettlementExpensesSheet();
+  var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(SH.SETTLE_EXP);
+  var vals  = sheet.getDataRange().getValues();
+  var headers = vals[0];
+  var emailCol = headers.indexOf('dsrEmail');
+  var fuelCol  = headers.indexOf('fuel');
+  var wkNumCol = headers.indexOf('weekNumber');
+  var dateCol  = headers.indexOf('date');
+
+  // สร้าง map: personal DSR emails
+  var personalEmails = {};
+  sheetToObjects(SH.USERS).forEach(function(u) {
+    if (!u.email) return;
+    try {
+      var weekly = getMileageWeeklySummary(u.email, null);
+      if (weekly && weekly.vehicleType === 'personal') personalEmails[u.email] = true;
+    } catch(_) {}
+  });
+
+  var stale = [];
+  for (var i = 1; i < vals.length; i++) {
+    var email = String(vals[i][emailCol]);
+    var fuel  = parseFloat(vals[i][fuelCol]) || 0;
+    if (fuel === 0) continue;
+    if (!personalEmails[email]) continue;
+    stale.push({
+      row:       i + 1,
+      dsrEmail:  email,
+      weekNumber: vals[i][wkNumCol],
+      date:      vals[i][dateCol],
+      fuel:      fuel,
+    });
+  }
+  console.log('[listStalePersonalFuel] found %s stale rows', stale.length);
+  stale.forEach(function(r) { console.log(JSON.stringify(r)); });
+  return stale;
+}
+
+// ─── clearStalePersonalFuel — ล้าง fuel=0 สำหรับ personal DSR ทุกแถว ─────
+// ต้องเรียก listStalePersonalFuel() ก่อนแล้ว confirm ด้วยตัวเอง
+function clearStalePersonalFuel() {
+  var stale = listStalePersonalFuel();
+  if (stale.length === 0) { console.log('[clearStalePersonalFuel] nothing to clear'); return { cleared: 0 }; }
+
+  var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(SH.SETTLE_EXP);
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var fuelCol = headers.indexOf('fuel') + 1;
+
+  // ล้างจากล่างขึ้นบน เพื่อไม่ให้ row index เลื่อน
+  stale.slice().reverse().forEach(function(r) {
+    sheet.getRange(r.row, fuelCol).setValue(0);
+  });
+  console.log('[clearStalePersonalFuel] cleared %s rows', stale.length);
+  return { cleared: stale.length };
 }
 
 function generateSettlementPDF(payload) { // TASK 6: accounting style, black/white/gray
