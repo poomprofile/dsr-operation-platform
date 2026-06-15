@@ -595,7 +595,11 @@ function routeAction(action, payload, user) {
       var em = (user.role === ROLES.DSR) ? user.email : (payload.dsrEmail || null);
       return getMileageBotSummary(payload.weekStart, em);
     },
-    UPDATE_MILEAGE_RECORD:     () => updateMileageBotRecord(payload.id, payload.confirmedMile, user),
+    UPDATE_MILEAGE_RECORD:     () => {
+      var p = Object.assign({}, payload);
+      if (user.role === ROLES.DSR) p.dsrEmail = user.email; // DSR ไม่สามารถ spoof email คนอื่น
+      return updateMileageBotRecord(p, user);
+    },
     GET_MILEAGE_WEEKLY_SUMMARY:() => {
       var em = (user.role === ROLES.DSR) ? user.email : payload.dsrEmail;
       if (!em) return null;

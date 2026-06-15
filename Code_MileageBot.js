@@ -164,109 +164,224 @@ function getMileageBotSummary(weekStart, dsrEmail) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-//  PORTAL BACKEND — updateMileageBotRecord
-//  DSR edits own records only; Admin edits anyone
+//  INTERNAL — Recompute startMile/endMile/distance/errorFlag for a day pair
+//  ใช้ confirmedMile เป็น source of truth, เขียน cross-pair columns ทั้งสอง session
 // ─────────────────────────────────────────────────────────────────────
-function updateMileageBotRecord(id, newConfirmedMile, user) {
-  ensureMileageSheet();
-  var sheet   = getMileageSheet();
-  var data    = sheet.getDataRange().getValues();
-  var headers = data[0];
-
-  var idIdx   = headers.indexOf('id');
+function _recomputeDayPair(sheet, data, headers, dsrEmail, dateStr) {
   var eIdx    = headers.indexOf('dsrEmail');
   var dIdx    = headers.indexOf('date');
   var sIdx    = headers.indexOf('session');
   var cmIdx   = headers.indexOf('confirmedMile');
-  var sfIdx   = headers.indexOf('sourceFlag');
-  var pfIdx   = headers.indexOf('pendingFill');
   var smIdx   = headers.indexOf('startMile');
   var emIdx   = headers.indexOf('endMile');
   var distIdx = headers.indexOf('distance');
   var efIdx   = headers.indexOf('errorFlag');
   var emsgIdx = headers.indexOf('errorMsg');
 
-  var targetRow  = -1;
-  var targetData = null;
+  var mornIdx = -1, eveIdx = -1;
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][idIdx]) === id) { targetRow = i + 1; targetData = data[i]; break; }
-  }
-  if (targetRow < 0) throw new Error('ไม่พบ record id: ' + id);
-
-  var dsrEmail = String(targetData[eIdx]);
-  var dateStr  = String(targetData[dIdx]);
-  var session  = String(targetData[sIdx]);
-
-  if (user.role === 'dsr' && user.email !== dsrEmail) {
-    throw new Error('Access denied — ไม่ใช่ข้อมูลของคุณ');
+    if (String(data[i][eIdx]) !== dsrEmail) continue;
+    if (normDateStr(data[i][dIdx]) !== dateStr) continue;
+    var sess = String(data[i][sIdx]);
+    if (sess === 'morning' && mornIdx < 0) mornIdx = i;
+    if (sess === 'evening' && eveIdx  < 0) eveIdx  = i;
   }
 
-  var newMile = parseFloat(newConfirmedMile);
-  if (isNaN(newMile)) throw new Error('confirmedMile ต้องเป็นตัวเลข');
+  var mornMile = (mornIdx >= 0) ? parseFloat(String(data[mornIdx][cmIdx])) : NaN;
+  var eveMile  = (eveIdx  >= 0) ? parseFloat(String(data[eveIdx][cmIdx]))  : NaN;
 
-  // Update target record
-  var updRow = data[targetRow - 1].slice();
-  updRow[cmIdx] = String(newMile);
-  updRow[sfIdx] = 'manual';
-  updRow[pfIdx] = 'FALSE';
-  if (session === 'morning') updRow[smIdx] = String(newMile);
-  sheet.getRange(targetRow, 1, 1, headers.length).setValues([updRow]);
+  // Morning row: sync startMile = confirmedMile
+  if (mornIdx >= 0) {
+    var mRow = data[mornIdx].slice();
+    mRow[smIdx] = isNaN(mornMile) ? '' : String(mornMile);
+    sheet.getRange(mornIdx + 1, 1, 1, headers.length).setValues([mRow]);
+  }
 
-  // Cascade: update related session row's start/end/distance/errorFlag
-  for (var j = 1; j < data.length; j++) {
-    if (j === targetRow - 1) continue;
-    if (String(data[j][eIdx]) !== dsrEmail || String(data[j][dIdx]) !== dateStr) continue;
-    var otherSession = String(data[j][sIdx]);
-
-    if (session === 'morning' && otherSession === 'evening') {
-      var eveConfirmed = parseFloat(String(data[j][cmIdx]));
-      var relRow = data[j].slice();
-      relRow[smIdx] = String(newMile);
-      if (!isNaN(eveConfirmed)) {
-        var dist = eveConfirmed - newMile;
-        relRow[distIdx] = String(dist);
-        relRow[emIdx]   = String(eveConfirmed);
-        if (eveConfirmed < newMile) {
-          relRow[efIdx]   = 'eve<morn';
-          relRow[emsgIdx] = 'ไมล์เย็น (' + eveConfirmed + ') น้อยกว่าไมล์เช้า (' + newMile + ')';
-        } else if (dist > MB.MAX_DIST_KM) {
-          relRow[efIdx]   = 'long_dist';
-          relRow[emsgIdx] = 'ระยะทาง ' + dist + ' กม. เกิน ' + MB.MAX_DIST_KM + ' กม.';
-        } else {
-          relRow[efIdx]   = '';
-          relRow[emsgIdx] = '';
-        }
+  // Evening row: sync startMile + endMile + compute distance/errorFlag
+  if (eveIdx >= 0) {
+    var eRow = data[eveIdx].slice();
+    eRow[smIdx] = isNaN(mornMile) ? '' : String(mornMile);
+    eRow[emIdx] = isNaN(eveMile)  ? '' : String(eveMile);
+    var dist = '', eflag = '', emsg = '';
+    if (!isNaN(mornMile) && !isNaN(eveMile)) {
+      var diff = eveMile - mornMile;
+      if (eveMile < mornMile) {
+        eflag = 'eve<morn';
+        emsg  = 'ไมล์เย็น (' + eveMile + ') น้อยกว่าไมล์เช้า (' + mornMile + ')';
+      } else if (diff > MB.MAX_DIST_KM) {
+        eflag = 'long_dist';
+        emsg  = 'ระยะทาง ' + diff + ' กม. เกิน ' + MB.MAX_DIST_KM + ' กม.';
+      } else {
+        dist = String(Math.round(diff * 100) / 100);
       }
-      sheet.getRange(j + 1, 1, 1, headers.length).setValues([relRow]);
+    }
+    eRow[distIdx] = dist;
+    eRow[efIdx]   = eflag;
+    eRow[emsgIdx] = emsg;
+    sheet.getRange(eveIdx + 1, 1, 1, headers.length).setValues([eRow]);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  PORTAL BACKEND — updateMileageBotRecord  (upsert)
+//  payload: { id, dsrEmail, date, session, newMile, weekStart }
+//  Logic: หา id ก่อน → ไม่เจอ/ไม่มี id → หาด้วย dsrEmail+date+session
+//         เจอ = UPDATE, ไม่เจอจริง = INSERT
+// ─────────────────────────────────────────────────────────────────────
+function updateMileageBotRecord(payload, user) {
+  var id        = String(payload.id       || '').trim();
+  var dsrEmail  = String(payload.dsrEmail || '').trim();
+  var dateStr   = normDateStr(payload.date);
+  var session   = String(payload.session  || '').trim();
+  var newMile   = parseInt(payload.newMile, 10);
+  var weekStart = String(payload.weekStart || '').trim();
+
+  // ── Validate ─────────────────────────────────────────────────────
+  if (!dsrEmail)                                      throw new Error('dsrEmail ต้องระบุ');
+  if (!dateStr)                                       throw new Error('date ต้องระบุ');
+  if (session !== 'morning' && session !== 'evening') throw new Error('session ต้องเป็น morning หรือ evening');
+  if (isNaN(newMile) || newMile <= 0)                 throw new Error('ไมล์ต้องเป็นจำนวนเต็มบวก');
+  if (newMile > 9999999)                              throw new Error('ไมล์ต้องไม่เกิน 7 หลัก');
+  if (user.role === 'dsr' && user.email !== dsrEmail) throw new Error('Access denied — ไม่ใช่ข้อมูลของคุณ');
+
+  // ── Frozen week check ─────────────────────────────────────────────
+  var weekFrozen = false;
+  if (weekStart) {
+    try {
+      ensureMileageWeekStatusSheet();
+      weekFrozen = sheetToObjects(MB.STATUS_SHEET).some(function(r) {
+        return r.dsrEmail === dsrEmail && r.weekStart === weekStart;
+      });
+    } catch(_) {}
+  }
+  // ── Load sheet ────────────────────────────────────────────────────
+  ensureMileageSheet();
+  var sheet   = getMileageSheet();
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var idIdx  = headers.indexOf('id');
+  var eIdx   = headers.indexOf('dsrEmail');
+  var dIdx   = headers.indexOf('date');
+  var sIdx   = headers.indexOf('session');
+  var cmIdx  = headers.indexOf('confirmedMile');
+  var smIdx  = headers.indexOf('startMile');
+  var emIdx  = headers.indexOf('endMile');
+  var sfIdx  = headers.indexOf('sourceFlag');
+  var pfIdx  = headers.indexOf('pendingFill');
+  var rmIdx  = headers.indexOf('rawMile');
+  var cfIdx  = headers.indexOf('confidence');
+  var tsIdx  = headers.indexOf('timestamp');
+  var viIdx  = headers.indexOf('vehicleId');
+  var vtIdx  = headers.indexOf('vehicleType');
+
+  // ── Find target row (upsert logic) ───────────────────────────────
+  var targetRowIdx = -1;
+  // 1. by id
+  if (id) {
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idIdx]) === id) { targetRowIdx = i; break; }
+    }
+  }
+  // 2. fallback: dsrEmail + normalize(date) + session
+  if (targetRowIdx < 0) {
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][eIdx]) !== dsrEmail) continue;
+      if (normDateStr(data[i][dIdx]) !== dateStr) continue;
+      if (String(data[i][sIdx]) !== session) continue;
+      targetRowIdx = i; break;
+    }
+  }
+
+  var op      = targetRowIdx >= 0 ? 'UPDATE' : 'INSERT';
+  var oldMile = '';
+
+  if (op === 'UPDATE') {
+    oldMile = String(data[targetRowIdx][cmIdx]);
+    var updRow = data[targetRowIdx].slice();
+    updRow[cmIdx] = String(newMile);
+    updRow[sfIdx] = 'manual';
+    updRow[pfIdx] = 'FALSE';
+    if (session === 'morning') updRow[smIdx] = String(newMile);
+    if (session === 'evening') updRow[emIdx] = String(newMile);
+    data[targetRowIdx] = updRow; // อัป in-memory ก่อน _recomputeDayPair
+    sheet.getRange(targetRowIdx + 1, 1, 1, headers.length).setValues([updRow]);
+
+  } else {
+    // ── Copy vehicleId/vehicleType จาก sibling session วันเดียวกัน ──
+    var sibVehicleId = '', sibVehicleType = '';
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][eIdx]) !== dsrEmail) continue;
+      if (normDateStr(data[i][dIdx]) !== dateStr) continue;
+      if (String(data[i][sIdx]) === session) continue;
+      sibVehicleId   = String(data[i][viIdx] || '');
+      sibVehicleType = String(data[i][vtIdx] || '');
       break;
     }
-
-    if (session === 'evening' && otherSession === 'morning') {
-      var mornConfirmed = parseFloat(String(data[j][cmIdx]));
-      var relRow2 = updRow.slice();
-      if (!isNaN(mornConfirmed)) {
-        var dist2 = newMile - mornConfirmed;
-        relRow2[smIdx]   = String(mornConfirmed);
-        relRow2[emIdx]   = String(newMile);
-        relRow2[distIdx] = String(dist2);
-        if (newMile < mornConfirmed) {
-          relRow2[efIdx]   = 'eve<morn';
-          relRow2[emsgIdx] = 'ไมล์เย็น (' + newMile + ') น้อยกว่าไมล์เช้า (' + mornConfirmed + ')';
-        } else if (dist2 > MB.MAX_DIST_KM) {
-          relRow2[efIdx]   = 'long_dist';
-          relRow2[emsgIdx] = 'ระยะทาง ' + dist2 + ' กม. เกิน ' + MB.MAX_DIST_KM + ' กม.';
-        } else {
-          relRow2[efIdx]   = '';
-          relRow2[emsgIdx] = '';
-        }
-        sheet.getRange(targetRow, 1, 1, headers.length).setValues([relRow2]);
-      }
-      break;
+    // Fallback: USERS sheet
+    if (!sibVehicleType) {
+      var uRows = sheetToObjects('USERS');
+      var uRow  = uRows.filter(function(u) { return u.email === dsrEmail; })[0] || {};
+      sibVehicleType = uRow.defaultVehicleType || '';
+      if (!sibVehicleId) sibVehicleId = uRow.vehicleId || '';
     }
+    if (!sibVehicleType) sibVehicleType = 'company'; // ห้ามว่าง
+
+    var newRow = headers.map(function() { return ''; });
+    newRow[idIdx]  = uuid();
+    newRow[eIdx]   = dsrEmail;
+    newRow[dIdx]   = dateStr;
+    newRow[sIdx]   = session;
+    newRow[rmIdx]  = '';
+    newRow[cmIdx]  = String(newMile);
+    newRow[smIdx]  = session === 'morning' ? String(newMile) : '';
+    newRow[emIdx]  = session === 'evening' ? String(newMile) : '';
+    newRow[viIdx]  = sibVehicleId;
+    newRow[vtIdx]  = sibVehicleType;
+    newRow[cfIdx]  = '';
+    newRow[sfIdx]  = 'manual';
+    newRow[pfIdx]  = 'FALSE';
+    newRow[tsIdx]  = ts();
+    sheet.appendRow(newRow);
+
+    // Re-read ให้ _recomputeDayPair เห็น row ใหม่
+    data    = sheet.getDataRange().getValues();
+    headers = data[0];
   }
 
-  console.log('[updateMileageBotRecord] id=%s newMile=%s user=%s', id, newMile, user.email);
-  return { updated: true };
+  // ── Cascade recompute ─────────────────────────────────────────────
+  _recomputeDayPair(sheet, data, headers, dsrEmail, dateStr);
+
+  // ── Audit ─────────────────────────────────────────────────────────
+  writeAudit(user.email, 'EDIT_MILEAGE_BOT', {
+    dsrEmail: dsrEmail, date: dateStr, session: session,
+    oldMile: oldMile, newMile: newMile, op: op,
+  });
+
+  // ── Build response ────────────────────────────────────────────────
+  var days = weekStart ? getMileageBotSummary(weekStart, dsrEmail) : [];
+
+  var totalKm = 0;
+  days.forEach(function(r) { if (r.distance !== null) totalKm += r.distance; });
+  totalKm = Math.round(totalKm * 100) / 100;
+
+  // fuelCost: personal vehicle เท่านั้น (company = null)
+  var fuelCost = null;
+  var uRows2 = sheetToObjects('USERS');
+  var uRow2  = uRows2.filter(function(u) { return u.email === dsrEmail; })[0] || {};
+  if ((uRow2.defaultVehicleType || 'company') === 'personal') {
+    fuelCost = Math.round(totalKm * (parseFloat(uRow2.depreciation_rate) || 0));
+  }
+
+  console.log('[updateMileageBotRecord] op=%s dsrEmail=%s date=%s session=%s old=%s new=%s',
+    op, dsrEmail, dateStr, session, oldMile, newMile);
+
+  return {
+    success:     true,
+    weekFrozen:  weekFrozen,
+    days:        days,
+    weekSummary: { totalKm: totalKm, fuelCost: fuelCost },
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────

@@ -2473,7 +2473,7 @@ body.no-overnight .stl-ov-col { display: none; }
 
 
 <!-- ── Mileage Bot Edit Modal ── -->
-<div class="modal-overlay modal-center" id="modal-mb-edit" onclick="if(event.target===this)closeModal('modal-mb-edit')">
+<div class="modal-overlay modal-center" id="modal-mb-edit" onmousedown="mbMouseDownTarget=event.target" onclick="if(event.target===this&&mbMouseDownTarget===this)closeModal('modal-mb-edit')">
   <div class="dialog-card" onclick="event.stopPropagation()">
     <div class="sheet-title" id="mb-edit-title">แก้ไขไมล์</div>
     <div class="sheet-body">
@@ -2483,14 +2483,17 @@ body.no-overnight .stl-ov-col { display: none; }
       </div>
       <div class="form-group">
         <label class="form-label">ไมล์ที่ถูกต้อง (กม.) <span>*</span></label>
-        <input type="number" class="form-input" id="mb-edit-km" inputmode="numeric" placeholder="เช่น 123456">
+        <input type="number" class="form-input" id="mb-edit-km" inputmode="numeric" step="1" placeholder="เช่น 123456">
         <div class="form-hint" id="mb-edit-hint"></div>
       </div>
       <input type="hidden" id="mb-edit-record-id">
+      <input type="hidden" id="mb-edit-date">
+      <input type="hidden" id="mb-edit-dsr-email">
+      <input type="hidden" id="mb-edit-session">
     </div>
     <div class="sheet-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-mb-edit')">ยกเลิก</button>
-      <button class="btn btn-primary" onclick="mbConfirmEdit()">บันทึก</button>
+      <button class="btn btn-primary" id="mb-edit-save-btn" onclick="mbConfirmEdit()">บันทึก</button>
     </div>
   </div>
 </div>
@@ -3223,8 +3226,9 @@ async function confirmSettlement() {
 }
 
 // ─── MILEAGE BOT MODULE ──────────────────────────────────────────
-var _mbRows         = [];   // last loaded rows
-var _mbWeekStart    = '';
+var _mbRows            = [];   // last loaded rows
+var _mbWeekStart       = '';
+var mbMouseDownTarget  = null;
 
 function mbBuildWeekOptions() {
   var sel = document.getElementById('mb-week-sel');
@@ -3337,10 +3341,10 @@ function mbRenderRow(r) {
 
   return '<tr data-date="' + r.date + '" data-dsr="' + r.dsrEmail + '" style="' + rowStyle + '">' +
     '<td>' + (r.dateLabel || r.date) + '</td>' +
-    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.morningId||'') + '\',\'เช้า\',' + (r.morningMile != null && isFinite(r.morningMile) ? r.morningMile : 'null') + ',\'' + (r.morningImageUrl||'') + '\')">' +
+    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.morningId||'') + '\',\'เช้า\',' + (r.morningMile != null && isFinite(r.morningMile) ? r.morningMile : 'null') + ',\'' + (r.morningImageUrl||'') + '\',\'' + r.date + '\',\'' + r.dsrEmail + '\',\'morning\')">' +
       mbFmtMile(r.morningMile) +
     '</td>' +
-    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.eveningId||'') + '\',\'เย็น\',' + (r.eveningMile != null && isFinite(r.eveningMile) ? r.eveningMile : 'null') + ',\'' + (r.eveningImageUrl||'') + '\')">' +
+    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.eveningId||'') + '\',\'เย็น\',' + (r.eveningMile != null && isFinite(r.eveningMile) ? r.eveningMile : 'null') + ',\'' + (r.eveningImageUrl||'') + '\',\'' + r.date + '\',\'' + r.dsrEmail + '\',\'evening\')">' +
       mbFmtMile(r.eveningMile) +
     '</td>' +
     '<td class="r">' + (r.distance != null && isFinite(r.distance) ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
@@ -3428,14 +3432,18 @@ async function mbLoadWeeklySummary(dsrEmail, weekStart) {
   } catch(_) {}
 }
 
-function mbOpenEdit(recordId, sessionLabel, currentMile, imageUrl) {
-  document.getElementById('mb-edit-title').textContent = 'แก้ไขไมล์ ' + sessionLabel;
-  document.getElementById('mb-edit-record-id').value = recordId || '';
+function mbOpenEdit(recordId, sessionLabel, currentMile, imageUrl, date, dsrEmail, session) {
+  document.getElementById('mb-edit-title').textContent       = 'แก้ไขไมล์ ' + sessionLabel;
+  document.getElementById('mb-edit-record-id').value         = recordId  || '';
+  document.getElementById('mb-edit-date').value              = date      || '';
+  document.getElementById('mb-edit-dsr-email').value         = dsrEmail  || '';
+  document.getElementById('mb-edit-session').value           = session   || '';
   var kmInput = document.getElementById('mb-edit-km');
-  kmInput.value = (currentMile !== null && currentMile !== undefined) ? String(currentMile) : '';
+  kmInput.value = (currentMile !== null && currentMile !== undefined && isFinite(currentMile))
+    ? String(currentMile) : '';
 
   var hint = document.getElementById('mb-edit-hint');
-  if (hint) hint.textContent = recordId ? '' : 'ยังไม่มีข้อมูล — Bot ยังไม่ได้รับรูป หรือ OCR ล้มเหลว';
+  if (hint) hint.textContent = recordId ? '' : 'ยังไม่มีข้อมูลจาก Bot — กรอกเองได้เลย';
 
   var photoWrap = document.getElementById('mb-edit-photo-wrap');
   var photoImg  = document.getElementById('mb-edit-photo');
@@ -3450,20 +3458,65 @@ function mbOpenEdit(recordId, sessionLabel, currentMile, imageUrl) {
 
 async function mbConfirmEdit() {
   var recordId = document.getElementById('mb-edit-record-id').value;
-  var km = parseFloat(document.getElementById('mb-edit-km').value);
-  if (!recordId) {
-    showToast('ยังไม่มี record (Bot ยังไม่ได้รับรูปจาก LINE)', 'error');
+  var date     = document.getElementById('mb-edit-date').value;
+  var dsrEmail = document.getElementById('mb-edit-dsr-email').value;
+  var session  = document.getElementById('mb-edit-session').value;
+  var km       = parseInt(document.getElementById('mb-edit-km').value, 10);
+
+  if (isNaN(km) || km <= 0 || km > 9999999) {
+    showToast('กรอกเลขไมล์ให้ถูกต้อง (จำนวนเต็มบวก ไม่เกิน 7 หลัก)', 'error');
     return;
   }
-  if (isNaN(km) || km < 10000 || km > 999999) {
-    showToast('กรอกเลขไมล์ให้ถูกต้อง (5-6 หลัก)', 'error');
-    return;
-  }
-  var result = await apiCall('UPDATE_MILEAGE_RECORD', { id: recordId, confirmedMile: km });
-  if (result) {
-    closeModal('modal-mb-edit');
-    showToast('✅ แก้ไขไมล์แล้ว', 'success');
-    mbLoad();
+
+  // ── Disable + spinner ────────────────────────────────────────────
+  var saveBtn = document.getElementById('mb-edit-save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก…'; }
+
+  try {
+    var result = await apiCall('UPDATE_MILEAGE_RECORD', {
+      id:        recordId,
+      dsrEmail:  dsrEmail,
+      date:      date,
+      session:   session,
+      newMile:   km,
+      weekStart: _mbWeekStart,
+    });
+
+    if (result) {
+      closeModal('modal-mb-edit');
+      showToast(
+        result.weekFrozen
+          ? '⚠️ สัปดาห์นี้ส่งแล้ว — แก้ไขสำเร็จแต่ยอดรวมต้องส่งใหม่'
+          : '✅ แก้ไขไมล์แล้ว',
+        result.weekFrozen ? 'warning' : 'success'
+      );
+
+      // ── Patch DOM — อัป <tr> เดียว ไม่ rebuild ทั้งตาราง ─────────
+      var updatedRow = result.days && result.days.find(function(r) {
+        return r.date === date && r.dsrEmail === dsrEmail;
+      });
+      if (updatedRow) {
+        // sync _mbRows in-place
+        var ri = _mbRows.findIndex(function(r) { return r.date === date && r.dsrEmail === dsrEmail; });
+        if (ri >= 0) _mbRows[ri] = updatedRow; else _mbRows.push(updatedRow);
+        // patch table row
+        var tbody = document.getElementById('mb-body');
+        var tr = tbody && tbody.querySelector('tr[data-date="' + date + '"][data-dsr="' + dsrEmail + '"]');
+        if (tr) {
+          tr.insertAdjacentHTML('afterend', mbRenderRow(updatedRow));
+          tr.remove();
+        } else {
+          // INSERT case: row ยังไม่มีในตาราง → rebuild
+          if (result.days) _mbRows = result.days;
+          mbRenderTable(_mbRows, dsrEmail);
+        }
+        mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
+      } else {
+        mbLoad();
+      }
+    }
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'บันทึก'; }
   }
 }
 
