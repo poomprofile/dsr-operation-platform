@@ -5483,6 +5483,7 @@ var csLoadState={};
 var CS_CHUNK_SIZE=3, CS_MAX_INFLIGHT=3;
 var _csLoading=false;
 var _csCurrentWeek;
+var _csBuilding=false;
 
 // generic Promise wrapper สำหรับ google.script.run (ไม่ผ่าน handleApiCall)
 function gsRunP(fnName){
@@ -5620,16 +5621,21 @@ function csBuildWeekDropdown(selectedIso) {
     lbl += ' – ' + thDay[sun.getDay()] + '. ' + sun.getDate() + ' ' + mo[sun.getMonth()+1] + ' ' + (sun.getFullYear()+543) + ' ∨';
     return lbl;
   }
-  sel.innerHTML = '';
-  for (var i = 0; i < 9; i++) {
-    var mon = new Date(monday);
-    mon.setDate(monday.getDate() - i * 7);
-    var iso = _localIso(mon);
-    var opt = document.createElement('option');
-    opt.value = iso;
-    opt.textContent = wkLabel(mon);
-    if (iso === selectedIso) opt.selected = true;
-    sel.appendChild(opt);
+  _csBuilding = true;
+  try {
+    sel.innerHTML = '';
+    for (var i = 0; i < 9; i++) {
+      var mon = new Date(monday);
+      mon.setDate(monday.getDate() - i * 7);
+      var iso = _localIso(mon);
+      var opt = document.createElement('option');
+      opt.value = iso;
+      opt.textContent = wkLabel(mon);
+      if (iso === selectedIso) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  } finally {
+    _csBuilding = false;
   }
 }
 
@@ -5639,6 +5645,7 @@ function csWeekDropdownChanged() {
   if (!sel) return;
   var iso = sel.value;
   if (!iso) return;
+  if (_csBuilding) return;
   if (iso === _csCurrentWeek) return;
   // compute sun from mon
   var mon = new Date(iso + 'T00:00:00');
