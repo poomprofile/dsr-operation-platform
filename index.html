@@ -1972,6 +1972,21 @@ body.no-overnight .stl-ov-col { display: none; }
             </select>
           </div>
 
+          <!-- Admin: mode toggle (date-first view) — shown only for admin/specialist via mbBuildDsrOptions -->
+          <div id="mb-mode-bar" style="display:none;margin-bottom:12px;">
+            <div style="display:flex;gap:6px;">
+              <button id="mb-btn-dsr"  onclick="mbSetMode('dsr')"
+                style="flex:1;padding:8px 12px;font-size:13px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:#007B40;color:#fff;">ดูตาม DSR</button>
+              <button id="mb-btn-date" onclick="mbSetMode('date')"
+                style="flex:1;padding:8px 12px;font-size:13px;border:none;border-radius:8px;cursor:pointer;background:#F3F4F6;color:var(--ink);">ดูตามวัน</button>
+            </div>
+          </div>
+          <!-- Day selector — visible only in mode='date' -->
+          <div id="mb-day-bar" style="display:none;margin-bottom:12px;">
+            <select id="mb-day-sel" class="stl-week-sel" style="max-width:220px;" onchange="mbRenderFromState()">
+            </select>
+          </div>
+
           <!-- Legend -->
           <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--ink2);">
             <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#fff;border:1px solid #ccc;display:inline-block;"></span>OCR อ่านได้</span>
@@ -1983,7 +1998,7 @@ body.no-overnight .stl-ov-col { display: none; }
             <div class="card-title">📸 ไมล์รถรายวัน (จาก LINE Bot)</div>
             <div style="overflow-x:auto;">
               <table class="stl-table" style="min-width:600px;">
-                <thead>
+                <thead id="mb-head">
                   <tr>
                     <th>วันที่</th>
                     <th class="r">ไมล์เช้า</th>
@@ -3229,6 +3244,7 @@ async function confirmSettlement() {
 var _mbRows            = [];   // last loaded rows
 var _mbWeekStart       = '';
 var mbMouseDownTarget  = null;
+var mbGroupMode        = 'dsr'; // 'dsr' | 'date'
 
 function mbBuildWeekOptions() {
   var sel = document.getElementById('mb-week-sel');
@@ -3249,6 +3265,8 @@ function mbBuildDsrOptions() {
   if (!currentUser || currentUser.role === 'dsr') return;
   var bar = document.getElementById('mbadmin-bar');
   if (bar) bar.style.display = 'block';
+  var modeBar = document.getElementById('mb-mode-bar');
+  if (modeBar) modeBar.style.display = 'block';
   var sel = document.getElementById('mb-dsr-sel');
   if (!sel || sel.options.length > 0) return;
   // Add "ทั้งหมด" option then per-DSR
@@ -3267,15 +3285,17 @@ async function mbLoad() {
   var wSel = document.getElementById('mb-week-sel');
   var dSel = document.getElementById('mb-dsr-sel');
   _mbWeekStart = wSel ? wSel.value : '';
+  // date mode always fetches all DSRs regardless of dsr-sel
   var dsrEmail = currentUser && currentUser.role === 'dsr'
     ? currentUser.email
-    : (dSel ? dSel.value : '');
+    : (mbGroupMode === 'date' ? '' : (dSel ? dSel.value : ''));
   if (!_mbWeekStart || !currentUser) return;
 
+  var cols  = mbGroupMode === 'date' ? '8' : '7';
   var tbody = document.getElementById('mb-body');
   var tfoot = document.getElementById('mb-foot');
   if (tbody) tbody.innerHTML =
-    '<tr><td colspan="7" style="padding:12px 8px;">' +
+    '<tr><td colspan="' + cols + '" style="padding:12px 8px;">' +
       '<div style="display:flex;align-items:center;gap:10px;">' +
         '<div class="loader" style="width:20px;height:20px;"></div>' +
         '<div style="flex:1;">' +
@@ -3295,10 +3315,10 @@ async function mbLoad() {
       console.log('[mbLoad] first row:', JSON.stringify(_mbRows[0]));
       console.log('[mbLoad] mode:', dsrEmail || 'ALL', 'total rows:', _mbRows.length);
     }
-    mbRenderTable(_mbRows, dsrEmail);
-    mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
+    mbBuildDayOptions();
+    mbRenderFromState();
   } catch(err) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="stl-empty-msg">เกิดข้อผิดพลาด: ' + err.message + '</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="' + cols + '" class="stl-empty-msg">เกิดข้อผิดพลาด: ' + err.message + '</td></tr>';
   }
 }
 
@@ -3359,17 +3379,50 @@ function mbRenderTable(rows, filterEmail) {
   var tfoot = document.getElementById('mb-foot');
   if (!tbody) return;
 
+  var isAllView   = !filterEmail;
+  var isDateMode  = isAllView && mbGroupMode === 'date';
+  var colspan     = isDateMode ? '8' : '7';
+
+  // Update thead to match current mode
+  var thead = document.getElementById('mb-head');
+  if (thead) {
+    thead.innerHTML = isDateMode
+      ? '<tr><th>วันที่</th><th>DSR</th><th class="r">ไมล์เช้า</th><th class="r">ไมล์เย็น</th><th class="r">ระยะทาง</th><th>รถ</th><th class="r" style="font-size:11px;">ค่าน้ำมัน<br>(ส่วนตัว)</th><th>สถานะ</th></tr>'
+      : '<tr><th>วันที่</th><th class="r">ไมล์เช้า</th><th class="r">ไมล์เย็น</th><th class="r">ระยะทาง</th><th>รถ</th><th class="r" style="font-size:11px;">ค่าน้ำมัน<br>(ส่วนตัว)</th><th>สถานะ</th></tr>';
+  }
+
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="stl-empty-msg">ยังไม่มีข้อมูลไมล์จาก LINE Bot อาทิตย์นี้</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="stl-empty-msg">ยังไม่มีข้อมูลไมล์จาก LINE Bot อาทิตย์นี้</td></tr>';
     return;
   }
 
   var totDist = 0, totDepr = 0;
-  var isAllView = !filterEmail;
   var html = '';
 
-  if (isAllView) {
-    // Group by DSR with section header per DSR
+  if (isDateMode) {
+    // Group by date, sorted date asc → dsrEmail asc
+    var sorted = rows.slice().sort(function(a, b) {
+      var d = a.date.localeCompare(b.date);
+      return d !== 0 ? d : a.dsrEmail.localeCompare(b.dsrEmail);
+    });
+    var groups = {}, groupOrder = [];
+    sorted.forEach(function(r) {
+      if (!groups[r.date]) { groups[r.date] = []; groupOrder.push(r.date); }
+      groups[r.date].push(r);
+    });
+    groupOrder.forEach(function(date) {
+      var label = groups[date][0].dateLabel || date;
+      html += '<tr style="background:#F0FDF4;">' +
+        '<td colspan="8" style="font-weight:700;padding:8px 12px;font-size:13px;color:#065F46;">' + label + '</td>' +
+        '</tr>';
+      groups[date].forEach(function(r) {
+        if (isFinite(r.distance)) totDist += r.distance;
+        if (isFinite(r.depreciationCost)) totDepr += r.depreciationCost;
+        html += mbRenderRowDate(r);
+      });
+    });
+  } else if (isAllView) {
+    // Group by DSR with section header per DSR (existing behavior)
     var groups = {}, groupOrder = [];
     rows.forEach(function(r) {
       if (!groups[r.dsrEmail]) { groups[r.dsrEmail] = []; groupOrder.push(r.dsrEmail); }
@@ -3398,13 +3451,93 @@ function mbRenderTable(rows, filterEmail) {
   tbody.innerHTML = html;
   if (tfoot) {
     tfoot.innerHTML = '<tr>' +
-      '<td colspan="3" style="font-weight:600;">รวม</td>' +
+      '<td colspan="' + (isDateMode ? '4' : '3') + '" style="font-weight:600;">รวม</td>' +
       '<td class="r" style="font-weight:700;">' + Number(totDist || 0).toLocaleString() + ' กม.</td>' +
       '<td></td>' +
       '<td class="r" style="font-weight:700;">' + Math.round(totDepr || 0).toLocaleString('th-TH') + ' ฿</td>' +
       '<td></td>' +
       '</tr>';
   }
+}
+
+// ─── DATE-FIRST VIEW HELPERS ─────────────────────────────────────────
+function mbSetMode(mode) {
+  mbGroupMode = mode;
+  var btnDsr  = document.getElementById('mb-btn-dsr');
+  var btnDate = document.getElementById('mb-btn-date');
+  if (btnDsr)  { btnDsr.style.background  = mode === 'dsr'  ? '#007B40' : '#F3F4F6'; btnDsr.style.color  = mode === 'dsr'  ? '#fff' : 'var(--ink)'; btnDsr.style.fontWeight  = mode === 'dsr'  ? '700' : '400'; }
+  if (btnDate) { btnDate.style.background = mode === 'date' ? '#007B40' : '#F3F4F6'; btnDate.style.color = mode === 'date' ? '#fff' : 'var(--ink)'; btnDate.style.fontWeight = mode === 'date' ? '700' : '400'; }
+  // show/hide day selector and DSR selector
+  var dayBar  = document.getElementById('mb-day-bar');
+  var adminBar = document.getElementById('mbadmin-bar');
+  if (dayBar)   dayBar.style.display   = mode === 'date' ? '' : 'none';
+  if (adminBar) adminBar.style.display = (mode === 'dsr' && currentUser && currentUser.role !== 'dsr') ? 'block' : 'none';
+  mbLoad();
+}
+
+function mbBuildDayOptions() {
+  var sel = document.getElementById('mb-day-sel');
+  if (!sel || !_mbWeekStart) return;
+  sel.innerHTML = '';
+  var allOpt = document.createElement('option');
+  allOpt.value = ''; allOpt.textContent = 'ทุกวัน';
+  sel.appendChild(allOpt);
+  var mon = stlGetMonday(new Date(_mbWeekStart + 'T00:00:00'));
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(mon); d.setDate(mon.getDate() + i);
+    var opt = document.createElement('option');
+    opt.value       = stlDateISO(d);
+    opt.textContent = _THAI_DAYS[d.getDay()] + '. ' + d.getDate() + ' ' + _THAI_MONTHS[d.getMonth()];
+    sel.appendChild(opt);
+  }
+}
+
+function mbRenderFromState() {
+  var dSel     = document.getElementById('mb-dsr-sel');
+  var dsrEmail = currentUser && currentUser.role === 'dsr'
+    ? currentUser.email
+    : (mbGroupMode === 'date' ? '' : (dSel ? dSel.value : ''));
+  var daySel    = document.getElementById('mb-day-sel');
+  var dayFilter = mbGroupMode === 'date' && daySel ? daySel.value : '';
+  var rows = dayFilter ? _mbRows.filter(function(r) { return r.date === dayFilter; }) : _mbRows;
+  mbRenderTable(rows, mbGroupMode === 'date' ? null : dsrEmail);
+  if (mbGroupMode === 'dsr' && dsrEmail) {
+    mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
+  } else {
+    var card = document.getElementById('mb-week-summary');
+    if (card) card.style.display = 'none';
+  }
+}
+
+function mbRenderRowDate(r) {
+  var u    = (window._dsrUsers || []).find(function(u) { return u.email === r.dsrEmail; }) || {};
+  var name = u.display_name || r.dsrEmail;
+  var isAbnormal  = r.status === 'abnormal';
+  var mornBg      = mbMileCellBg(r.morningMile, isAbnormal);
+  var eveBg       = mbMileCellBg(r.eveningMile, isAbnormal);
+  var rowStyle    = (r.status === 'abnormal' || r.status === 'no_morning')
+    ? 'border-left:3px solid #E53935;'
+    : (r.status !== 'complete' ? 'border-left:3px solid #F9A825;' : '');
+  var statusHtml;
+  if      (r.status === 'complete')   statusHtml = '<span style="color:var(--g);font-size:11px;">✓ ครบ</span>';
+  else if (r.status === 'no_evening') statusHtml = '<span style="color:#F9A825;font-size:11px;">⏳ รอกรอกเย็น</span>';
+  else if (r.status === 'no_morning') statusHtml = '<span style="color:#E53935;font-size:11px;">⚠️ ไม่มีเช้า</span>';
+  else if (r.status === 'abnormal')   statusHtml = '<span style="color:#E53935;font-size:11px;">⚠️ ผิดปกติ</span>';
+  else                                statusHtml = '<span style="color:var(--ink3);font-size:11px;">— ยังไม่มี</span>';
+  var isPersonal  = r.vehicleType === 'personal';
+  var fuelEstCell = isPersonal
+    ? '<td class="r">' + (r.depreciationCost ? Math.round(r.depreciationCost).toLocaleString('th-TH') + ' ฿' : '—') + '</td>'
+    : '<td class="r" style="color:var(--ink3);">—</td>';
+  return '<tr data-date="' + r.date + '" data-dsr="' + r.dsrEmail + '" style="' + rowStyle + '">' +
+    '<td style="font-size:12px;color:var(--ink2);">' + (r.dateLabel || r.date) + '</td>' +
+    '<td style="font-weight:600;font-size:13px;">' + name + '</td>' +
+    '<td class="r" style="background:' + mornBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.morningId||'') + '\',\'เช้า\',' + (r.morningMile != null && isFinite(r.morningMile) ? r.morningMile : 'null') + ',\'' + (r.morningImageUrl||'') + '\',\'' + r.date + '\',\'' + r.dsrEmail + '\',\'morning\')">' + mbFmtMile(r.morningMile) + '</td>' +
+    '<td class="r" style="background:' + eveBg + ';cursor:pointer;" onclick="mbOpenEdit(\'' + (r.eveningId||'') + '\',\'เย็น\',' + (r.eveningMile != null && isFinite(r.eveningMile) ? r.eveningMile : 'null') + ',\'' + (r.eveningImageUrl||'') + '\',\'' + r.date + '\',\'' + r.dsrEmail + '\',\'evening\')">' + mbFmtMile(r.eveningMile) + '</td>' +
+    '<td class="r">' + (r.distance != null && isFinite(r.distance) ? r.distance.toLocaleString() + ' กม.' : '—') + '</td>' +
+    '<td>' + (isPersonal ? '🚙 ส่วนตัว' : '🚗 บริษัท') + '</td>' +
+    fuelEstCell +
+    '<td>' + statusHtml + '</td>' +
+    '</tr>';
 }
 
 var _mbWeeklySummary = null;
@@ -3503,14 +3636,14 @@ async function mbConfirmEdit() {
         var tbody = document.getElementById('mb-body');
         var tr = tbody && tbody.querySelector('tr[data-date="' + date + '"][data-dsr="' + dsrEmail + '"]');
         if (tr) {
-          tr.insertAdjacentHTML('afterend', mbRenderRow(updatedRow));
+          tr.insertAdjacentHTML('afterend', mbGroupMode === 'date' ? mbRenderRowDate(updatedRow) : mbRenderRow(updatedRow));
           tr.remove();
         } else {
           // INSERT case: row ยังไม่มีในตาราง → rebuild
           if (result.days) _mbRows = result.days;
-          mbRenderTable(_mbRows, dsrEmail);
+          mbRenderFromState();
         }
-        mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
+        if (mbGroupMode === 'dsr') mbLoadWeeklySummary(dsrEmail, _mbWeekStart);
       } else {
         mbLoad();
       }
@@ -5346,6 +5479,24 @@ var csRows=[], csEdits={}, csBillCache={}, csDropSt={};
 var csWeekOffset=0, csRangeStart=null, csRangeEnd=null;
 var csBillAmounts={}, csStoreCache={};
 var csWeekStart='';
+var csLoadState={};
+var CS_CHUNK_SIZE=3, CS_MAX_INFLIGHT=3;
+var _csLoading=false;
+var _csCurrentWeek;
+
+// generic Promise wrapper สำหรับ google.script.run (ไม่ผ่าน handleApiCall)
+function gsRunP(fnName){
+  var fnArgs=Array.prototype.slice.call(arguments,1);
+  return new Promise(function(resolve,reject){
+    var r=google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+    r[fnName].apply(r,fnArgs);
+  });
+}
+// spinner helpers ระดับ module — ใช้ได้จาก csRender (ไม่ติด closure csLoad)
+function _csShowSpinner(){_dbg('SHOW @ '+new Date().toISOString().slice(14));var i=document.getElementById('cs-refresh-icon'),s=document.getElementById('cs-spinner-icon');if(i)i.classList.add('hidden');if(s)s.classList.add('active');}
+function _csDoneSpinner(){_dbg('DONE @ '+new Date().toISOString().slice(14));_csLoading=false;var i=document.getElementById('cs-refresh-icon'),s=document.getElementById('cs-spinner-icon');if(i)i.classList.remove('hidden');if(s)s.classList.remove('active');}
+// [PROBE] debug overlay helper — ถอดออกหลังวินิจฉัยเสร็จ
+function _dbg(msg){var d=document.getElementById('cs-debug');if(d)d.textContent+=msg+'\n';}
 
 function csTrimInvoice(inv){
   if(!inv)return'';var s=String(inv).trim();
@@ -5488,6 +5639,7 @@ function csWeekDropdownChanged() {
   if (!sel) return;
   var iso = sel.value;
   if (!iso) return;
+  if (iso === _csCurrentWeek) return;
   // compute sun from mon
   var mon = new Date(iso + 'T00:00:00');
   var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
@@ -5499,10 +5651,17 @@ function csWeekDropdownChanged() {
 
 function csLoad(){
   if(!currentUser)return;
-  csInjectCSS();csBillCache={};csDropSt={};csEdits={};csBillAmounts={};csStoreCache={};
+  if(_csLoading)return;
+  _csLoading=true;
+  // [PROBE] สร้าง debug overlay (ไม่เคลียร์ — accumulate ทุก LOAD#)
+  window.csLoadSeq=(window.csLoadSeq||0)+1; var _csSeq=window.csLoadSeq;
+  (function(){var d=document.getElementById('cs-debug');if(!d){d=document.createElement('pre');d.id='cs-debug';d.style.cssText='position:fixed;top:8px;right:8px;background:rgba(0,0,0,.82);color:#fff;font-size:11px;padding:6px 8px;border-radius:6px;z-index:999999;max-width:320px;white-space:pre-wrap;max-height:60vh;overflow-y:auto;margin:0;pointer-events:none;';document.body.appendChild(d);}/* no clear */})();
+  _dbg('LOAD#'+_csSeq+' @ '+new Date().toISOString().slice(17,23)+' '+(new Error().stack.split('\n')[2]||'').trim().slice(0,60));
+  csInjectCSS();csBillCache={};csDropSt={};csEdits={};csBillAmounts={};csStoreCache={};csLoadState={};
 
   var r=csGetRange(),startIso=_localIso(r.mon),endIso=_localIso(r.sun);
   csWeekStart=startIso;
+  _csCurrentWeek=startIso;
 
   // TASK 4C: populate the dropdown selector
   csBuildWeekDropdown(startIso);
@@ -5525,7 +5684,7 @@ function csLoad(){
   google.script.run
     .withSuccessHandler(function(d){
       _hideSpin();
-      if(!d||d.error){app.textContent='ERROR: '+(d?d.error:'no data');return;}
+      if(!d||d.error){_csLoading=false;app.textContent='ERROR: '+(d?d.error:'no data');return;}
       csRows=d.rows||[];
       if(d.pendingRows&&d.pendingRows.length)csRows=csRows.concat(d.pendingRows);
       csEdits={};csBillAmounts={};csStoreCache={};
@@ -5537,6 +5696,7 @@ function csLoad(){
     })
     .withFailureHandler(function(e){
       _hideSpin();
+      _csLoading=false;
       app.textContent='ERROR: '+e.message;
     })
     .getDsrWeekSlipsWithPendingRows((currentUser.role==='admin'?'ALL':currentUser.email),monStr,sunStr);
@@ -5559,7 +5719,8 @@ function fmtD_cs(s){var mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.'
 function csSortRows(){csRows.sort(function(a,b){return new Date(a['วันที่ส่งสลิป']||a['created_at']||0)-new Date(b['วันที่ส่งสลิป']||b['created_at']||0);});}
 
 function csRender(container){
-  if(!csRows.length){container.style.cssText='background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:32px;text-align:center;color:var(--ink3);font-size:13px;margin-bottom:12px;';container.textContent='ยังไม่มีสลิปในช่วงนี้';return;}
+  _dbg('RENDER @ '+new Date().toISOString().slice(17,23));
+  if(!csRows.length){_csLoading=false;container.style.cssText='background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:32px;text-align:center;color:var(--ink3);font-size:13px;margin-bottom:12px;';container.textContent='ยังไม่มีสลิปในช่วงนี้';return;}
   csSortRows();
   var tbl='<div class="cs-tbl-wrap" style="background:var(--card);border-radius:var(--radius);border:1px solid var(--border);animation:fadeUp .3s ease;margin-bottom:12px;">'
     +'<table class="cs-tbl"><thead><tr>'
@@ -5576,7 +5737,7 @@ function csRender(container){
   container.style.cssText='background:transparent;border-radius:var(--radius);margin-bottom:12px;overflow:visible;';
   container.innerHTML=tbl;
 
-  // Skeleton: ชื่อร้านที่ยังไม่มีข้อมูล → shimmer ก่อน
+  // Skeleton: ชื่อร้านที่ยังไม่มีข้อมูล → shimmer ก่อน (reuse pattern เดิม)
   csRows.forEach(function(r){
     var cust=(r['รหัสลูกค้า']||'').toString().trim();
     if(cust&&!(r['ชื่อร้าน']||'').trim()){
@@ -5585,26 +5746,42 @@ function csRender(container){
     }
   });
 
-  // Batch call 1 ครั้ง แทน N individual calls
-  var _batchPayload={
-    customers:csRows.filter(function(r){return !!(r['รหัสลูกค้า']||'').toString().trim();}).map(function(r){
-      return{custCode:(r['รหัสลูกค้า']||'').toString().trim(),invoiceNo:(r['เลขที่บิล']||'').toString().trim(),rowIndex:r._row};
-    }),
-    weekStart:csWeekStart
-  };
-  if(_batchPayload.customers.length){
-    google.script.run
-      .withSuccessHandler(csApplyBatchResult)
-      .withFailureHandler(function(){
-        csRows.forEach(function(r){
-          var el=document.getElementById('cs-billamt-'+r._row);
-          if(el){el.className='';el.innerHTML='<span class="cs-muted">—</span>';}
-          var shopEl=document.getElementById('cs-shop-'+r._row);
-          if(shopEl&&shopEl.querySelector('.skel'))shopEl.textContent='';
-        });
-      })
-      .getCoverSheetBatch(_batchPayload);
+  // Progressive chunks: แตก csRows เป็น chunk ขนาด CS_CHUNK_SIZE
+  // queue runner วิ่งพร้อมกันสูงสุด CS_MAX_INFLIGHT
+  var _allRows=csRows.filter(function(r){return !!(r['รหัสลูกค้า']||'').toString().trim();});
+  _allRows.forEach(function(r){csLoadState[r._row]='loading';});
+  if(!_allRows.length){_csLoading=false;return;}
+  _csShowSpinner();
+
+  var _chunks=[],_ci;
+  for(_ci=0;_ci<_allRows.length;_ci+=CS_CHUNK_SIZE)_chunks.push(_allRows.slice(_ci,_ci+CS_CHUNK_SIZE));
+
+  var _settled=0,_total=_allRows.length,_next=0,_inflight=0;
+  function _onSettle(n){_settled+=n;_dbg('SETTLE '+_settled+'/'+_total);if(_settled>=_total)_csDoneSpinner();}
+
+  function _runChunk(chunk){
+    var payload={customers:chunk.map(function(r){return{custCode:(r['รหัสลูกค้า']||'').toString().trim(),invoiceNo:(r['เลขที่บิล']||'').toString().trim(),rowIndex:r._row};}),weekStart:csWeekStart};
+    function _onChunkOk(res){try{csApplyChunkResult(res,chunk);}catch(err){_dbg('THROW rows='+chunk.map(function(r){return r._row;})+' '+err.message);throw err;}chunk.forEach(function(r){csLoadState[r._row]='done';});_inflight--;_onSettle(chunk.length);_launch();}
+    function _onChunkFail(){
+      chunk.forEach(function(r){
+        csLoadState[r._row]='error';
+        var amtEl=document.getElementById('cs-billamt-'+r._row);
+        if(amtEl){amtEl.className='';amtEl.innerHTML='<span class="cs-muted">—</span>';}
+        var shopEl=document.getElementById('cs-shop-'+r._row);
+        if(shopEl&&!(r['ชื่อร้าน']||'').toString().trim()){shopEl.innerHTML='<span class="cs-muted">—</span>';}
+      });
+      _inflight--;_onSettle(chunk.length);_launch();
+    }
+    // retry 1 ครั้งเงียบๆ ก่อน fail
+    gsRunP('getCoverSheetBatch',payload)
+      .then(_onChunkOk)
+      .catch(function(){gsRunP('getCoverSheetBatch',payload).then(_onChunkOk).catch(_onChunkFail);});
   }
+
+  function _launch(){
+    while(_inflight<CS_MAX_INFLIGHT&&_next<_chunks.length){_inflight++;_runChunk(_chunks[_next++]);}
+  }
+  _launch();
 }
 
 function csStaticRow(r,i){
@@ -5641,23 +5818,27 @@ function csStaticRow(r,i){
     +'</tr>';
 }
 
-// ── batch result handler ────────────────────────────────────────
-function csApplyBatchResult(res){
-  if(!res||!res.billsMap)return;
-  // โหลด cache จาก batch response
+// ── chunk result handler (progressive) ──────────────────────────
+function csApplyChunkResult(res,chunkRows){
+  if(!res||!res.billsMap){
+    // GAS คืน null → clear shimmer ใน chunk นี้เป็น '—'
+    chunkRows.forEach(function(r){
+      var amtEl=document.getElementById('cs-billamt-'+r._row);
+      if(amtEl){amtEl.className='';amtEl.innerHTML='<span class="cs-muted">—</span>';}
+    });
+    return;
+  }
   Object.keys(res.billsMap).forEach(function(cust){
     var entry=res.billsMap[cust];
     csBillCache[cust]={bills:entry.bills||[],shopName:entry.shopName||''};
     if(entry.storeInvSet)csStoreCache[cust]=entry.storeInvSet;
   });
-  // Apply ทุก row พร้อมกัน
-  csRows.forEach(function(r){
+  chunkRows.forEach(function(r){
     var cust=(r['รหัสลูกค้า']||'').toString().trim();
     var inv=(r['เลขที่บิล']||'').toString().trim();
     if(cust)csApplyLookup(cust,r._row,inv);
   });
-  // Fallback: ถ้าหา shop name ไม่เจอ → แสดงรหัสลูกค้าแทน
-  csRows.forEach(function(r){
+  chunkRows.forEach(function(r){
     var cust=(r['รหัสลูกค้า']||'').toString().trim();
     if(!cust)return;
     var shopEl=document.getElementById('cs-shop-'+r._row);
@@ -5675,7 +5856,7 @@ function csApplyLookup(cust,ri,inv){
 
   if(!inv){var el=document.getElementById('cs-billamt-'+ri);if(el){el.className='';el.innerHTML='<span class="cs-muted">—</span>';}return;}
   var norm=csTrimInvoice(inv).toLowerCase();
-  var match=bills.find(function(b){return csTrimInvoice(b.invoiceNo).toLowerCase()===norm||b.invoiceNo.toLowerCase().indexOf(norm)>=0;});
+  var match=bills.find(function(b){if(b.invoiceNo==null)_dbg('NULL_INV '+JSON.stringify(b));return csTrimInvoice(b.invoiceNo).toLowerCase()===norm||b.invoiceNo.toLowerCase().indexOf(norm)>=0;});
   var amtEl=document.getElementById('cs-billamt-'+ri),dueEl=document.getElementById('cs-due-'+ri);
   var invEl=document.getElementById('cs-inv-'+ri);
 
@@ -5957,7 +6138,7 @@ function csCancelEdit(ri){
 }
 
 function csEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function csReload(){if(Object.keys(csEdits).length&&!confirm('มีการแก้ไขที่ยังไม่ได้บันทึก — โหลดใหม่?'))return;csLoad();}
+function csReload(){if(Object.keys(csEdits).length&&!confirm('มีการแก้ไขที่ยังไม่ได้บันทึก — โหลดใหม่?'))return;_csLoading=false;csLoad();}
 
 function csSave(){
   console.log('[csSave] fired, currentUser=', currentUser ? currentUser.email : 'null');
