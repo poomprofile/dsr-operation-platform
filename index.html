@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
@@ -106,7 +106,7 @@ body.no-overnight .stl-ov-col { display: none; }
 
 #screen-login {
   min-height: 100vh;
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -5494,10 +5494,8 @@ function gsRunP(fnName){
   });
 }
 // spinner helpers ระดับ module — ใช้ได้จาก csRender (ไม่ติด closure csLoad)
-function _csShowSpinner(){_dbg('SHOW @ '+new Date().toISOString().slice(14));var i=document.getElementById('cs-refresh-icon'),s=document.getElementById('cs-spinner-icon');if(i)i.classList.add('hidden');if(s)s.classList.add('active');}
-function _csDoneSpinner(){_dbg('DONE @ '+new Date().toISOString().slice(14));_csLoading=false;var i=document.getElementById('cs-refresh-icon'),s=document.getElementById('cs-spinner-icon');if(i)i.classList.remove('hidden');if(s)s.classList.remove('active');}
-// [PROBE] debug overlay helper — ถอดออกหลังวินิจฉัยเสร็จ
-function _dbg(msg){var d=document.getElementById('cs-debug');if(d)d.textContent+=msg+'\n';}
+function _csShowSpinner(){var i=document.getElementById('cs-refresh-icon'),s=document.getElementById('cs-spinner-icon');if(i)i.classList.add('hidden');if(s)s.classList.add('active');}
+function _csDoneSpinner(){_csLoading=false;var i=document.getElementById('cs-refresh-icon'),s=document.getElementById('cs-spinner-icon');if(i)i.classList.remove('hidden');if(s)s.classList.remove('active');}
 
 function csTrimInvoice(inv){
   if(!inv)return'';var s=String(inv).trim();
@@ -5660,10 +5658,6 @@ function csLoad(){
   if(!currentUser)return;
   if(_csLoading)return;
   _csLoading=true;
-  // [PROBE] สร้าง debug overlay (ไม่เคลียร์ — accumulate ทุก LOAD#)
-  window.csLoadSeq=(window.csLoadSeq||0)+1; var _csSeq=window.csLoadSeq;
-  (function(){var d=document.getElementById('cs-debug');if(!d){d=document.createElement('pre');d.id='cs-debug';d.style.cssText='position:fixed;top:8px;right:8px;background:rgba(0,0,0,.82);color:#fff;font-size:11px;padding:6px 8px;border-radius:6px;z-index:999999;max-width:320px;white-space:pre-wrap;max-height:60vh;overflow-y:auto;margin:0;pointer-events:none;';document.body.appendChild(d);}/* no clear */})();
-  _dbg('LOAD#'+_csSeq+' @ '+new Date().toISOString().slice(17,23)+' '+(new Error().stack.split('\n')[2]||'').trim().slice(0,60));
   csInjectCSS();csBillCache={};csDropSt={};csEdits={};csBillAmounts={};csStoreCache={};csLoadState={};
 
   var r=csGetRange(),startIso=_localIso(r.mon),endIso=_localIso(r.sun);
@@ -5703,8 +5697,9 @@ function csLoad(){
     })
     .withFailureHandler(function(e){
       _hideSpin();
-      _csLoading=false;
-      app.textContent='ERROR: '+e.message;
+      _csLoading=false;csRows=[];csLoadState={};
+      var _msg=(e&&e.message)?e.message:String(e);
+      app.textContent='โหลดข้อมูลไม่สำเร็จ: '+_msg;
     })
     .getDsrWeekSlipsWithPendingRows((currentUser.role==='admin'?'ALL':currentUser.email),monStr,sunStr);
 }
@@ -5726,7 +5721,6 @@ function fmtD_cs(s){var mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.'
 function csSortRows(){csRows.sort(function(a,b){return new Date(a['วันที่ส่งสลิป']||a['created_at']||0)-new Date(b['วันที่ส่งสลิป']||b['created_at']||0);});}
 
 function csRender(container){
-  _dbg('RENDER @ '+new Date().toISOString().slice(17,23));
   if(!csRows.length){_csLoading=false;container.style.cssText='background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:32px;text-align:center;color:var(--ink3);font-size:13px;margin-bottom:12px;';container.textContent='ยังไม่มีสลิปในช่วงนี้';return;}
   csSortRows();
   var tbl='<div class="cs-tbl-wrap" style="background:var(--card);border-radius:var(--radius);border:1px solid var(--border);animation:fadeUp .3s ease;margin-bottom:12px;">'
@@ -5764,11 +5758,11 @@ function csRender(container){
   for(_ci=0;_ci<_allRows.length;_ci+=CS_CHUNK_SIZE)_chunks.push(_allRows.slice(_ci,_ci+CS_CHUNK_SIZE));
 
   var _settled=0,_total=_allRows.length,_next=0,_inflight=0;
-  function _onSettle(n){_settled+=n;_dbg('SETTLE '+_settled+'/'+_total);if(_settled>=_total)_csDoneSpinner();}
+  function _onSettle(n){_settled+=n;if(_settled>=_total)_csDoneSpinner();}
 
-  function _runChunk(chunk){
+  function _runChunk(chunk,_chunkIdx){ /*chunk-idx plumbing*/
     var payload={customers:chunk.map(function(r){return{custCode:(r['รหัสลูกค้า']||'').toString().trim(),invoiceNo:(r['เลขที่บิล']||'').toString().trim(),rowIndex:r._row};}),weekStart:csWeekStart};
-    function _onChunkOk(res){try{csApplyChunkResult(res,chunk);}catch(err){_dbg('THROW rows='+chunk.map(function(r){return r._row;})+' '+err.message);throw err;}chunk.forEach(function(r){csLoadState[r._row]='done';});_inflight--;_onSettle(chunk.length);_launch();}
+    function _onChunkOk(res){try{csApplyChunkResult(res,chunk);}catch(err){throw err;}chunk.forEach(function(r){csLoadState[r._row]='done';});_inflight--;_onSettle(chunk.length);_launch();}
     function _onChunkFail(){
       chunk.forEach(function(r){
         csLoadState[r._row]='error';
@@ -5781,12 +5775,12 @@ function csRender(container){
     }
     // retry 1 ครั้งเงียบๆ ก่อน fail
     gsRunP('getCoverSheetBatch',payload)
-      .then(_onChunkOk)
-      .catch(function(){gsRunP('getCoverSheetBatch',payload).then(_onChunkOk).catch(_onChunkFail);});
+        .then(_onChunkOk)
+        .catch(function(){gsRunP('getCoverSheetBatch',payload).then(_onChunkOk).catch(_onChunkFail);});
   }
 
   function _launch(){
-    while(_inflight<CS_MAX_INFLIGHT&&_next<_chunks.length){_inflight++;_runChunk(_chunks[_next++]);}
+    while(_inflight<CS_MAX_INFLIGHT&&_next<_chunks.length){_inflight++;var _ci=_next++; /*chunk-idx plumbing*/ _runChunk(_chunks[_ci],_ci);}
   }
   _launch();
 }
@@ -5863,7 +5857,7 @@ function csApplyLookup(cust,ri,inv){
 
   if(!inv){var el=document.getElementById('cs-billamt-'+ri);if(el){el.className='';el.innerHTML='<span class="cs-muted">—</span>';}return;}
   var norm=csTrimInvoice(inv).toLowerCase();
-  var match=bills.find(function(b){if(b.invoiceNo==null)_dbg('NULL_INV '+JSON.stringify(b));return csTrimInvoice(b.invoiceNo).toLowerCase()===norm||b.invoiceNo.toLowerCase().indexOf(norm)>=0;});
+  var match=bills.find(function(b){return csTrimInvoice(b.invoiceNo).toLowerCase()===norm||b.invoiceNo.toLowerCase().indexOf(norm)>=0;});
   var amtEl=document.getElementById('cs-billamt-'+ri),dueEl=document.getElementById('cs-due-'+ri);
   var invEl=document.getElementById('cs-inv-'+ri);
 

@@ -250,7 +250,7 @@ function updateMileageBotRecord(payload, user) {
     try {
       ensureMileageWeekStatusSheet();
       weekFrozen = sheetToObjects(MB.STATUS_SHEET).some(function(r) {
-        return r.dsrEmail === dsrEmail && r.weekStart === weekStart;
+        return r.dsrEmail === dsrEmail && normDateStr(r.weekStart) === normDateStr(weekStart);
       });
     } catch(_) {}
   }
@@ -376,6 +376,8 @@ function updateMileageBotRecord(payload, user) {
   console.log('[updateMileageBotRecord] op=%s dsrEmail=%s date=%s session=%s old=%s new=%s',
     op, dsrEmail, dateStr, session, oldMile, newMile);
 
+  if (weekFrozen) _invalidateSettlementCache(dsrEmail, weekStart);
+
   return {
     success:     true,
     weekFrozen:  weekFrozen,
@@ -419,14 +421,27 @@ function getMileageWeeklySummary(dsrEmail, weekStart) {
     });
   } catch(_) {}
 
-  var currentStatusRow = allStatusRows.find(function(r) { return r.weekStart === weekStart; });
+  console.log('[getMileageWeeklySummary] lookYkup dsrEmail=%j weekStart=%j(%s)',
+    dsrEmail, weekStart, typeof weekStart);
+  // ── หา freeze row: ถ้ามีหลายแถว dsrEmail+weekStart ตรงกัน (ซ้ำ) ──
+  //    หยิบแถวที่ submittedAt ล่าสุด ไม่ใช่แถวแรกที่เจอในชีต
+  var matchingStatusRows = allStatusRows.filter(function(r) {
+    var match = (r.dsrEmail === dsrEmail && normDateStr(r.weekStart) === normDateStr(weekStart));
+    console.log('[getMileageWeeklySummary] row dsrEmail=%j weekStart=%j match=%s',
+      r.dsrEmail, r.weekStart, match);
+    return match;
+  });
+  matchingStatusRows.sort(function(a, b) {
+    return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+  });
+  var currentStatusRow = matchingStatusRows[0] || null;
   var submitted = !!currentStatusRow;
 
   // Previous week's fuelRate (last submitted week before current)
   var prevRows = allStatusRows.filter(function(r) {
-    return r.weekStart < weekStart && r.fuelRate !== undefined && r.fuelRate !== '';
+    return normDateStr(r.weekStart) < normDateStr(weekStart) && r.fuelRate !== undefined && r.fuelRate !== '';
   });
-  prevRows.sort(function(a, b) { return b.weekStart.localeCompare(a.weekStart); });
+  prevRows.sort(function(a, b) { return normDateStr(b.weekStart).localeCompare(normDateStr(a.weekStart)); });
   var prevFuelRate = prevRows.length > 0 ? (parseFloat(prevRows[0].fuelRate) || 0) : 0;
 
   var fuelRate, fuelCost;
@@ -464,9 +479,12 @@ function submitWeeklyMileageSummary(dsrEmail, weekStart, user, fuelRate) {
 
   var resolvedFuelRate = parseFloat(fuelRate) || 0;
 
+  console.log('[submitWeeklyMileageSummary] PRE-APPEND dsrEmail=%s weekStart=%j(%s) fuelRate=%s',
+    dsrEmail, weekStart, typeof weekStart, fuelRate);
+
   ensureMileageWeekStatusSheet();
   var exists = sheetToObjects(MB.STATUS_SHEET).some(function(r) {
-    return r.dsrEmail === dsrEmail && r.weekStart === weekStart;
+    return r.dsrEmail === dsrEmail && normDateStr(r.weekStart) === normDateStr(weekStart);
   });
   if (exists) return { submitted: true, alreadySubmitted: true };
 
@@ -489,7 +507,7 @@ function submitWeeklyMileageSummary(dsrEmail, weekStart, user, fuelRate) {
 
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][eIdx]) !== dsrEmail) continue;
-    var dt = new Date(String(data[i][dIdx]) + 'T00:00:00');
+    var dt = new Date(normDateStr(data[i][dIdx]) + 'T00:00:00');
     if (dt < start || dt > end) continue;
     sheet.getRange(i + 1, subIdx + 1).setValue('TRUE');
   }
@@ -502,6 +520,8 @@ function submitWeeklyMileageSummary(dsrEmail, weekStart, user, fuelRate) {
     fuelRate:    resolvedFuelRate,
     fuelCost:    fuelCost,
   });
+
+  _invalidateSettlementCache(dsrEmail, weekStart);
 
   console.log('[submitWeeklyMileageSummary] dsrEmail=%s weekStart=%s fuelRate=%s fuelCost=%s',
     dsrEmail, weekStart, resolvedFuelRate, fuelCost);

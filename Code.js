@@ -3,7 +3,6 @@
 // ║  Google Apps Script Backend  •  Code.gs  •  v2.0                ║
 // ║  Deploy → Web App → Execute as: Me → Access: Anyone w/ Google   ║
 // ╚══════════════════════════════════════════════════════════════════╝
-
 'use strict';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -85,7 +84,7 @@ function doGet(e) {
     try {
       return handleOAuthCallback_(p.code, p.state);
     } catch(err) {
-      return HtmlService.createHtmlOutput('<p><b>OAuth Error:</b> ' + err.message + '</p><pre>' + err.stack + '</pre><a href="' + ScriptApp.getService().getUrl() + '">ลองใหม่</a>');
+      return HtmlService.createHtmlOutput('<p><b>OAuth Error:</b> ' + err.message + '</p><pre>' + err.stack + '</pre><a href="' + ScriptApp.getService().getUrl() + '" target="_top">ลองใหม่</a>');
     }
   }
 
@@ -107,6 +106,26 @@ function doGet(e) {
 
   // ── Not authenticated → show login page ──────────────────────────────
   return serveLoginPage_();
+}
+
+// ── serveTopRedirect_ — break out of Apps Script iframe sandbox แล้ว redirect ──
+// ใช้ window.top.location.href แทน meta-refresh เพราะ meta-refresh ใน iframe
+// sandbox ของ Apps Script จะ refresh แค่ใน iframe ไม่หลุดออกไป top-level
+function serveTopRedirect_(url, message) {
+  return HtmlService.createHtmlOutput(
+    '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<style>body{font-family:sans-serif;text-align:center;padding:60px 20px;}' +
+    '.btn{display:inline-block;margin-top:18px;padding:14px 36px;font-size:17px;font-weight:bold;' +
+    'background:#007B40;color:#fff;border-radius:10px;text-decoration:none;}</style></head>' +
+    '<body>' +
+    '<p style="font-size:16px;">' + (message || 'เข้าสู่ระบบสำเร็จ — กดต่อไปเพื่อเข้าใช้งาน') + '</p>' +
+    '<a id="goBtn" class="btn" href="' + url + '" target="_top">ต่อไป</a>' +
+    '<script>' +
+      'try { window.top.location.href = ' + JSON.stringify(url) + '; } catch(e) {}' +
+      'document.getElementById("goBtn").focus();' +
+    '</script>' +
+    '</body></html>'
+  );
 }
 
 function serveLoginPage_() {
@@ -133,7 +152,7 @@ function handleOAuthCallback_(code, state) {
 
   if (!cache.get('oauth_state_' + state)) {
     var fallback = ScriptApp.getService().getUrl();
-    return HtmlService.createHtmlOutput('<p>Session หมดอายุ — <a href="' + fallback + '">ลองใหม่</a></p>');
+    return HtmlService.createHtmlOutput('<p>Session หมดอายุ — <a href="' + fallback + '" target="_top">ลองใหม่</a></p>');
   }
   // ใช้ URL ที่ถูก cache ไว้ตอนสร้าง login page — ป้องกัน ScriptApp.getService().getUrl() คืน URL เก่า
   var appUrl = cache.get('oauth_url_' + state) || ScriptApp.getService().getUrl();
@@ -153,7 +172,7 @@ function handleOAuthCallback_(code, state) {
     muteHttpExceptions: true,
   });
   if (tokenRes.getResponseCode() !== 200) {
-    return HtmlService.createHtmlOutput('<p>Token exchange ล้มเหลว — <a href="' + appUrl + '">ลองใหม่</a></p>');
+    return HtmlService.createHtmlOutput('<p>Token exchange ล้มเหลว — <a href="' + appUrl + '" target="_top">ลองใหม่</a></p>');
   }
 
   // ดึง email จาก userinfo API (server-side — ปลอดภัย)
@@ -164,7 +183,7 @@ function handleOAuthCallback_(code, state) {
   }).getContentText());
 
   if (!info.email || String(info.email_verified) !== 'true') {
-    return HtmlService.createHtmlOutput('<p>ยืนยัน email ไม่ได้ — <a href="' + appUrl + '">ลองใหม่</a></p>');
+    return HtmlService.createHtmlOutput('<p>ยืนยัน email ไม่ได้ — <a href="' + appUrl + '" target="_top">ลองใหม่</a></p>');
   }
   if (!isAllowedEmail(info.email)) {
     return HtmlService.createHtmlOutput('<p>ไม่พบบัญชีในระบบ (' + info.email + ') — ติดต่อภูมิ หรือเฟิร์น</p>');
@@ -182,15 +201,19 @@ function handleOAuthCallback_(code, state) {
     province_zone: profile.province_zone,
   };
   var sessionToken = Utilities.getUuid();
-  cache.put('sess_' + sessionToken, JSON.stringify(user), CONFIG.SESSION_TTL_SEC);
 
-  // Serve index.html โดยตรง — ไม่ต้อง redirect (ไม่มีหน้า intermediate)
-  var tmpl = HtmlService.createTemplateFromFile('index');
-  tmpl.userToken   = sessionToken;
-  tmpl.userProfile = JSON.stringify(user);
-  return tmpl.evaluate()
-    .setTitle('DSR Portal — Nice Center Oil')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  // ── Redirect ไป URL สะอาด (?token=) แทนการ serve index.html ตรงจาก
+  //    URL ที่ยังมี ?code&state ค้างอยู่ — ป้องกัน F5 ส่ง state ที่ใช้แล้วซ้ำ
+  //    (anti-replay cache ถูก remove ไปแล้วด้านบน → ชน "Session หมดอายุ" ทันที)
+  //    redirect เฉพาะเมื่อ cache.put token ใหม่สำเร็จแล้วเท่านั้น กัน loop กลับ callback
+  try {
+    cache.put('sess_' + sessionToken, JSON.stringify(user), CONFIG.SESSION_TTL_SEC);
+    var cleanUrl = appUrl + '?token=' + encodeURIComponent(sessionToken);
+    return serveTopRedirect_(cleanUrl);
+  } catch (cacheErr) {
+    console.error('[handleOAuthCallback_] cache.put failed: ' + cacheErr.message);
+    return serveLoginPage_();
+  }
 }
 
 function doPost(e) {
@@ -4789,6 +4812,14 @@ function getMileageBotForSettlement(weekStart, dsrEmail) {
   };
 }
 
+// ─── _invalidateSettlementCache — ล้าง cache ของ getSettlementPageData ────
+// key format ต้องตรงกับที่ getSettlementPageData ใช้สร้าง cache เป๊ะ (ห้ามแก้ไม่พร้อมกัน)
+function _invalidateSettlementCache(dsrEmail, weekStart) {
+  try {
+    CacheService.getScriptCache().remove('stl_' + dsrEmail + '_' + weekStart);
+  } catch(_) {}
+}
+
 // ─── getSettlementPageData — batch loader for settlement page ─────────────
 function getSettlementPageData(weekStart, dsrEmail) {
   console.log('[getSettlementPageData] weekStart=%s dsrEmail=%s', weekStart, dsrEmail);
@@ -4807,7 +4838,7 @@ function getSettlementPageData(weekStart, dsrEmail) {
   var slipTotal  = getWeeklySlipTotal(weekStart, dsrEmail);
   var slipByDate = getWeeklySlipByDate(weekStart, dsrEmail);
   var result = { income: income, expenses: expenses, mileage: mileage, mileageMeta: mileageMeta, slipTotal: slipTotal, slipByDate: slipByDate };
-  try { cache.put(cacheKey, JSON.stringify(result), 180); } catch(_) {}
+  try { cache.put(cacheKey, JSON.stringify(result), 60); } catch(_) {}
   return result;
 }
 
@@ -5223,6 +5254,8 @@ function getCoverSheetBatch(payload) {
 
   var todayBKK = bkkToday();
 
+  var readErr = false; // true ถ้า read source ใดล้มเหลว (batch-level)
+
   // ── Read com_debt-initial (Castrol) ──
   var CASTROL_SS_ID = '1j969ymKjtLWQAgRf_kSEaQQLrpHvDfk1KBswquw4WDI';
   try {
@@ -5278,7 +5311,8 @@ function getCoverSheetBatch(payload) {
       }
     }
   } catch(e) {
-    console.log('[getCoverSheetBatch] Castrol debt sheet error: ' + e.message);
+    readErr = true;
+    console.log('[getCoverSheetBatch] readErr source=castrol: ' + e.message);
   }
 
   // ── Read Pay sheet 1 ครั้ง ──
@@ -5338,7 +5372,8 @@ function getCoverSheetBatch(payload) {
       }
     }
   } catch(e) {
-    console.log('[getCoverSheetBatch] Pay sheet error: ' + e.message);
+    readErr = true;
+    console.log('[getCoverSheetBatch] readErr source=pay: ' + e.message);
   }
 
   // Build invoiceMap จาก storeInvSets
@@ -5354,7 +5389,7 @@ function getCoverSheetBatch(payload) {
     };
   });
 
-  var result = { billsMap: billsMap, invoiceMap: invoiceMap };
+  var result = { billsMap: billsMap, invoiceMap: invoiceMap, readErr: readErr };
 
   // Cache (ถ้า response ใหญ่เกิน 100KB → skip silently)
   try { cache.put(cacheKey, JSON.stringify(result), 300); } catch(e) {}
