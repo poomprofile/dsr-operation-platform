@@ -1920,7 +1920,7 @@ body.no-overnight .stl-ov-col { display: none; }
               <div class="qa-icon" style="background:var(--o-lite);">
                 <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="8" stroke="var(--o)" stroke-width="1.5"/><path d="M11 7v4l2.5 2.5" stroke="var(--o)" stroke-width="1.5" stroke-linecap="round"/></svg>
               </div>
-              <div class="qa-label">บันทึกไมล์รถ</div>
+              <div class="qa-label">สรุปไมล์รถ</div>
             </div>
             <div class="qa-btn" onclick="navTo('collection')">
               <div class="qa-icon" style="background:var(--g-lite);">
@@ -1958,6 +1958,15 @@ body.no-overnight .stl-ov-col { display: none; }
           <div class="section-header">
             <div class="section-title">สรุปเลขไมล์</div>
           </div>
+
+          <!-- Mileage sub-tabs -->
+          <div class="col-subtabs" id="mb-subtabs-bar">
+            <div class="col-subtab active" id="mbtab-btn-weekly"  onclick="switchMbTab('weekly')">รายสัปดาห์</div>
+            <div class="col-subtab"        id="mbtab-btn-pending" onclick="switchMbTab('pending')">รายการรอกรอก</div>
+            <div class="tab-indicator" id="mb-tab-indicator"></div>
+          </div>
+
+          <div class="col-tab-pane active" id="mbtab-weekly">
 
           <!-- Admin: DSR selector -->
           <div id="mbadmin-bar" style="display:none;margin-bottom:12px;">
@@ -2033,6 +2042,31 @@ body.no-overnight .stl-ov-col { display: none; }
               </button>
             </div>
           </div>
+
+          </div><!-- /mbtab-weekly -->
+
+          <!-- Pending fill queue — read-only -->
+          <div class="col-tab-pane" id="mbtab-pending">
+            <div class="card mb-16">
+              <div class="card-title">⏳ รายการรอกรอกไมล์</div>
+              <div style="overflow-x:auto;">
+                <table class="stl-table" style="min-width:400px;">
+                  <thead>
+                    <tr>
+                      <th>วันที่</th>
+                      <th>รอบ</th>
+                      <th class="r">ค่าดิบ OCR</th>
+                      <th>สาเหตุ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mbp-body">
+                    <tr><td colspan="4" class="stl-empty-msg">กดแท็บเพื่อโหลด</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div><!-- /mbtab-pending -->
+
         </div>
 
         <!-- ── page-collection ── สรุปการเก็บเงิน ── -->
@@ -2458,6 +2492,7 @@ body.no-overnight .stl-ov-col { display: none; }
     </div>
     <div class="bnav-item" id="bnav-mileage" onclick="navTo('mileage')">
       <div class="bnav-indicator"></div>
+      <div id="mb-pending-badge" class="bnav-badge" style="display:none">0</div>
       <div class="bnav-icon">
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="8" stroke="var(--ink3)" stroke-width="1.4"/><path d="M11 7v4l2.5 2.5" stroke="var(--ink3)" stroke-width="1.4" stroke-linecap="round"/></svg>
       </div>
@@ -3715,6 +3750,94 @@ async function mbConfirmSubmit() {
   }
 }
 
+// ─── MILEAGE BOT — PENDING FILL QUEUE ──────────────────────────
+var _mbPendingLoaded = false;
+
+function updateMbTabIndicator(activeEl) {
+  var bar = document.getElementById('mb-subtabs-bar');
+  var ind = document.getElementById('mb-tab-indicator');
+  if (!bar || !ind || !activeEl) return;
+  var bRect = bar.getBoundingClientRect();
+  var eRect = activeEl.getBoundingClientRect();
+  ind.style.left  = (eRect.left - bRect.left) + 'px';
+  ind.style.width = eRect.width + 'px';
+}
+
+function switchMbTab(tab) {
+  ['weekly', 'pending'].forEach(function(t) {
+    var pane = document.getElementById('mbtab-' + t);
+    var btn  = document.getElementById('mbtab-btn-' + t);
+    if (pane) pane.classList.toggle('active', t === tab);
+    if (btn)  btn.classList.toggle('active',  t === tab);
+  });
+  requestAnimationFrame(function() {
+    updateMbTabIndicator(document.getElementById('mbtab-btn-' + tab));
+  });
+  if (tab === 'pending' && !_mbPendingLoaded) mbPendingLoad();
+}
+
+async function mbPendingLoad() {
+  var tbody = document.getElementById('mbp-body');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" class="stl-empty-msg">กำลังโหลด...</td></tr>';
+  try {
+    var rows = await apiCall('GET_MILEAGE_PENDING_FILL', {});
+    _mbPendingLoaded = true;
+    var btn = document.getElementById('mbtab-btn-pending');
+    if (btn) btn.textContent = 'รายการรอกรอก' + (rows.length ? ' (' + rows.length + ')' : '');
+    mbRenderPending(rows);
+    updateMbPendingBadge(rows.length);
+  } catch(err) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="stl-empty-msg" style="color:#E53935;">เกิดข้อผิดพลาด: ' + err.message + '</td></tr>';
+  }
+}
+
+function updateMbPendingBadge(count) {
+  var badge = document.getElementById('mb-pending-badge');
+  if (badge) { badge.textContent = count; badge.style.display = count ? '' : 'none'; }
+}
+
+function mbRenderPending(rows) {
+  var tbody = document.getElementById('mbp-body');
+  if (!tbody) return;
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="stl-empty-msg">ไม่มีรายการรอกรอก ✅</td></tr>';
+    return;
+  }
+  var isAdmin   = currentUser && currentUser.role !== 'dsr';
+  var lastEmail = null;
+  var html      = '';
+
+  rows.forEach(function(r) {
+    if (isAdmin && r.dsrEmail !== lastEmail) {
+      var cnt      = rows.filter(function(x) { return x.dsrEmail === r.dsrEmail; }).length;
+      var dsrLabel = r.dsrEmail.split('@')[0];
+      html += '<tr style="background:#F3F4F6;">'
+            + '<td colspan="4" style="font-size:12px;font-weight:700;color:var(--ink2);padding:6px 12px;">'
+            + '👤 ' + dsrLabel + ' (' + cnt + ' รายการ)</td></tr>';
+      lastEmail = r.dsrEmail;
+    }
+
+    var dp      = (r.date || '').split('-');
+    var dateTxt = dp.length === 3 ? dp[2] + '/' + dp[1] : (r.date || '—');
+    var sessTxt = r.session === 'morning' ? 'เช้า' : r.session === 'evening' ? 'เย็น' : (r.session || '—');
+    var rawTxt  = (r.rawMile === '' || r.rawMile == null)
+                  ? '<span style="color:var(--ink3);">อ่านค่าไม่ได้</span>'
+                  : '<span style="font-variant-numeric:tabular-nums;">' + Number(r.rawMile).toLocaleString('th-TH') + '</span>';
+    var reason  = r.errorMsg || r.errorFlag
+                  || (r.sourceFlag === 'prevDay' ? 'ประมาณจากไมล์เย็นก่อนหน้า' : '');
+
+    html += '<tr>'
+          + '<td>' + dateTxt + '</td>'
+          + '<td>' + sessTxt + '</td>'
+          + '<td class="r">' + rawTxt + '</td>'
+          + '<td style="font-size:12px;color:var(--ink3);">' + (reason || '—') + '</td>'
+          + '</tr>';
+  });
+
+  tbody.innerHTML = html;
+}
+
 // ─── SETTLEMENT MODULE F ───────────────────────────────────────
 var _stlIncomeRows  = [];
 var _stlSavedExp    = {};   // date → { fuel, hotel, allowance }
@@ -4411,7 +4534,11 @@ function navTo(page) {
       updateTabIndicator(btn);
     });
   }
-  if (page === 'mileage')    { mbBuildWeekOptions(); mbBuildDsrOptions(); mbLoad(); }
+  if (page === 'mileage') {
+    _mbPendingLoaded = false;
+    mbBuildWeekOptions(); mbBuildDsrOptions(); mbLoad();
+    requestAnimationFrame(function() { updateMbTabIndicator(document.getElementById('mbtab-btn-weekly')); });
+  }
   if (page === 'print') {
     var shared = document.getElementById('cs-shared');
     var slot   = document.getElementById('cs-slot-print');
